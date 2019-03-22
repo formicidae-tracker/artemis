@@ -9,6 +9,11 @@ set(CMAKE_CXX_STANDARD 11)
 
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-
+include(EnableMakeCheck)
 
 find_package(GoogleMock REQUIRED)
+enable_testing()
+enable_make_check()
+
+
+add_subdirectory(src)
