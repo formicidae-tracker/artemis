@@ -1,12 +1,16 @@
-set(SRC_FILES Defer.cpp)
+set(SRC_FILES Defer.cpp
+	          WaitGroup.cpp)
 
-set(HDR_FILES Defer.h)
+set(HDR_FILES Defer.h
+	          WaitGroup.h)
 
 
 set(UTEST_SRC_FILES main-check.cpp
-	                DeferUTest.cpp)
+	                DeferUTest.cpp
+	                WaitGroupUTest.cpp)
 
-set(UTEST_HDR_FILES DeferUTest.h)
+set(UTEST_HDR_FILES DeferUTest.h
+	                WaitGroupUTest.h)
 
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
