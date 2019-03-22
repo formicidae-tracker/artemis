@@ -1,15 +1,18 @@
 #pragma once
 
+#include <condition_variable>
 
 class WaitGroup {
 public:
 	WaitGroup();
 	~WaitGroup();
 
-	void Add(unsigned int i);
+	void Add(int i);
 	void Done();
 	void Wait();
 
 private :
-	void add(int i);
+	int d_value;
+	std::mutex d_mutex;
+	std::condition_variable d_signal;
 };

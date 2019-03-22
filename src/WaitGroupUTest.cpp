@@ -5,6 +5,7 @@
 #include <vector>
 #include "WaitGroup.h"
 
+
 TEST(WaitGroupUTest,TestWaiting) {
 	using namespace std::chrono_literals;
 	WaitGroup wg;
@@ -26,9 +27,9 @@ TEST(WaitGroupUTest,TestWaiting) {
 					flags[i] = true;
 				}));
 	}
-
 	wg.Wait();
 	for ( size_t i = 0 ; i < nbWorkers; ++i ) {
 		EXPECT_EQ(flags[i], true);
+		workers[i].join();
 	}
 }
