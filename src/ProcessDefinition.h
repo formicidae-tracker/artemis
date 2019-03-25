@@ -7,14 +7,14 @@
 #include <hermes/FrameReadout.pb.h>
 
 
+typedef std::function<void(const Frame::Ptr & frame,
+                           const fort::FrameReadout & readout,
+                           const cv::Mat & upstream)> ProcessFunction;
+
 class ProcessDefinition {
 public:
-	typedef size_t WID;
-	typedef std::function<void(WID ID, size_t TotalProcess, const Frame::Ptr & ptr, fort::FrameReadout & frame)> ProcessFunction;
-
 	virtual ~ProcessDefinition();
 
-	virtual bool WantParallel() const = 0;
-	virtual ProcessFunction Definition();
-	virtual void OnAllProcessEnd() = 0;
+	virtual std::vector<ProcessFunction> Prepare(size_t nbProcess, const cv::Size &) =0;
+	virtual void Finalize(const cv::Mat & upstream, fort::FrameReadout & readout, cv::Mat & result) = 0;
 };

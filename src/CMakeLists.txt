@@ -26,7 +26,9 @@ set(SRC_FILES Defer.cpp
 	          FrameGrabber.cpp
 	          ProcessDefinition.cpp
 	          ResizeProcess.cpp
+	          Apriltag2Process.cpp
 	          )
+
 
 set(HDR_FILES Defer.h
 	          WaitGroup.h
@@ -35,6 +37,7 @@ set(HDR_FILES Defer.h
 	          FrameGrabber.h
 	          ProcessDefinition.h
 	          ResizeProcess.h
+	          Apriltag2Process.h
 	          )
 
 
