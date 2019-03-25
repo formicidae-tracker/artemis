@@ -1,0 +1,19 @@
+find_path(EGRABBER_INCLUDE_DIR EGrabber.h
+	      PATH_SUFFIXES include
+	      PATHS /usr/local/opt/euresys/coaxlink
+	            /opt/euresys/coaxlink
+	            )
+
+mark_as_advanced(EGRABBER_INCLUDE_DIR)
+
+
+include(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(EGrabber DEFAULT_MSG EGRABBER_INCLUDE_DIR)
+
+if(EGrabber_FOUND)
+	set(EGRABBER_INCLUDE_DIRS ${GTEST_INCLUDE_DIR})
+
+	include(CMakeFindDependencyMacro)
+	find_dependency(Threads)
+
+endif(EGrabber_FOUND)

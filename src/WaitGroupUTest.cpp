@@ -7,7 +7,6 @@
 
 
 TEST(WaitGroupUTest,TestWaiting) {
-	using namespace std::chrono_literals;
 	WaitGroup wg;
 
 	const size_t nbWorkers = 3;
@@ -22,7 +21,7 @@ TEST(WaitGroupUTest,TestWaiting) {
 		flags[i] = false;
 		wg.Add(1);
 		workers.push_back(std::thread([&wg,&flags,i](){
-					std::this_thread::sleep_for(2ms);
+					std::this_thread::sleep_for(std::chrono::milliseconds(2));
 					wg.Done();
 					flags[i] = true;
 				}));

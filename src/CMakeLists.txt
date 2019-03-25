@@ -1,19 +1,47 @@
+include(CheckCXXSourceRuns)
+
+Check_CXX_Source_Runs(
+"
+#include <system_error>
+
+
+int main() {
+	return std::error_code(EDOM,std::system_category()) == std::errc::argument_out_of_domain;
+}
+"
+ARTEMIS_USE_SYSTEM_CATEGORY)
+
+
+configure_file(config.h.in artemis-config.h)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+
 set(SRC_FILES Defer.cpp
-	          WaitGroup.cpp)
+	          WaitGroup.cpp
+	          EventManager.cpp
+	          )
 
 set(HDR_FILES Defer.h
-	          WaitGroup.h)
+	          WaitGroup.h
+	          EventManager.h
+	          )
 
 
 set(UTEST_SRC_FILES main-check.cpp
 	                DeferUTest.cpp
-	                WaitGroupUTest.cpp)
+	                WaitGroupUTest.cpp
+	                EventManagerUTest.cpp
+	                )
 
 set(UTEST_HDR_FILES DeferUTest.h
-	                WaitGroupUTest.h)
+	                WaitGroupUTest.h
+	                EventManagerUTest.h
+	                )
 
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
+target_link_libraries(artemis-common ${GLOG_LIBRARIES} ${EGRABBER_LIBRARIES})
+
 
 add_executable(artemis main.cpp)
 

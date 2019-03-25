@@ -5,11 +5,19 @@ project(artemis VERSION 0.1.0
 
 cmake_minimum_required(VERSION 3.2)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(EnableMakeCheck)
+
+find_package(EGrabber REQUIRED)
+find_package(GLog REQUIRED)
+
+include_directories(${EGRABBER_INCLUDE_DIRS}
+	                ${GLOG_INCLUDE_DIRS}
+	                )
+
 
 find_package(GoogleMock REQUIRED)
 enable_testing()

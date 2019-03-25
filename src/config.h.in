@@ -1,0 +1,4 @@
+#pragma once
+
+
+#cmakedefine ARTEMIS_USE_SYSTEM_CATEGORY

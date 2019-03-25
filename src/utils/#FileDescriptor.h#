@@ -1,0 +1,16 @@
+#pragma once
+
+#include <memory>
+
+
+namespace os {
+
+
+class FileDescriptor {
+public :
+	typedef std::unique_ptr<FileDescriptor> Ptr;
+
+	typedef
+	
+
+};

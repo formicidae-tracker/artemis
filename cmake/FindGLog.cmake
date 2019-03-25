@@ -1,0 +1,14 @@
+find_library(GLOG_LIBRARY glog)
+
+find_path(GLOG_INCLUDE_DIR glog/logging.h)
+
+mark_as_advanced(GLOG_LIBRARY GLOG_INCLUDE_DIR)
+
+include(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(GLog DEFAULT_MSG GLOG_INCLUDE_DIR GLOG_LIBRARY)
+
+if(GLog_FOUND)
+	set(GLOG_INCLUDE_DIRS ${GLOG_INCLUDE_DIR})
+
+	set(GLOG_LIBRARIES ${GLOG_LIBRARY})
+endif(GLog_FOUND)
