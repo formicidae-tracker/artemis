@@ -43,7 +43,10 @@ set(UTEST_HDR_FILES DeferUTest.h
 
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
-target_link_libraries(artemis-common ${GLOG_LIBRARIES} ${EGRABBER_LIBRARIES})
+target_link_libraries(artemis-common ${GLOG_LIBRARIES}
+	                                 ${EGRABBER_LIBRARIES}
+	                                 ${APRILTAG2_LIBRARIES}
+	                                 )
 
 
 add_executable(artemis main.cpp)
