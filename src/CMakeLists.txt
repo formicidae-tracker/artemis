@@ -1,3 +1,5 @@
+add_subdirectory(hermes)
+
 include(CheckCXXSourceRuns)
 
 Check_CXX_Source_Runs(
@@ -13,13 +15,17 @@ ARTEMIS_USE_SYSTEM_CATEGORY)
 
 
 configure_file(config.h.in artemis-config.h)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}
+	                ${CMAKE_CURRENT_SOURCE_DIR}
+	                )
 
 
 set(SRC_FILES Defer.cpp
 	          WaitGroup.cpp
 	          EventManager.cpp
 	          FrameGrabber.cpp
+	          ProcessDefinition.cpp
+	          ResizeProcess.cpp
 	          )
 
 set(HDR_FILES Defer.h
@@ -27,6 +33,8 @@ set(HDR_FILES Defer.h
 	          EventManager.h
 	          utils/PosixCall.h
 	          FrameGrabber.h
+	          ProcessDefinition.h
+	          ResizeProcess.h
 	          )
 
 

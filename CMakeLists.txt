@@ -14,7 +14,7 @@ include(EnableMakeCheck)
 find_package(EGrabber REQUIRED)
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
-
+find_package(Protobuf 3.5.0 REQUIRED)
 
 include(ExternalProject)
 ExternalProject_Add(APRILTAG2

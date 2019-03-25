@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option optimize_for = LITE_RUNTIME;
+
+import "google/protobuf/timestamp.proto";
+import "Ant.proto";
+
+package fort;
+
+message FrameReadout {
+	int64                     timestamp = 1;
+	int64                     frameID   = 2;
+	repeated Ant              ants      = 3;
+	google.protobuf.Timestamp time      = 4;
+};

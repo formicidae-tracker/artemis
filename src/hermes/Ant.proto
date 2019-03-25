@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+option optimize_for = LITE_RUNTIME;
+
+package fort;
+
+message Ant {
+	int32 ID    = 1;
+	float x     = 2;
+	float y     = 3;
+	float theta = 4;
+};
