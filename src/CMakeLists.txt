@@ -19,11 +19,14 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(SRC_FILES Defer.cpp
 	          WaitGroup.cpp
 	          EventManager.cpp
+	          FrameGrabber.cpp
 	          )
 
 set(HDR_FILES Defer.h
 	          WaitGroup.h
 	          EventManager.h
+	          utils/PosixCall.h
+	          FrameGrabber.h
 	          )
 
 
