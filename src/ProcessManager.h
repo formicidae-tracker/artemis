@@ -25,6 +25,8 @@ typedef std::shared_ptr<EventManager> EventManagerPtr;
 namespace cv {
 class Mat;
 }
+typedef std::shared_ptr<cv::Mat> MatPtr;
+
 
 class ProcessManager {
 public:
@@ -33,16 +35,19 @@ public:
 	               size_t nbWorkers);
 
 
-	void Start(const FramePtr & buffer, cv::Mat & finalFrame, fort::FrameReadout & frameResult);
+	void Start(const FramePtr & buffer,
+	           const MatPtr & finalFrame,
+	           const FrameReadoutPtr & frameResult);
 	bool Done();
 
 private :
+	typedef std::vector<ProcessDefinitionPtr>  ProcessPipeline;
 	typedef std::function<void()> Job;
 	class Worker {
 	public :
 		Worker();
 		~Worker();
-		void StartJob(WaitGroup & wg, const EventManagerPtr & eventManager, Job & j);
+		void StartJob(WaitGroup & wg, const EventManagerPtr & eventManager, const Job & j);
 	private:
 		void Loop();
 
@@ -53,10 +58,21 @@ private :
 		std::thread d_workThread;
 
 	};
+	typedef std::vector<std::unique_ptr<Worker> > WorkerPool;
 
+	void SpawnNext();
+	void SpawnFinalize();
 
-	std::vector<ProcessDefinitionPtr> d_processes;
+	ProcessPipeline                 d_processes;
+	ProcessPipeline::const_iterator d_currentProcess;
+	std::vector<cv::Mat>            d_intermediaryResults;
+	bool                            d_finalized;
+
 	EventManagerPtr d_eventManager;
-	WaitGroup waitGroup;
+	WaitGroup       d_waitGroup;
+	WorkerPool      d_workers;
 
+	FramePtr        d_currentFrame;
+	MatPtr          d_currentFinalFrame;
+	FrameReadoutPtr d_currentFrameReadout;
 };

@@ -60,7 +60,8 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
 	                                 ${APRILTAG2_LIBRARIES}
 	                                 hermes
-	                                 )
+	                                 ${OpenCV_LIBS}
+	                                  "-ldl")
 
 add_executable(artemis main.cpp)
 
