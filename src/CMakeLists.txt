@@ -57,8 +57,8 @@ add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
 	                                 ${APRILTAG2_LIBRARIES}
+	                                 hermes
 	                                 )
-
 
 add_executable(artemis main.cpp)
 

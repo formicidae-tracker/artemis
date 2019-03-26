@@ -32,3 +32,13 @@ TEST(WaitGroupUTest,TestWaiting) {
 		workers[i].join();
 	}
 }
+
+
+TEST(WaitGroupUtest,TestPolling) {
+	WaitGroup wg;
+	EXPECT_EQ(wg.IsDone(),true);
+	wg.Add(1);
+	EXPECT_EQ(wg.IsDone(), false);
+	wg.Done();
+	EXPECT_EQ(wg.IsDone(), true);
+}

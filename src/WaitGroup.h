@@ -9,6 +9,7 @@ public:
 
 	void Add(int i);
 	void Done();
+	bool IsDone();
 	void Wait();
 
 private :

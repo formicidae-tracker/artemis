@@ -11,6 +11,11 @@ void WaitGroup::Done(){
 	Add(-1);
 }
 
+bool WaitGroup::IsDone() {
+	std::lock_guard<std::mutex> lock(d_mutex);
+	return d_value == 0;
+}
+
 void WaitGroup::Wait(){
 	std::unique_lock<std::mutex> lock(d_mutex);
 	d_signal.wait(lock,[this] { return this->d_value == 0 ; });
