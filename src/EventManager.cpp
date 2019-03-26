@@ -97,3 +97,19 @@ EventManager::Event EventManager::NextEvent() const {
 	}
 	return newEvent;
 }
+
+
+
+std::ostream & operator<<(std::ostream & out, const EventManager::Event & e) {
+	static std::vector<std::string> names = {
+		"NONE",
+		"QUIT",
+		"FRAME_READY",
+		"PROCESS_NEED_REFRESH",
+	};
+	if ( e < EventManager::NB_EVENTS & e >= 0) {
+		return out << "Event." << names[(size_t)e];
+	}
+	return out << "<unknown EVENT>";
+
+}

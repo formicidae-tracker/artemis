@@ -1,7 +1,6 @@
 #include "WaitGroup.h"
 
 
-
 WaitGroup::WaitGroup()
 	: d_value(0) { }
 

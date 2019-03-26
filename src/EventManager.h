@@ -17,7 +17,7 @@ public :
 		NONE = 0,
 		QUIT = 1,
 		FRAME_READY  = 2,
-		PROCESS_FINISHED = 3,
+		PROCESS_NEED_REFRESH = 3,
 		NB_EVENTS,
 	};
 	static EventManager::Ptr Create();

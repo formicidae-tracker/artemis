@@ -38,6 +38,7 @@ set(HDR_FILES Defer.h
 	          ProcessDefinition.h
 	          ResizeProcess.h
 	          Apriltag2Process.h
+	          ProcessManager.h
 	          )
 
 
@@ -45,6 +46,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                DeferUTest.cpp
 	                WaitGroupUTest.cpp
 	                EventManagerUTest.cpp
+	                ProcessManager.cpp
 	                )
 
 set(UTEST_HDR_FILES DeferUTest.h
