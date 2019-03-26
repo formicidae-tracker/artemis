@@ -7,7 +7,7 @@
 
 
 TEST(WaitGroupUTest,TestWaiting) {
-	WaitGroup wg;
+	WaitGroup wg,sync;
 
 	const size_t nbWorkers = 3;
 
@@ -16,16 +16,17 @@ TEST(WaitGroupUTest,TestWaiting) {
 	workers.reserve(nbWorkers);
 
 
-
+	sync.Add(1);
 	for (size_t i = 0 ; i < nbWorkers; ++i) {
 		flags[i] = false;
 		wg.Add(1);
-		workers.push_back(std::thread([&wg,&flags,i](){
-					std::this_thread::sleep_for(std::chrono::milliseconds(2));
-					wg.Done();
+		workers.push_back(std::thread([&wg,&flags,&sync,i](){
+					sync.Wait();
 					flags[i] = true;
+					wg.Done();
 				}));
 	}
+	sync.Done();
 	wg.Wait();
 	for ( size_t i = 0 ; i < nbWorkers; ++i ) {
 		EXPECT_EQ(flags[i], true);
