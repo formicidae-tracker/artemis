@@ -27,6 +27,7 @@ set(SRC_FILES Defer.cpp
 	          ProcessDefinition.cpp
 	          ResizeProcess.cpp
 	          Apriltag2Process.cpp
+	          ProcessManager.cpp
 	          )
 
 
@@ -46,12 +47,13 @@ set(UTEST_SRC_FILES main-check.cpp
 	                DeferUTest.cpp
 	                WaitGroupUTest.cpp
 	                EventManagerUTest.cpp
-	                ProcessManager.cpp
+	                ProcessManagerUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES DeferUTest.h
 	                WaitGroupUTest.h
 	                EventManagerUTest.h
+	                ProcessManagerUTest.h
 	                )
 
 if(EGrabber_FOUND)

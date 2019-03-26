@@ -9,8 +9,8 @@ ResizeProcess::ResizeProcess(size_t width, size_t height)
 ResizeProcess::~ResizeProcess() {}
 
 
-std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess) {
-	return std::vector<ProcessFunction>();
+std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::Size & size) {
+	return {};
 }
 
 void ResizeProcess::Finalize(const cv::Mat & upstream,fort::FrameReadout & readout, cv::Mat & result) {

@@ -8,6 +8,8 @@
 
 #include "WaitGroup.h"
 
+#include <opencv2/core.hpp>
+
 class ProcessDefinition;
 typedef std::shared_ptr<ProcessDefinition> ProcessDefinitionPtr;
 
@@ -22,11 +24,6 @@ typedef std::shared_ptr<fort::FrameReadout> FrameReadoutPtr;
 class EventManager;
 typedef std::shared_ptr<EventManager> EventManagerPtr;
 
-namespace cv {
-class Mat;
-}
-typedef std::shared_ptr<cv::Mat> MatPtr;
-
 
 class ProcessManager {
 public:
@@ -36,7 +33,7 @@ public:
 
 
 	void Start(const FramePtr & buffer,
-	           const MatPtr & finalFrame,
+	           const std::shared_ptr<cv::Mat> & finalFrame,
 	           const FrameReadoutPtr & frameResult);
 	bool Done();
 
@@ -72,7 +69,7 @@ private :
 	WaitGroup       d_waitGroup;
 	WorkerPool      d_workers;
 
-	FramePtr        d_currentFrame;
-	MatPtr          d_currentFinalFrame;
-	FrameReadoutPtr d_currentFrameReadout;
+	FramePtr                 d_currentFrame;
+	std::shared_ptr<cv::Mat> d_currentFinalFrame;
+	FrameReadoutPtr          d_currentFrameReadout;
 };

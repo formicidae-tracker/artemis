@@ -10,6 +10,10 @@ ProcessManager::Worker::Worker()
 
 ProcessManager::Worker::~Worker() {
 	d_quit.store(true);
+	{
+		std::lock_guard<std::mutex> lock(d_mutex);
+		d_signal.notify_all();
+	}
 	d_workThread.join();
 }
 
@@ -33,13 +37,19 @@ void ProcessManager::Worker::Loop() {
 		{
 			std::unique_lock<std::mutex> lock(d_mutex);
 			d_signal.wait(lock,  [this,&toDo]() -> bool {
-					if (!d_job) {
+					if ( d_quit.load() == true ) {
+						return true;
+					}
+					if (!d_job ) {
 						return false;
 					}
 					toDo = d_job;
 					d_job.reset();
 					return true;
 				});
+			if (d_quit.load() == true ) {
+				return;
+			}
 		}
 		(*toDo)();
 	}
@@ -57,6 +67,10 @@ ProcessManager::ProcessManager(const std::vector<ProcessDefinitionPtr> & process
 	if (processes.empty() ) {
 		throw std::invalid_argument("ProcessManager: empty process pipeline");
 	}
+	if ( !eventManager ) {
+		throw std::invalid_argument("ProcessManager: empty EventManager reference");
+	}
+
 	d_intermediaryResults.resize(d_processes.size() + 1);
 	d_workers.reserve(nbWorkers);
 	for ( size_t i = 0; i < nbWorkers; ++i ) {
@@ -66,7 +80,9 @@ ProcessManager::ProcessManager(const std::vector<ProcessDefinitionPtr> & process
 }
 
 
-void ProcessManager::Start(const FramePtr & buffer, const MatPtr & finalFrame, const FrameReadoutPtr & frameResult) {
+void ProcessManager::Start(const FramePtr & buffer,
+                           const std::shared_ptr<cv::Mat> & finalFrame,
+                           const FrameReadoutPtr & frameResult) {
 	d_currentFrame = buffer;
 	d_currentFinalFrame = finalFrame;
 	d_currentFrameReadout = frameResult;
