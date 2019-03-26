@@ -54,6 +54,10 @@ set(UTEST_HDR_FILES DeferUTest.h
 	                EventManagerUTest.h
 	                )
 
+if(EGrabber_FOUND)
+	list(APPEND SRC_FILES EuresysFrameGrabber.cpp)
+	list(APPEND HDR_FILES EuresysFrameGrabber.h)
+endif(EGrabber_FOUND)
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}

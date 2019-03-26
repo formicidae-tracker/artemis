@@ -5,6 +5,7 @@
 #include "FrameGrabber.h"
 
 #include <hermes/FrameReadout.pb.h>
+#include <opencv2/core.hpp>
 
 
 typedef std::function<void(const Frame::Ptr & frame,
