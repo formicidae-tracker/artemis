@@ -9,13 +9,18 @@
 
 
 typedef std::function<void(const Frame::Ptr & frame,
-                           const fort::FrameReadout & readout,
-                           const cv::Mat & upstream)> ProcessFunction;
+                           const cv::Mat & upstream,
+                           fort::FrameReadout & readout,
+                           cv::Mat & result)> ProcessFunction;
 
 class ProcessDefinition {
 public:
+	typedef std::shared_ptr<ProcessDefinition> Ptr;
+
 	virtual ~ProcessDefinition();
 
-	virtual std::vector<ProcessFunction> Prepare(size_t nbProcess, const cv::Size &) =0;
-	virtual void Finalize(const cv::Mat & upstream, fort::FrameReadout & readout, cv::Mat & result) = 0;
+	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &) =0;
 };
+
+
+typedef std::vector<ProcessDefinition::Ptr> ProcessQueue;

@@ -11,65 +11,97 @@ using ::testing::_;
 using ::testing::Return;
 
 void ProcessManagerUTest::SetUp() {
-	d_manager = EventManager::Create();
+	d_events = EventManager::Create();
 }
 
 void ProcessManagerUTest::TearDown() {
-	d_manager.reset();
+	d_events.reset();
 }
 
 
 
 TEST_F(ProcessManagerUTest,Initialization) {
 	EXPECT_THROW({
-			ProcessManager({std::make_shared<ResizeProcess>(10,10)},d_manager,0);
+			ProcessManager(d_events,0);
 		},std::invalid_argument);
 
 	EXPECT_THROW({
-			ProcessManager({},d_manager,1);
-		},std::invalid_argument);
-
-	EXPECT_THROW({
-			ProcessManager({std::make_shared<ResizeProcess>(10,10)},EventManagerPtr(),1);
+			ProcessManager(EventManagerPtr(),1);
 		},std::invalid_argument);
 }
 
 
-class StubProcessDefinition : public ProcessDefinition {
-public:
-	virtual ~StubProcessDefinition() {}
 
-	MOCK_METHOD2(Prepare, std::vector<ProcessFunction>(size_t nbProcess, const cv::Size & size));
-	MOCK_METHOD3(Finalize, void (const cv::Mat & upstream, fort::FrameReadout & readout, cv::Mat & result));
-
-};
-
-TEST_F(ProcessManagerUTest,TestPipeline) {
-	auto p1 = std::make_shared<StubProcessDefinition>();
-	auto p2 = std::make_shared<StubProcessDefinition>();
-
-	EXPECT_CALL(*p1,Finalize(_,_,_)).Times(AtLeast(1));
-	EXPECT_CALL(*p1,Prepare(3,_))
-		.Times(AtLeast(1))
-		.WillRepeatedly(Return(std::vector<ProcessFunction>({
-						[](const Frame::Ptr &, const fort::FrameReadout &, const cv::Mat & upstream){},
-							[](const Frame::Ptr &, const fort::FrameReadout &, const cv::Mat & upstream){},
-								[](const Frame::Ptr &, const fort::FrameReadout &, const cv::Mat & upstream){}
-})));
-	EXPECT_CALL(*p2,Finalize(_,_,_)).Times(AtLeast(1));
-	EXPECT_CALL(*p1,Prepare(3,_))
-		.Times(AtLeast(1))
-		.WillRepeatedly(Return(std::vector<ProcessFunction>()));
-
-	ProcessManager pm({p1,p2},
-	                  d_manager,
+TEST_F(ProcessManagerUTest,PollingPipeline) {
+	ProcessManager pm(d_events,
 	                  3);
 
-	pm.Start(Frame::Ptr(),std::make_shared<cv::Mat>(),std::make_shared<fort::FrameReadout>());
+	int calls[3] = {0,0,0};
+
+	pm.Start({[&calls](){++calls[0];},[&calls](){++calls[1];},[&calls](){++calls[2];} });
 	bool done = false;
 	while(!done) {
-		if (d_manager->NextEvent() == EventManager::PROCESS_NEED_REFRESH ) {
-			done = pm.Done();
+		if (d_events->NextEvent() == EventManager::PROCESS_NEED_REFRESH ) {
+			done = pm.IsDone();
 		}
 	}
+	for (size_t i = 0; i < 3; ++i) {
+		EXPECT_EQ(calls[i],1);
+	}
+
+	pm.Start({[&calls](){++calls[1];}});
+	done = false;
+	while(!done) {
+		if (d_events->NextEvent() == EventManager::PROCESS_NEED_REFRESH ) {
+			done = pm.IsDone();
+		}
+	}
+
+	EXPECT_EQ(calls[0],1);
+	EXPECT_EQ(calls[1],2);
+	EXPECT_EQ(calls[2],1);
+
+
+}
+
+
+TEST_F(ProcessManagerUTest,BlockingPipeline) {
+	auto  pm = std::make_shared<ProcessManager>(d_events,
+	                                            3);
+
+	int calls[3] = {0,0,0};
+
+	pm->Start({[&calls](){++calls[0];},[&calls](){++calls[1];},[&calls](){++calls[2];} });
+	pm->Wait();
+	for (size_t i = 0; i < 3; ++i) {
+		EXPECT_EQ(calls[i],1);
+	}
+
+	pm->Start({[&calls](){++calls[1];}});
+	pm->Wait();
+	EXPECT_EQ(calls[0],1);
+	EXPECT_EQ(calls[1],2);
+	EXPECT_EQ(calls[2],1);
+
+	//needed as condition signaling is done before EventManager signaling
+	pm.reset();
+
+	size_t nbUpdate = 0;
+	bool done = false;
+	while(!done) {
+
+		switch (d_events->NextEvent() ) {
+		case EventManager::NONE: {
+			done = true;
+			break;
+		}
+		case EventManager::PROCESS_NEED_REFRESH : {
+			++nbUpdate;
+		}
+		default: {}
+		}
+
+	}
+	EXPECT_EQ(nbUpdate,4);
+
 }

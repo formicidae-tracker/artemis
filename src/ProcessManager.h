@@ -27,18 +27,14 @@ typedef std::shared_ptr<EventManager> EventManagerPtr;
 
 class ProcessManager {
 public:
-	ProcessManager(const std::vector<ProcessDefinitionPtr> & processes,
-	               const EventManagerPtr & eventManager,
-	               size_t nbWorkers);
+	ProcessManager(const EventManagerPtr & eventManager, size_t nbWorkers);
 
 
-	void Start(const FramePtr & buffer,
-	           const std::shared_ptr<cv::Mat> & finalFrame,
-	           const FrameReadoutPtr & frameResult);
-	bool Done();
+	void Start(const std::vector<std::function < void()> > & jobs);
+	bool IsDone();
+	void Wait();
 
 private :
-	typedef std::vector<ProcessDefinitionPtr>  ProcessPipeline;
 	typedef std::function<void()> Job;
 	class Worker {
 	public :
@@ -57,19 +53,7 @@ private :
 	};
 	typedef std::vector<std::unique_ptr<Worker> > WorkerPool;
 
-	void SpawnNext();
-	void SpawnFinalize();
-
-	ProcessPipeline                 d_processes;
-	ProcessPipeline::const_iterator d_currentProcess;
-	std::vector<cv::Mat>            d_intermediaryResults;
-	bool                            d_finalized;
-
 	EventManagerPtr d_eventManager;
 	WaitGroup       d_waitGroup;
 	WorkerPool      d_workers;
-
-	FramePtr                 d_currentFrame;
-	std::shared_ptr<cv::Mat> d_currentFinalFrame;
-	FrameReadoutPtr          d_currentFrameReadout;
 };

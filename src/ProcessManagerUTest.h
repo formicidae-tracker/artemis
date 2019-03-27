@@ -10,6 +10,6 @@ protected:
 	void TearDown();
 
 
-	EventManager::Ptr d_manager;
+	EventManager::Ptr d_events;
 
 };

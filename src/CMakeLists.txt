@@ -8,7 +8,10 @@ Check_CXX_Source_Runs(
 
 
 int main() {
-	return std::error_code(EDOM,std::system_category()) == std::errc::argument_out_of_domain;
+	if (std::error_code(EDOM,std::system_category()) == std::errc::argument_out_of_domain ) {
+		return 0;
+	}
+	return 1;
 }
 "
 ARTEMIS_USE_SYSTEM_CATEGORY)

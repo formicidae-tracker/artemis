@@ -9,17 +9,18 @@
 
 #include <cmath>
 
-Apriltag2Process::Apriltag2Process(const std::string & tagFamily)
-	: d_family(OpenFamily(tagFamily))
+AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
+	: d_family(OpenFamily(config.Family))
 	, d_detector(apriltag_detector_create(),apriltag_detector_destroy) {
 	apriltag_detector_add_family(d_detector.get(),d_family.get());
 	d_detector->nthreads = 1;
+	//TODO Sets real config
 }
 
-Apriltag2Process::~Apriltag2Process() {}
+AprilTag2Detector::~AprilTag2Detector() {}
 
 
-Apriltag2Process::FamilyPtr Apriltag2Process::OpenFamily(const std::string & name ) {
+AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & name ) {
 	struct FamilyInterface {
 		typedef apriltag_family_t* (*Constructor) ();
 		typedef void (*Destructor) (apriltag_family_t *);
@@ -54,22 +55,27 @@ cv::Rect computeROI(size_t i, size_t nbROI, const cv::Size & imageSize, size_t m
 	return cv::Rect(roiOrig,roiSize);
 }
 
+AprilTag2Detector::ROITagDetection::ROITagDetection(const AprilTag2Detector::Ptr & parent)
+	: d_parent(parent ) {
+}
 
-std::vector<ProcessFunction> Apriltag2Process::Prepare(size_t nbProcess, const cv::Size & size) {
-	d_results.resize(nbProcess);
-	d_offsets.resize(nbProcess);
+AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
+std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t maxProcess, const cv::Size & size ) {
+	d_parent->d_results.resize(maxProcess);
+	d_parent->d_offsets.resize(maxProcess);
 
 	std::vector<ProcessFunction> toReturn;
-	toReturn.reserve(nbProcess);
-	for (size_t i = 0; i < nbProcess; ++i) {
-		d_results[i] = NULL;
+	toReturn.reserve(maxProcess);
+	for (size_t i = 0; i < maxProcess; ++i) {
+		d_parent->d_results[i] = NULL;
 		size_t margin = 75;
-		cv::Rect roi = computeROI(i,nbProcess,size,margin);
-		d_offsets[i] = roi.x;
+		cv::Rect roi = computeROI(i,maxProcess,size,margin);
+		d_parent->d_offsets[i] = roi.x;
 
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
-		                                                       const fort::FrameReadout & readout,		                                                                            const cv::Mat & upstream) {
+		                                const cv::Mat & upstream,
+		                                fort::FrameReadout & readout,		                                                                            cv::Mat & result) {
 			                   cv::Mat withROI(frame->ToCV(),roi);
 			                   image_u8_t img = {
 				                   .width = withROI.cols,
@@ -78,42 +84,58 @@ std::vector<ProcessFunction> Apriltag2Process::Prepare(size_t nbProcess, const c
 				                   .buf = withROI.data
 			                   };
 
-			                   d_results[i] = apriltag_detector_detect(d_detector.get(),&img);
-
+			                   d_parent->d_results[i] = apriltag_detector_detect(d_parent->d_detector.get(),&img);
 		                   });
 	}
 	return toReturn;
+
 }
 
-void Apriltag2Process::Finalize(const cv::Mat &, fort::FrameReadout & readout, cv::Mat & ) {
-	std::map<uint32_t,apriltag_detection_t*> results;
+AprilTag2Detector::TagMerging::TagMerging(const AprilTag2Detector::Ptr & parent)
+	: d_parent(parent){
+}
 
-	for(size_t i = 0; i < d_results.size(); ++i ) {
-		for( int j = 0; j < zarray_size(d_results[i]); ++j ) {
-			apriltag_detection_t * q;
-			zarray_get(d_results[i],j,&q);
-			if (results.count((uint32_t)q->id) != 0 ) {
-				continue;
+AprilTag2Detector::TagMerging::~TagMerging() {}
+
+std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxProcess, const cv::Size & size) {
+	return { [this](const Frame::Ptr & frame,
+	                const cv::Mat & upstream,
+	                fort::FrameReadout & readout,
+	                cv::Mat & result) {
+			std::map<int32_t,apriltag_detection_t*> results;
+
+			for(size_t i = 0; i < d_parent->d_results.size(); ++i ) {
+				for( int j = 0; j < zarray_size(d_parent->d_results[i]); ++j ) {
+					apriltag_detection_t * q;
+					zarray_get(d_parent->d_results[i],j,&q);
+					if (results.count((int32_t)q->id) != 0 ) {
+						continue;
+					}
+					results[q->id] = q;
+					q->c[0] += d_parent->d_offsets[i];
+				}
 			}
-			results[q->id] = q;
-			q->c[0] += d_offsets[i];
+			readout.set_timestamp(frame->Timestamp());
+			readout.set_frameid(frame->ID());
+			readout.clear_ants();
+			auto time = readout.mutable_time();
+			time->set_seconds(frame->Time().tv_sec);
+			time->set_nanos(frame->Time().tv_usec * 1000);
+			for ( auto & kv : results ) {
+				auto a = readout.add_ants();
+				a->set_id(kv.second->id);
+				a->set_x(kv.second->c[0]);
+				a->set_y(kv.second->c[1]);
+				//TODO: compute angle!!!
+				a->set_theta(0.0);
+			}
+
+			for(size_t i = 0 ; i < d_parent->d_results.size(); ++ i ) {
+				apriltag_detections_destroy(d_parent->d_results[i]);
+			}
+
+			//clear any upstream transformation
+			result = frame->ToCV();
 		}
-	}
-
-	readout.clear_ants();
-	for ( auto & kv : results ) {
-		auto a = readout.add_ants();
-		a->set_id(kv.second->id);
-		a->set_x(kv.second->c[0]);
-		a->set_y(kv.second->c[1]);
-		//TODO: compute angle!!!
-		a->set_theta(0.0);
-	}
-
-	for(size_t i = 0 ; i < d_results.size(); ++ i ) {
-		apriltag_detections_destroy(d_results[i]);
-	}
-
-	d_results.clear();
-	d_offsets.clear();
+	};
 }

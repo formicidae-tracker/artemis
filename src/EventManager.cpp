@@ -99,7 +99,6 @@ EventManager::Event EventManager::NextEvent() const {
 }
 
 
-
 std::ostream & operator<<(std::ostream & out, const EventManager::Event & e) {
 	static std::vector<std::string> names = {
 		"NONE",
