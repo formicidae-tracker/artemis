@@ -25,6 +25,19 @@ class RingBuffer {
 private :
 	typedef std::shared_ptr<RingBuffer> Ptr;
 public :
+	class FullException : public std::runtime_error {
+	public:
+		FullException() : std::runtime_error("Full RingBuffer") {};
+		virtual ~FullException() {}
+	};
+
+	class EmptyException : public std::runtime_error {
+	public:
+		EmptyException() : std::runtime_error("Empty RingBuffer") {};
+		virtual ~EmptyException() {}
+	};
+
+
 	// The Size of the <RingBuffer>
 	const static size_t Size = SizeT;
 	// Accessor to add data
@@ -39,16 +52,10 @@ public :
 		// Standard Destructor
 		~Producer();
 
-		// Adds a new value to the buffer
-		// @value the value to add
-		//
-		// @return true if the value could be added, false if the
-		//         buffer is full (value is then dropped)
-		bool Push(const T & value);
+		T & Tail();
 
-		// Tests if the <RingBuffer> is full
-		//
-		// @return true if it is currently full.
+		void Push();
+
 		bool Full();
 
 	private :
@@ -70,12 +77,10 @@ public :
 		//Standard destructor
 		~Consumer();
 
-		// Pops a value from the buffer
-		// @value reference that will hold the popped data
-		//
-		// @return true if a value was popped (and <value>
-		//         updated). Otherwise <value> is unmodified.
-		bool Pop(T & value);
+
+		const T & Head();
+
+		void Pop();
 
 		// Tests if the buffer is empty
 		//
@@ -120,11 +125,14 @@ private :
 	RingBuffer();
 
 
-	bool Push(const T & value);
-	bool Pop(T & value);
+	T & Tail();
+	const T & Head();
 
-	bool WasEmpty();
-	bool WasFull();
+	void Push();
+	void Pop();
+
+	bool Empty();
+	bool Full();
 
 	size_t Increment(size_t value);
 
@@ -158,41 +166,51 @@ inline RingBuffer<T,SizeT>::RingBuffer()
 }
 
 template <typename T, size_t SizeT>
-inline bool RingBuffer<T,SizeT>::Push(const T & value) {
+inline T & RingBuffer<T,SizeT>::Tail() {
 	const auto tail = d_tail.load();
 	const auto next_tail(Increment(tail));
 	if (next_tail == d_head.load() ){
-		// we are full
-		return false;
+		throw FullException();
 	}
-	//we store and save the increment
-	d_data[tail] = value;
-	d_tail.store(next_tail);
-	return true;
-
+	return d_data[tail];
 }
 
 template <typename T, size_t SizeT>
-inline bool RingBuffer<T,SizeT>::Pop(T & value) {
+inline void RingBuffer<T,SizeT>::Push() {
+	const auto tail = d_tail.load();
+	const auto next_tail(Increment(tail));
+	if (next_tail == d_head.load() ){
+		throw FullException();
+	}
+	d_tail.store(next_tail);
+}
+
+template <typename T, size_t SizeT>
+inline const T & RingBuffer<T,SizeT>::Head() {
 	const auto head = d_head.load();
 	if ( head == d_tail.load() ) {
-		//we are empty
-		return false;
+		throw EmptyException();
 	}
+	return d_data[head];
+}
 
-	value = d_data[head];
+template <typename T, size_t SizeT>
+inline void RingBuffer<T,SizeT>::Pop() {
+	const auto head = d_head.load();
+	if ( head == d_tail.load() ) {
+		throw EmptyException();
+	}
 	d_head.store(Increment(head));
-	return true;
 }
 
 
 template <typename T, size_t SizeT>
-inline bool RingBuffer<T,SizeT>::WasEmpty() {
+inline bool RingBuffer<T,SizeT>::Empty() {
 	return ( d_head.load() == d_tail.load() );
 }
 
 template <typename T, size_t SizeT>
-inline bool RingBuffer<T,SizeT>::WasFull() {
+inline bool RingBuffer<T,SizeT>::Full() {
 	return ( Increment(d_tail.load()) == d_head.load() );
 }
 
@@ -207,13 +225,18 @@ inline RingBuffer<T,SizeT>::Producer::~Producer(){}
 
 
 template <typename T, size_t SizeT>
-inline bool RingBuffer<T,SizeT>::Producer::Push(const T & value){
-	return d_buffer->Push(value);
+inline T & RingBuffer<T,SizeT>::Producer::Tail(){
+	return d_buffer->Tail();
+}
+
+template <typename T, size_t SizeT>
+inline void RingBuffer<T,SizeT>::Producer::Push(){
+	return d_buffer->Push();
 }
 
 template <typename T, size_t SizeT>
 inline bool RingBuffer<T,SizeT>::Producer::Full(){
-	return d_buffer->WasFull();
+	return d_buffer->Full();
 }
 
 template <typename T, size_t SizeT>
@@ -224,15 +247,19 @@ inline RingBuffer<T,SizeT>::Producer::Producer(const RingBuffer<T,SizeT>::Ptr & 
 template <typename T, size_t SizeT>
 inline RingBuffer<T,SizeT>::Consumer::~Consumer(){}
 
+template <typename T, size_t SizeT>
+inline const T & RingBuffer<T,SizeT>::Consumer::Head(){
+	return d_buffer->Head();
+}
 
 template <typename T, size_t SizeT>
-inline bool RingBuffer<T,SizeT>::Consumer::Pop(T & value){
-	return d_buffer->Pop(value);
+inline void RingBuffer<T,SizeT>::Consumer::Pop(){
+	return d_buffer->Pop();
 }
 
 template <typename T, size_t SizeT>
 inline bool RingBuffer<T,SizeT>::Consumer::Empty(){
-	return d_buffer->WasEmpty();
+	return d_buffer->Empty();
 }
 
 template <typename T, size_t SizeT>

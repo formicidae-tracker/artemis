@@ -1,6 +1,8 @@
 #include "RingBufferUTest.h"
 
 #include <thread>
+#include <condition_variable>
+
 
 void RingBufferUTest::SetUp() {
 	auto res = RB::Create();
@@ -17,20 +19,29 @@ void RingBufferUTest::TearDown() {
 TEST_F(RingBufferUTest,HaveALimitedSize) {
 	EXPECT_TRUE(d_consumer->Empty());
 	int foo;
-	EXPECT_FALSE(d_consumer->Pop(foo));
+	EXPECT_THROW({d_consumer->Pop();},RB::EmptyException);
 	for ( size_t i = 0 ; i < RB::Size; ++i ) {
-		EXPECT_TRUE(d_producer->Push(i));
+
+		EXPECT_NO_THROW({
+				d_producer->Tail() = i;
+				d_producer->Push();
+			});
 		EXPECT_EQ( (i + 1) == RB::Size, d_producer->Full());
 	}
 	//Cannot push on a Full one
 	EXPECT_TRUE(d_producer->Full());
-	EXPECT_FALSE(d_producer->Push(RB::Size));
+	EXPECT_THROW({
+			d_producer->Push();
+		},RB::FullException);
 
 	//we can pop safely
 	for ( size_t i = 0; i < RB::Size; ++i ) {
 		EXPECT_FALSE(d_consumer->Empty());
 		int res;
-		EXPECT_TRUE(d_consumer->Pop(res));
+		EXPECT_NO_THROW({
+				res = d_consumer->Head();
+				d_consumer->Pop();
+			});
 		// preserves order
 		EXPECT_EQ(i,res);
 	}
@@ -44,13 +55,19 @@ TEST_F(RingBufferUTest,CanSafelyOverlapSize) {
 		size_t nbPush = ((double)rand()) / ((double)RAND_MAX) * RB::Size;
 
 		for(size_t j = 0 ; j < nbPush; ++j) {
-			ASSERT_TRUE(d_producer->Push(id));
+			ASSERT_NO_THROW({
+					d_producer->Tail() = id;
+					d_producer->Push();
+				});
 			++id;
 		}
 
 		for(size_t j = 0; j < nbPush; ++j) {
 			int res;
-			ASSERT_TRUE(d_consumer->Pop(res));
+			ASSERT_NO_THROW({
+					res = d_consumer->Head();
+					d_consumer->Pop();
+				});
 			ASSERT_EQ(id - nbPush + j, res);
 		}
 	}
@@ -59,12 +76,19 @@ TEST_F(RingBufferUTest,CanSafelyOverlapSize) {
 TEST_F(RingBufferUTest,AreThreadSafe) {
 	size_t nbOperation = RB::Size * 100;
 
+
+
 	std::thread t([nbOperation](RB::Producer::Ptr p) {
 			for(size_t i = 0; i < nbOperation; ++i) {
-				while(true) {
-					if(p->Push(i)) {
+				bool done = false;
+				while(!false) {
+					try {
+						p->Tail() = i;
+						p->Push();
 						break;
+					} catch( const RB::FullException &) {
 					}
+
 					usleep(10);
 				}
 			}
@@ -74,12 +98,15 @@ TEST_F(RingBufferUTest,AreThreadSafe) {
 	for( size_t i = 0 ; i < nbOperation; ++i) {
 		int res;
 		while(true) {
-			if ( d_consumer->Pop(res) ) {
+			try {
+				res = d_consumer->Head();
+				d_consumer->Pop();
 				break;
+			} catch ( const RB::EmptyException &) {
 			}
 			usleep(5);
 		}
-		EXPECT_EQ(i,res);
+		EXPECT_EQ(res,i);
 	}
 
 	t.join();
