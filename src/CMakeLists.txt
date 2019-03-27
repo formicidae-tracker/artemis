@@ -32,6 +32,9 @@ set(SRC_FILES Defer.cpp
 	          Apriltag2Process.cpp
 	          ProcessManager.cpp
 	          RingBuffer.cpp
+	          utils/PosixCall.cpp
+	          utils/FlagParser.cpp
+	          utils/StringManipulation.cpp
 	          )
 
 
@@ -45,6 +48,9 @@ set(HDR_FILES Defer.h
 	          Apriltag2Process.h
 	          ProcessManager.h
 	          RingBuffer.h
+	          utils/PosixCall.h
+	          utils/FlagParser.h
+	          utils/StringManipulation.h
 	          )
 
 
@@ -54,6 +60,8 @@ set(UTEST_SRC_FILES main-check.cpp
 	                EventManagerUTest.cpp
 	                ProcessManagerUTest.cpp
 	                RingBufferUTest.cpp
+	                utils/FlagParserUTest.cpp
+	                utils/StringManipulation.cpp
 	                )
 
 set(UTEST_HDR_FILES DeferUTest.h
@@ -61,6 +69,8 @@ set(UTEST_HDR_FILES DeferUTest.h
 	                EventManagerUTest.h
 	                ProcessManagerUTest.h
 	                RingBufferUTest.h
+	                utils/FlagParserUTest.h
+	                utils/StringManipulation.h
 	                )
 
 if(EGrabber_FOUND)

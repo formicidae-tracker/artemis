@@ -8,6 +8,7 @@
 
 #include "CommonTypes.h"
 
+
 class AprilTag2Detector {
 public:
 	typedef std::shared_ptr<AprilTag2Detector> Ptr;

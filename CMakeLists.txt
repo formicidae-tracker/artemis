@@ -16,6 +16,7 @@ find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
 find_package(Protobuf 3.5.0 REQUIRED)
 
+
 include(ExternalProject)
 ExternalProject_Add(APRILTAG2
 	URL https://april.eecs.umich.edu/media/apriltag/apriltag-2016-12-01.tgz
@@ -37,6 +38,7 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${GLOG_INCLUDE_DIRS}
 	                ${APRILTAG2_INCLUDE_DIRS}
 	                ${OPENCV_INCLUDE_DIRS}
+	                ${gflags_INCLUDE_DIRS}
 	                )
 
 

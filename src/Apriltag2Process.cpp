@@ -14,13 +14,16 @@
 
 #include <glog/logging.h>
 
+
+
+
+
+
 AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
 	: d_family(OpenFamily(config.Family))
 	, d_detector(apriltag_detector_create(),apriltag_detector_destroy) {
 	apriltag_detector_add_family(d_detector.get(),d_family.get());
 	d_detector->nthreads = 1;
-
-
 
 	d_detector->quad_decimate = config.QuadDecimate;
 	d_detector->quad_sigma = config.QuadSigma;
