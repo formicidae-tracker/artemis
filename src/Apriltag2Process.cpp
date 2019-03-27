@@ -19,7 +19,22 @@ AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
 	, d_detector(apriltag_detector_create(),apriltag_detector_destroy) {
 	apriltag_detector_add_family(d_detector.get(),d_family.get());
 	d_detector->nthreads = 1;
-	//TODO Sets real config
+
+
+
+	d_detector->quad_decimate = config.QuadDecimate;
+	d_detector->quad_sigma = config.QuadSigma;
+	d_detector->refine_edges = config.RefineEdges ? 1 : 0;
+	d_detector->refine_decode = config.RefineDecode ? 1 : 0;
+	d_detector->refine_pose = config.RefinePose ? 1 : 0;
+	d_detector->debug = false;
+	d_detector->qtp.min_cluster_pixels = config.QuadMinClusterPixel;
+	d_detector->qtp.max_nmaxima = config.QuadMaxNMaxima;
+	d_detector->qtp.critical_rad = config.QuadCriticalRadian;
+	d_detector->qtp.max_line_fit_mse = config.QuadMaxLineMSE;
+	d_detector->qtp.min_white_black_diff = config.QuadMinBWDiff;
+	d_detector->qtp.deglitch = config.QuadDeglitch ? 1 : 0;
+
 }
 
 AprilTag2Detector::~AprilTag2Detector() {}

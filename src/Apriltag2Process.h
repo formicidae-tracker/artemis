@@ -13,8 +13,36 @@ public:
 	typedef std::shared_ptr<AprilTag2Detector> Ptr;
 
 	struct Config {
+		Config()
+			: Family("36h11")
+			, NewAntROISize(1000)
+			, QuadDecimate(1.0)
+			, QuadSigma(0.0)
+			, RefineEdges(false)
+			, RefineDecode(true)
+			, RefinePose(false)
+			, QuadMinClusterPixel(5)
+			, QuadMaxNMaxima(10)
+			, QuadCriticalRadian(0.174533)
+			, QuadMaxLineMSE(10.0)
+			, QuadMinBWDiff(5)
+			, QuadDeglitch(false) {
+		}
+
+
 		std::string Family;
 		size_t      NewAntROISize;
+		float       QuadDecimate;
+		float       QuadSigma;
+		bool        RefineEdges;
+		bool        RefineDecode;
+		bool        RefinePose;
+		int         QuadMinClusterPixel;
+		int         QuadMaxNMaxima;
+		float       QuadCriticalRadian;
+		float       QuadMaxLineMSE;
+		int         QuadMinBWDiff;
+		bool        QuadDeglitch;
 	};
 
 
