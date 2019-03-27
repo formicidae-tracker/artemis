@@ -28,6 +28,7 @@ set(SRC_FILES Defer.cpp
 	          ResizeProcess.cpp
 	          Apriltag2Process.cpp
 	          ProcessManager.cpp
+	          RingBuffer.cpp
 	          )
 
 
@@ -40,6 +41,7 @@ set(HDR_FILES Defer.h
 	          ResizeProcess.h
 	          Apriltag2Process.h
 	          ProcessManager.h
+	          RingBuffer.h
 	          )
 
 
@@ -48,12 +50,14 @@ set(UTEST_SRC_FILES main-check.cpp
 	                WaitGroupUTest.cpp
 	                EventManagerUTest.cpp
 	                ProcessManagerUTest.cpp
+	                RingBufferUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES DeferUTest.h
 	                WaitGroupUTest.h
 	                EventManagerUTest.h
 	                ProcessManagerUTest.h
+	                RingBufferUTest.h
 	                )
 
 if(EGrabber_FOUND)
