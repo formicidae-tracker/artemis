@@ -4,6 +4,9 @@
 
 #include <apriltag/apriltag.h>
 
+#include <mutex>
+
+#include "CommonTypes.h"
 
 class AprilTag2Detector {
 public:
@@ -11,8 +14,11 @@ public:
 
 	struct Config {
 		std::string Family;
+		size_t      NewAntROISize;
 	};
 
+
+	// Detects AprilTags in multiple different RegionOfInterests
 	class ROITagDetection : public ProcessDefinition {
 	public:
 		virtual ~ROITagDetection();
@@ -29,6 +35,8 @@ public:
 		friend class AprilTag2Detector;
 	};
 
+	// Merges in a single thread all detection and eliminate multiple
+	// match in overlapping areas)
 	class TagMerging : public ProcessDefinition {
 	public:
 		virtual ~TagMerging();
@@ -45,7 +53,42 @@ public:
 		friend class AprilTag2Detector;
 	};
 
-	static ProcessQueue Create(const Config & config);
+	// Finalizes the detection in multiple threads
+	// * Serialize the message in a buffer
+	// * Extract New detected ID, copy the new image around the ant,
+	//   and sends them to a new AntBuffer
+	class Finalization : public ProcessDefinition {
+	public :
+		virtual ~Finalization();
+
+		virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
+	private :
+		Finalization(const AprilTag2Detector::Ptr & parent,
+		             SerializedMessageBuffer::Producer::Ptr & messages,
+		             UnknownAntsBuffer::Producer::Ptr & ants,
+		             size_t newAntROISize);
+
+		Finalization(const Finalization & ) = delete;
+		Finalization & operator=(const Finalization &) = delete;
+
+
+		void SerializeMessage(const fort::FrameReadout & message);
+		void CheckForNewAnts( const Frame::Ptr & ptr, const fort::FrameReadout & readout);
+
+		AprilTag2Detector::Ptr d_parent;
+		friend class AprilTag2Detector;
+
+		SerializedMessageBuffer::Producer::Ptr d_messages;
+
+		UnknownAntsBuffer::Producer::Ptr d_newAnts;
+		std::set<int32_t> d_known;
+		size_t d_newAntROISize;
+	};
+
+
+	static ProcessQueue Create(const Config & config,
+	                           SerializedMessageBuffer::Producer::Ptr & messages,
+	                           UnknownAntsBuffer::Producer::Ptr & ants);
 
 	~AprilTag2Detector();
 
@@ -53,6 +96,7 @@ public:
 private:
 	friend class ROITagDetection;
 	friend class TagMerging;
+	friend class Finalization;
 
 	AprilTag2Detector(const Config & config);
 
@@ -63,5 +107,4 @@ private:
 
 	std::vector<zarray_t*> d_results;
 	std::vector<size_t> d_offsets;
-	std::set<int32_t> d_known;
 };

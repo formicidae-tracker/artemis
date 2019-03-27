@@ -9,6 +9,11 @@
 
 #include <cmath>
 
+
+#include <google/protobuf/util/delimited_message_util.h>
+
+#include <glog/logging.h>
+
 AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
 	: d_family(OpenFamily(config.Family))
 	, d_detector(apriltag_detector_create(),apriltag_detector_destroy) {
@@ -137,5 +142,93 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 			//clear any upstream transformation
 			result = frame->ToCV();
 		}
+	};
+}
+
+
+AprilTag2Detector::Finalization::Finalization(const AprilTag2Detector::Ptr & parent,
+                                              SerializedMessageBuffer::Producer::Ptr & messages,
+                                              UnknownAntsBuffer::Producer::Ptr & ants,
+                                              size_t newAntROISize)
+	: d_parent(parent)
+	, d_messages(std::move(messages))
+	, d_newAnts(std::move(ants))
+	, d_newAntROISize(newAntROISize) {
+}
+
+AprilTag2Detector::Finalization::~Finalization() {};
+
+std::vector<ProcessFunction> AprilTag2Detector::Finalization::Prepare(size_t maxProcess, const cv::Size &) {
+	if (maxProcess == 1) {
+		return {[this](const Frame::Ptr & frame,
+		               const cv::Mat & upstream,
+		               fort::FrameReadout & readout,
+		               cv::Mat & result){
+				SerializeMessage(readout);
+				CheckForNewAnts(frame,readout);
+			}};
+	}
+
+	return {[this](const Frame::Ptr & frame,
+	               const cv::Mat & upstream,
+	               fort::FrameReadout & readout,
+	               cv::Mat & result) {
+			SerializeMessage(readout);
+		},
+			[this](const Frame::Ptr & frame,
+			       const cv::Mat & upstream,
+			       fort::FrameReadout & readout,
+			       cv::Mat & result) {
+				CheckForNewAnts(frame,readout);
+			}
+	};
+}
+
+void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout & message) {
+	try {
+		d_messages->Tail().str("");
+		google::protobuf::util::SerializeDelimitedToOstream(message,&(d_messages->Tail()));
+		d_messages->Push();
+	} catch ( const SerializedMessageBuffer::FullException & e) {
+		LOG(ERROR) << "Could not serialize messager: " << e.what();
+	}
+}
+
+void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
+                                                       const fort::FrameReadout & readout) {
+	for (auto a = readout.ants().cbegin();
+	     a != readout.ants().cend();
+	     ++a ) {
+		if ( d_known.count(a->id()) != 0 ) {
+			continue;
+		}
+
+		cv::Rect roi(cv::Point2d(((size_t)a->x())-d_newAntROISize/2,
+		                         ((size_t)a->y())-d_newAntROISize/2),
+		             cv::Size(d_newAntROISize,
+		                      d_newAntROISize));
+
+		try {
+			d_newAnts->Tail().ID = a->id();
+			d_newAnts->Tail().Picture = cv::Mat(frame->ToCV(),roi).clone();
+			d_newAnts->Push();
+		} catch ( const UnknownAntsBuffer::FullException & e) {
+			LOG(INFO) << "Not saving ant " << a->id() << ": " << e.what();
+			continue;
+		}
+		d_known.insert(a->id());
+
+	}
+}
+
+ProcessQueue AprilTag2Detector::Create(const Config & config,
+                                       SerializedMessageBuffer::Producer::Ptr & messages,
+                                       UnknownAntsBuffer::Producer::Ptr & ants) {
+
+	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(config));
+	return {
+		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),
+		std::shared_ptr<ProcessDefinition>(new TagMerging(detector)),
+		std::shared_ptr<ProcessDefinition>(new Finalization(detector,messages,ants,config.NewAntROISize))
 	};
 }
