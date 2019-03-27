@@ -20,7 +20,7 @@ public:
 			, QuadDecimate(1.0)
 			, QuadSigma(0.0)
 			, RefineEdges(false)
-			, RefineDecode(true)
+			, NoRefineDecode(false)
 			, RefinePose(false)
 			, QuadMinClusterPixel(5)
 			, QuadMaxNMaxima(10)
@@ -36,7 +36,7 @@ public:
 		float       QuadDecimate;
 		float       QuadSigma;
 		bool        RefineEdges;
-		bool        RefineDecode;
+		bool        NoRefineDecode;
 		bool        RefinePose;
 		int         QuadMinClusterPixel;
 		int         QuadMaxNMaxima;

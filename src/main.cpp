@@ -28,7 +28,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("at-quad-decimate",opts.AprilTag2.QuadDecimate,"Decimate original image for faster computation but worse pose estimation. Should be 1.0 (no decimation), 1.5, 2, 3 or 4");
 	parser.AddFlag("at-quad-sigma",opts.AprilTag2.QuadSigma,"Apply a gaussian filter for quad detection, noisy image likes a slight filter like 0.8");
 	parser.AddFlag("at-refine-edges",opts.AprilTag2.RefineEdges,"Refines the edge of the quad, especially needed if decimation is used, inexpensive");
-	parser.AddFlag("at-refine-decode",opts.AprilTag2.RefineDecode,"Refines the tag code detection. Very useful for small tags");
+	parser.AddFlag("at-no-refine-decode",opts.AprilTag2.NoRefineDecode,"Do not refines the tag code detection. Refining is often required for small tags");
 	parser.AddFlag("at-refine-pose",opts.AprilTag2.RefinePose,"Refines the pose");
 	parser.AddFlag("at-quad-min-cluster",opts.AprilTag2.QuadMinClusterPixel,"Minimum number of pixel to consider it a quad");
 	parser.AddFlag("at-quad-max-n-maxima",opts.AprilTag2.QuadMaxNMaxima,"Number of candidate to consider to fit quad corner");

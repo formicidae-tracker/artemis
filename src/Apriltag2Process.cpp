@@ -28,7 +28,7 @@ AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
 	d_detector->quad_decimate = config.QuadDecimate;
 	d_detector->quad_sigma = config.QuadSigma;
 	d_detector->refine_edges = config.RefineEdges ? 1 : 0;
-	d_detector->refine_decode = config.RefineDecode ? 1 : 0;
+	d_detector->refine_decode = config.NoRefineDecode ? 0 : 1;
 	d_detector->refine_pose = config.RefinePose ? 1 : 0;
 	d_detector->debug = false;
 	d_detector->qtp.min_cluster_pixels = config.QuadMinClusterPixel;
