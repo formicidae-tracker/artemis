@@ -23,7 +23,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 	                )
 
 
-set(SRC_FILES Defer.cpp
+set(SRC_FILES utils/Defer.cpp
 	          WaitGroup.cpp
 	          EventManager.cpp
 	          FrameGrabber.cpp
@@ -35,10 +35,12 @@ set(SRC_FILES Defer.cpp
 	          utils/PosixCall.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
+	          FileWriter.cpp
+	          FrameWriter.cpp
 	          )
 
 
-set(HDR_FILES Defer.h
+set(HDR_FILES utils/Defer.h
 	          WaitGroup.h
 	          EventManager.h
 	          utils/PosixCall.h
@@ -51,11 +53,13 @@ set(HDR_FILES Defer.h
 	          utils/PosixCall.h
 	          utils/FlagParser.h
 	          utils/StringManipulation.h
+	          FileWriter.h
+	          FrameWriter.h
 	          )
 
 
 set(UTEST_SRC_FILES main-check.cpp
-	                DeferUTest.cpp
+	                utils/DeferUTest.cpp
 	                WaitGroupUTest.cpp
 	                EventManagerUTest.cpp
 	                ProcessManagerUTest.cpp
@@ -64,7 +68,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                utils/StringManipulation.cpp
 	                )
 
-set(UTEST_HDR_FILES DeferUTest.h
+set(UTEST_HDR_FILES utils/DeferUTest.h
 	                WaitGroupUTest.h
 	                EventManagerUTest.h
 	                ProcessManagerUTest.h

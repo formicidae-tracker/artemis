@@ -15,8 +15,7 @@
 #include <glog/logging.h>
 
 
-
-
+#include <opencv2/imgcodecs.hpp>
 
 
 AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
@@ -183,23 +182,29 @@ std::vector<ProcessFunction> AprilTag2Detector::Finalization::Prepare(size_t max
 		               fort::FrameReadout & readout,
 		               cv::Mat & result){
 				SerializeMessage(readout);
-				CheckForNewAnts(frame,readout);
+				CheckForNewAnts(frame,readout,0,1);
 			}};
 	}
 
-	return {[this](const Frame::Ptr & frame,
-	               const cv::Mat & upstream,
-	               fort::FrameReadout & readout,
-	               cv::Mat & result) {
-			SerializeMessage(readout);
-		},
-			[this](const Frame::Ptr & frame,
-			       const cv::Mat & upstream,
-			       fort::FrameReadout & readout,
-			       cv::Mat & result) {
-				CheckForNewAnts(frame,readout);
-			}
+	std::vector<ProcessFunction> res;
+	res.reserve(maxProcess);
+	res.push_back([this](const Frame::Ptr & frame,
+	                     const cv::Mat & upstream,
+	                     fort::FrameReadout & readout,
+	                     cv::Mat & result) {
+		              SerializeMessage(readout);
+	              });
+	// uncomment to avoid multi-threading
+	// maxProcess = 2;
+	for (size_t i = 1; i < maxProcess; ++i) {
+		res.push_back([this,i,maxProcess](const Frame::Ptr & frame,
+		                                  const cv::Mat & upstream,
+		                                  fort::FrameReadout & readout,
+		                                  cv::Mat & result) {
+			              CheckForNewAnts(frame,readout,i-1,maxProcess-1);
+		              });
 	};
+	return res;
 }
 
 void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout & message) {
@@ -213,36 +218,40 @@ void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout 
 }
 
 void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
-                                                       const fort::FrameReadout & readout) {
-	for (auto a = readout.ants().cbegin();
-	     a != readout.ants().cend();
-	     ++a ) {
-		if ( d_known.count(a->id()) != 0 ) {
-			continue;
+                                                       const fort::FrameReadout & readout,
+                                                       size_t start,
+                                                       size_t stride) {
+	for (size_t i = start; i < readout.ants_size(); i += stride) {
+		auto a = readout.ants(i);
+		{
+			std::lock_guard<std::mutex> lock(d_mutex);
+			if ( d_known.count(a.id()) != 0 ) {
+				continue;
+			}
 		}
-
-		cv::Rect roi(cv::Point2d(((size_t)a->x())-d_newAntROISize/2,
-		                         ((size_t)a->y())-d_newAntROISize/2),
+		cv::Rect roi(cv::Point2d(((size_t)a.x())-d_newAntROISize/2,
+		                         ((size_t)a.y())-d_newAntROISize/2),
 		             cv::Size(d_newAntROISize,
 		                      d_newAntROISize));
 
-		try {
-			d_newAnts->Tail().ID = a->id();
-			d_newAnts->Tail().Picture = cv::Mat(frame->ToCV(),roi).clone();
-			d_newAnts->Push();
-		} catch ( const UnknownAntsBuffer::FullException & e) {
-			LOG(INFO) << "Not saving ant " << a->id() << ": " << e.what();
-			continue;
-		}
-		d_known.insert(a->id());
+		auto pngData =  std::make_shared<std::vector<uint8_t> >();
+		cv::imencode("png",cv::Mat(frame->ToCV(),roi),*pngData);
 
+		try {
+			std::lock_guard<std::mutex> lock(d_mutex);
+			d_newAnts->Tail().ID = a.id();
+			d_newAnts->Tail().PNGData = pngData;
+			d_newAnts->Push();
+			d_known.insert(a.id());
+		} catch ( const UnknownAntsBuffer::FullException & e) {
+			LOG(INFO) << "Not saving ant " << a.id() << ": " << e.what();
+		}
 	}
 }
 
 ProcessQueue AprilTag2Detector::Create(const Config & config,
                                        SerializedMessageBuffer::Producer::Ptr & messages,
                                        UnknownAntsBuffer::Producer::Ptr & ants) {
-
 	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(config));
 	return {
 		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),

@@ -102,16 +102,21 @@ public:
 
 
 		void SerializeMessage(const fort::FrameReadout & message);
-		void CheckForNewAnts( const Frame::Ptr & ptr, const fort::FrameReadout & readout);
+		void CheckForNewAnts( const Frame::Ptr & ptr,
+		                      const fort::FrameReadout & readout,
+		                      size_t start=0,
+		                      size_t stride=1);
 
 		AprilTag2Detector::Ptr d_parent;
 		friend class AprilTag2Detector;
 
 		SerializedMessageBuffer::Producer::Ptr d_messages;
 
+		std::mutex                       d_mutex;
 		UnknownAntsBuffer::Producer::Ptr d_newAnts;
 		std::set<int32_t> d_known;
-		size_t d_newAntROISize;
+
+		const size_t d_newAntROISize;
 	};
 
 

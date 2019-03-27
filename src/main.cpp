@@ -5,15 +5,15 @@
 
 
 
-
-// DEFINE_string(apriltag_family,"36h11","The apriltag family to use");
-// DEFINE_uint64(new_ant_roi_size,1000,"Upon a new ant detection size of the image to save");
-
-
 struct Options {
 	bool PrintHelp;
 
 	AprilTag2Detector::Config AprilTag2;
+
+	std::string HermesAddress;
+	bool        VideoOutputToStdout;
+	size_t      VideoOutputHeight;
+	std::string NewAntOuputDir;
 };
 
 
@@ -21,6 +21,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	options::FlagParser parser(options::FlagParser::Default,"low-level vision detection for the FORmicidae Tracker");
 
 	AprilTag2Detector::Config c;
+	opts.VideoOutputHeight = 1080;
+
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
@@ -36,7 +38,10 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("at-quad-max-line-mse",opts.AprilTag2.QuadMaxLineMSE,"MSE threshold to reject a fitted quad");
 	parser.AddFlag("at-quad-min-bw-diff",opts.AprilTag2.QuadMinBWDiff,"Difference in pixel value to consider a region black or white");
 	parser.AddFlag("at-quad-deglitch",opts.AprilTag2.QuadDeglitch,"Deglitch only for noisy images");
-
+	parser.AddFlag("address", opts.HermesAddress, "Address to send tag detection readout",'a');
+	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
+	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
+	parser.AddFlag("new-ant-output-dir",opts.NewAntOuputDir,"Path where to save new detected ant pictures");
 
 	parser.Parse(argc,argv);
 	if (opts.PrintHelp == true) {
