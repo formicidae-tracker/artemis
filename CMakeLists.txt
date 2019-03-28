@@ -15,6 +15,7 @@ find_package(EGrabber)
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
 find_package(Protobuf 3.5.0 REQUIRED)
+find_package(Asio 1.10.8 REQUIRED)
 
 
 include(ExternalProject)
