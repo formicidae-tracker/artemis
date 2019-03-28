@@ -2,11 +2,11 @@
 
 #include "RingBuffer.h"
 
-#include <sstream>
+#include <asio/streambuf.hpp>
 #include <memory>
 
 
-typedef RingBuffer<std::stringstream,16> SerializedMessageBuffer;
+typedef RingBuffer<asio::streambuf,16> SerializedMessageBuffer;
 
 
 struct NewAntDescription {

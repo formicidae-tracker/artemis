@@ -209,8 +209,11 @@ std::vector<ProcessFunction> AprilTag2Detector::Finalization::Prepare(size_t max
 
 void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout & message) {
 	try {
-		d_messages->Tail().str("");
-		google::protobuf::util::SerializeDelimitedToOstream(message,&(d_messages->Tail()));
+		asio::streambuf & tail = d_messages->Tail();
+		//empty the buffer if not emptied
+		tail.consume(tail.max_size());
+		std::ostream os(&tail);
+		google::protobuf::util::SerializeDelimitedToOstream(message,&os);
 		d_messages->Push();
 	} catch ( const SerializedMessageBuffer::FullException & e) {
 		LOG(ERROR) << "Could not serialize messager: " << e.what();
