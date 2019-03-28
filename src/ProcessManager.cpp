@@ -24,7 +24,7 @@ void ProcessManager::Worker::StartJob(WaitGroup & wg, const EventManager::Ptr & 
 	d_job = std::make_shared<Job>([&wg,j,eventManager]{
 			j();
 			wg.Done();
-			eventManager->Signal(EventManager::PROCESS_NEED_REFRESH);
+			eventManager->Signal(Event::PROCESS_NEED_REFRESH);
 		});
 
 	wg.Add(1);

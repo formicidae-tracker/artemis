@@ -7,42 +7,49 @@
 #include <iostream>
 
 
+#include <asio/posix/stream_descriptor.hpp>
+#include <asio/io_service.hpp>
+
+enum class Event {
+	QUIT = 0,
+	FRAME_READY,
+	PROCESS_NEED_REFRESH,
+	NEW_READOUT,
+	NEW_ANT_DISCOVERED,
+	NB_EVENTS
+};
 
 
 class EventManager {
 public :
 	typedef std::shared_ptr<EventManager> Ptr;
-
-	enum Event {
-		NONE = 0,
-		QUIT = 1,
-		FRAME_READY  = 2,
-		PROCESS_NEED_REFRESH = 3,
-		NB_EVENTS,
-	};
-	static EventManager::Ptr Create();
+	typedef std::function<void (Event) > Handler;
+	static EventManager::Ptr Create(asio::io_service &);
 	~EventManager();
 
-	int FileDescriptor() const;
-	void Signal(Event e) const;
-	Event NextEvent() const;
-
+	asio::posix::stream_descriptor & Incoming();
+	void Signal(Event e);
+	Event NextEvent();
+	Event NextEventAsync(Handler & h);
 
 private:
 	static std::atomic<bool> s_initialized;
 	static EventManager * s_myself;
+
 	int d_pipes[2];
+	asio::posix::stream_descriptor d_incoming,d_outgoing;
 	struct sigaction d_oldaction;
 	static void SigIntHandler(int signal);
 
-	EventManager();
+	EventManager(asio::io_service & context);
 
 
 
 	EventManager(const EventManager &) = delete;
 	EventManager & operator=(const EventManager &) = delete;
 
+
 };
 
 
-std::ostream & operator<<(std::ostream & out, const EventManager::Event & e);
+std::ostream & operator<<(std::ostream & out, const Event & e);

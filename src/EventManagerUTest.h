@@ -4,11 +4,13 @@
 
 #include "EventManager.h"
 
+#include <asio/io_service.hpp>
+
 class EventManagerUTest : public ::testing::Test {
 protected:
 	void SetUp();
 	void TearDown();
 
-
+	asio::io_service d_service;
 	EventManager::Ptr d_manager;
 };

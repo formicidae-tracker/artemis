@@ -35,7 +35,7 @@ const Frame::Ptr & EuresysFrameGrabber::CurrentFrame() {
 
 void EuresysFrameGrabber::onNewBufferEvent(const Euresys::NewBufferData &data) {
 	d_currentFrame = std::make_shared<EuresysFrame>(*this,data);
-	d_manager->Signal(EventManager::FRAME_READY);
+	d_manager->Signal(Event::FRAME_READY);
 }
 
 EuresysFrame::EuresysFrame(Euresys::EGrabber<Euresys::CallbackSingleThread> & grabber, const Euresys::NewBufferData & data)

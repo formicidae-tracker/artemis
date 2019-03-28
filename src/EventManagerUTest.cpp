@@ -3,7 +3,7 @@
 #include <csignal>
 
 void EventManagerUTest::SetUp() {
-	d_manager = EventManager::Create();
+	d_manager = EventManager::Create(d_service);
 }
 
 
@@ -13,38 +13,39 @@ void EventManagerUTest::TearDown() {
 
 TEST_F(EventManagerUTest,IsSingleton){
 	EXPECT_THROW({
-			EventManager::Create();
+			EventManager::Create(d_service);
 		}, std::runtime_error);
 }
 
 
 TEST_F(EventManagerUTest,EventReception) {
-	EventManager::Event e;
+	Event e;
 
 	EXPECT_NO_THROW({
-			d_manager->Signal(EventManager::FRAME_READY);
+			d_manager->Signal(Event::FRAME_READY);
 			e = d_manager->NextEvent();
 		});
 
-	EXPECT_EQ(e,EventManager::FRAME_READY);
+	EXPECT_EQ(e,Event::FRAME_READY);
 }
 
 
 TEST_F(EventManagerUTest,SIGINTEmitsQuitEvent) {
 	std::raise(SIGINT);
 	auto e = d_manager->NextEvent();
-	EXPECT_EQ(e,EventManager::QUIT);
+	EXPECT_EQ(e,Event::QUIT);
 }
 
 
 TEST_F(EventManagerUTest,EventFormatting) {
-	std::map<EventManager::Event,std::string> testdata;
+	std::map<Event,std::string> testdata;
 
-	testdata[EventManager::NONE] = "Event.NONE";
-	testdata[EventManager::QUIT] = "Event.QUIT";
-	testdata[EventManager::FRAME_READY] = "Event.FRAME_READY";
-	testdata[EventManager::PROCESS_NEED_REFRESH] = "Event.PROCESS_NEED_REFRESH";
-	testdata[(EventManager::Event)255] = "<unknown EVENT>";
+	testdata[Event::QUIT] = "Event.QUIT";
+	testdata[Event::FRAME_READY] = "Event.FRAME_READY";
+	testdata[Event::PROCESS_NEED_REFRESH] = "Event.PROCESS_NEED_REFRESH";
+	testdata[Event::NEW_ANT_DISCOVERED]= "Event.NEW_ANT_DISCOVERED";
+	testdata[Event::NEW_READOUT]= "Event.NEW_READOUT";
+	testdata[(Event)255] = "<unknown EVENT>";
 
 	for ( auto & kv : testdata) {
 		std::ostringstream oss;

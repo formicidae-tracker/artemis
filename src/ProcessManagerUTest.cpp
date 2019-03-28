@@ -11,7 +11,7 @@ using ::testing::_;
 using ::testing::Return;
 
 void ProcessManagerUTest::SetUp() {
-	d_events = EventManager::Create();
+	d_events = EventManager::Create(d_service);
 }
 
 void ProcessManagerUTest::TearDown() {
@@ -41,7 +41,7 @@ TEST_F(ProcessManagerUTest,PollingPipeline) {
 	pm.Start({[&calls](){++calls[0];},[&calls](){++calls[1];},[&calls](){++calls[2];} });
 	bool done = false;
 	while(!done) {
-		if (d_events->NextEvent() == EventManager::PROCESS_NEED_REFRESH ) {
+		if (d_events->NextEvent() == Event::PROCESS_NEED_REFRESH ) {
 			done = pm.IsDone();
 		}
 	}
@@ -52,7 +52,7 @@ TEST_F(ProcessManagerUTest,PollingPipeline) {
 	pm.Start({[&calls](){++calls[1];}});
 	done = false;
 	while(!done) {
-		if (d_events->NextEvent() == EventManager::PROCESS_NEED_REFRESH ) {
+		if (d_events->NextEvent() == Event::PROCESS_NEED_REFRESH ) {
 			done = pm.IsDone();
 		}
 	}
@@ -83,25 +83,12 @@ TEST_F(ProcessManagerUTest,BlockingPipeline) {
 	EXPECT_EQ(calls[1],2);
 	EXPECT_EQ(calls[2],1);
 
-	//needed as condition signaling is done before EventManager signaling
-	pm.reset();
 
 	size_t nbUpdate = 0;
 	bool done = false;
-	while(!done) {
 
-		switch (d_events->NextEvent() ) {
-		case EventManager::NONE: {
-			done = true;
-			break;
-		}
-		case EventManager::PROCESS_NEED_REFRESH : {
-			++nbUpdate;
-		}
-		default: {}
-		}
-
+	for(size_t i = 0; i < 4; ++i) {
+		EXPECT_EQ(d_events->NextEvent(),Event::PROCESS_NEED_REFRESH);
 	}
-	EXPECT_EQ(nbUpdate,4);
 
 }
