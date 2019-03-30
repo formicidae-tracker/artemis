@@ -8,9 +8,7 @@
 
 #include "CommonTypes.h"
 
-#include <asio/io_service.hpp>
-#include <asio/strand.hpp>
-#include <asio/streambuf.hpp>
+#include "Connection.h"
 
 
 class AprilTag2Detector {
@@ -98,7 +96,7 @@ public:
 	private :
 		Finalization(const AprilTag2Detector::Ptr & parent,
 		             asio::io_service & service,
-		             const std::string & address,
+		             const Connection::Ptr & connection,
 		             const std::string & savepath,
 		             size_t newAntROISize);
 
@@ -112,25 +110,11 @@ public:
 		                      size_t start=0,
 		                      size_t stride=1);
 
-		void ScheduleReconnect();
-		void ScheduleSend();
-
 		AprilTag2Detector::Ptr d_parent;
 		friend class AprilTag2Detector;
 
-
-
-		asio::io_service & d_service;
-
-		std::string                            d_address;
-		std::shared_ptr<asio::ip::tcp::socket> d_socket;
-		asio::strand                           d_strand;
-
-		typedef RingBuffer<asio::streambuf,16> BufferPool;
-		BufferPool::Consumer::Ptr d_consumer;
-		BufferPool::Producer::Ptr d_producer;
-		bool                      d_sending;
-
+		asio::io_service &        d_service;
+		Connection::Ptr           d_connection;
 
 		std::mutex                d_mutex;
 		std::string               d_savePath;
@@ -142,7 +126,7 @@ public:
 
 	static ProcessQueue Create(const Config & config,
 	                           asio::io_service & service,
-	                           const std::string & address,
+	                           const Connection::Ptr & address,
 	                           const std::string & savePath);
 
 	~AprilTag2Detector();

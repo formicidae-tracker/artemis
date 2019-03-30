@@ -35,7 +35,9 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
 	          OutputProcess.cpp
+	          Connection.cpp
 	          )
+
 
 
 set(HDR_FILES utils/Defer.h
@@ -51,6 +53,7 @@ set(HDR_FILES utils/Defer.h
 	          utils/FlagParser.h
 	          utils/StringManipulation.h
 	          OutputProcess.h
+	          Connection.h
 	          )
 
 

@@ -13,7 +13,6 @@
 #include "utils/PosixCall.h"
 
 #include <asio.hpp>
-#include "EventManager.h"
 
 #include "ProcessQueueExecuter.h"
 
@@ -135,21 +134,25 @@ void Execute(int argc, char ** argv) {
 		                   io.stop();
 	                   });
 
+	Connection::Ptr connection;
+	if (!opts.HermesAddress.empty()) {
+		connection = std::make_shared<Connection>(io,opts.HermesAddress);
+	}
+
+
 	//creates queues
 	ProcessQueue pq = AprilTag2Detector::Create(opts.AprilTag2,
 	                                            io,
-	                                            opts.HermesAddress,
+	                                            connection,
 	                                            opts.NewAntOuputDir);
-
-
+	//queues when outputting data
 	if (opts.VideoOutputToStdout) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
 		pq.push_back(std::make_shared<OutputProcess>(io));
 	}
 
 	Euresys::EGenTL gentl;
-
-	EuresysFrameGrabber fg(gentl,opts.Camera);
+	EuresysFrameGrabber  fg(gentl,opts.Camera);
 	ProcessQueueExecuter executer(io,opts.Workers);
 
 
@@ -173,8 +176,6 @@ void Execute(int argc, char ** argv) {
 			io.post(WaitForFrame);
 		}
 	};
-
-
 
 	fg.Start();
 
