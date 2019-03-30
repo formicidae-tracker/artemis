@@ -118,6 +118,7 @@ void Execute(int argc, char ** argv) {
 
 	asio::io_service io;
 
+	//Stops on SIGINT
 	asio::signal_set signals(io,SIGINT);
 	signals.async_wait([&io](const asio::error_code &,
 	                         int ) {
@@ -133,6 +134,7 @@ void Execute(int argc, char ** argv) {
 	                                            opts.HermesAddress,
 	                                            opts.NewAntOuputDir);
 
+
 	if (opts.VideoOutputToStdout) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
 	}
@@ -140,9 +142,6 @@ void Execute(int argc, char ** argv) {
 	Euresys::EGenTL gentl;
 
 	EuresysFrameGrabber fg(gentl,opts.Camera,eventManager);
-
-
-	Event e;
 
 
 	//install event handler
@@ -156,13 +155,17 @@ void Execute(int argc, char ** argv) {
 					break;
 				}
 			}
-			if ( false ) {
+
+			if ( false ) { // TODO Should be testing if the image processing is finished
 				LOG(ERROR) << "Process overflow : skipping frame " << f->ID();
 				//TODO ? report?
+
+				break;
 			}
 			//start process queue
 			break;
 		}
+
 		case Event::PROCESS_NEED_REFRESH: {
 			//TODO execute process
 			break;
@@ -172,10 +175,23 @@ void Execute(int argc, char ** argv) {
 	};
 
 
+	Event e;
+	std::function <void()> AsyncHandleEvent = [&e,eventManager,&AsyncHandleEvent,&eHandler]() {
+		asio::async_read(eventManager->Incoming(),
+		                 asio::mutable_buffers_1(&e,sizeof(Event)),
+		                 [&e,&AsyncHandleEvent,&eHandler] (const asio::error_code &,
+		                                                   std::size_t ) {
+			                 eHandler(e);
+			                 AsyncHandleEvent();
+		                 });
+	};
 
+	AsyncHandleEvent();
+	fg.start();
 
+	io.run();
 
-
+	fg.stop();
 }
 
 int main(int argc, char ** argv) {
