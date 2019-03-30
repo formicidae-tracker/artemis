@@ -4,6 +4,7 @@
 
 #include "Apriltag2Process.h"
 #include "ResizeProcess.h"
+#include "OutputProcess.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
@@ -143,6 +144,7 @@ void Execute(int argc, char ** argv) {
 
 	if (opts.VideoOutputToStdout) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
+		pq.push_back(std::make_shared<OutputProcess>(io));
 	}
 
 	Euresys::EGenTL gentl;

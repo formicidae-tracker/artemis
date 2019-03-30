@@ -34,6 +34,7 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/PosixCall.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
+	          OutputProcess.cpp
 	          )
 
 
@@ -49,6 +50,7 @@ set(HDR_FILES utils/Defer.h
 	          utils/PosixCall.h
 	          utils/FlagParser.h
 	          utils/StringManipulation.h
+	          OutputProcess.h
 	          )
 
 
