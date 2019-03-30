@@ -66,26 +66,26 @@ void Connection::ScheduleSend() {
 	d_sending = true;
 	asio::async_write(*d_socket,
 	                  d_consumer->Head().data(),
-	                  [this](const asio::error_code & ec,
-	                         std::size_t){
-		                  d_consumer->Pop();
-		                  if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
-			                  if (!d_socket) {
-				                  return;
-			                  }
-			                  LOG(ERROR) << "serialization: disconnected: " << ec;
-			                  d_socket.reset();
-			                  ScheduleReconnect();
-		                  } else if ( ec ) {
-			                  LOG(ERROR) << "serialization: could not send data: " << ec;
-		                  }
+	                  d_strand.wrap([this](const asio::error_code & ec,
+	                                       std::size_t){
+		                                d_consumer->Pop();
+		                                if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
+			                                if (!d_socket) {
+				                                return;
+			                                }
+			                                LOG(ERROR) << "serialization: disconnected: " << ec;
+			                                d_socket.reset();
+			                                ScheduleReconnect();
+		                                } else if ( ec ) {
+			                                LOG(ERROR) << "serialization: could not send data: " << ec;
+		                                }
 
-		                  if (d_consumer->Empty()) {
-			                  d_sending = false;
-			                  return;
-		                  }
-		                  ScheduleSend();
-	                  });
+		                                if (d_consumer->Empty()) {
+			                                d_sending = false;
+			                                return;
+		                                }
+		                                ScheduleSend();
+	                                }));
 }
 
 void Connection::ScheduleReconnect() {
@@ -94,13 +94,13 @@ void Connection::ScheduleReconnect() {
 	}
 	LOG(INFO) << "Reconnecting in 5s to '" << d_address << "'";
 	auto t = std::make_shared<asio::deadline_timer>(d_service,boost::posix_time::seconds(5));
-	t->async_wait([this,t](const asio::error_code & ) {
-			LOG(INFO) << "Reconnecting to '" << d_address << "'";
-			try {
-				d_socket = Connect(d_service,d_address);
-			} catch ( const std::exception & e) {
-				LOG(ERROR) << "Could not connect to '" << d_address << "':  " << e.what();
-				ScheduleReconnect();
-			}
-		});
+	t->async_wait(d_strand.wrap([this,t](const asio::error_code & ) {
+				LOG(INFO) << "Reconnecting to '" << d_address << "'";
+				try {
+					d_socket = Connect(d_service,d_address);
+				} catch ( const std::exception & e) {
+					LOG(ERROR) << "Could not connect to '" << d_address << "':  " << e.what();
+					ScheduleReconnect();
+				}
+			}));
 }
