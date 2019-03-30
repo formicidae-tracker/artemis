@@ -6,8 +6,7 @@
 
 class ResizeProcess : public ProcessDefinition {
 public:
-	ResizeProcess(size_t width, size_t height);
-
+	ResizeProcess(size_t height);
 
 	virtual ~ResizeProcess();
 
@@ -17,4 +16,6 @@ public:
 private:
 	Frame::Ptr d_currentFrame;
 	cv::Mat d_resized;
+	size_t d_height;
+	bool d_initialized;
 };

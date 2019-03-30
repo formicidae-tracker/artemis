@@ -217,9 +217,7 @@ TEST_F(StringUTest,SplitString) {
 		{dots, "...", {"1", ".2", ".3", ".4"}},
 		{faces, "☹", {"☺☻", ""}},
 		{faces, "~", {faces}},
-#ifdef BIOROB_CPP_HAS_CODECVT_SUPPORT
 		{faces, "", {"☺", "☻", "☹"}},
-#endif	//BIOROB_CPP_HAS_CODECVT_SUPPORT
 		{"1 2 3 4", " ", {"1", "2", "3", "4"}},
 		{"1 2", " ", {"1", "2"}},
 	};

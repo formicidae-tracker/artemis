@@ -126,7 +126,8 @@ OutputIt SplitString(const InputIt & start, const InputIt & end,
                      OutputIt iter) {
 	if (separator.empty()) {
 		for(InputIt it = start; it != end; ) {
-			std::string::size_type l = std::codecvt_utf8<wchar_t>::length(it,end,1);
+			std::mbstate_t mb;
+			std::string::size_type l = std::codecvt_utf8<wchar_t>().length(mb,&(*it),&(*end),1);
 			*iter++ = std::string(it,it+l);
 			it += l;
 		}

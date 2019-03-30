@@ -35,8 +35,6 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/PosixCall.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
-	          FileWriter.cpp
-	          FrameWriter.cpp
 	          )
 
 
@@ -53,8 +51,6 @@ set(HDR_FILES utils/Defer.h
 	          utils/PosixCall.h
 	          utils/FlagParser.h
 	          utils/StringManipulation.h
-	          FileWriter.h
-	          FrameWriter.h
 	          )
 
 
@@ -65,7 +61,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                ProcessManagerUTest.cpp
 	                RingBufferUTest.cpp
 	                utils/FlagParserUTest.cpp
-	                utils/StringManipulation.cpp
+	                utils/StringManipulationUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
@@ -74,7 +70,7 @@ set(UTEST_HDR_FILES utils/DeferUTest.h
 	                ProcessManagerUTest.h
 	                RingBufferUTest.h
 	                utils/FlagParserUTest.h
-	                utils/StringManipulation.h
+	                utils/StringManipulationUTest.h
 	                )
 
 if(EGrabber_FOUND)
