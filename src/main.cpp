@@ -108,121 +108,70 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	}
 }
 
-std::shared_ptr<asio::ip::tcp::socket> Connect(asio::io_service & io, const std::string & address) {
-		asio::ip::tcp::resolver resolver(io);
-		asio::ip::tcp::resolver::query q(address.c_str(),"artemis");
-		asio::ip::tcp::resolver::iterator endpoint = resolver.resolve(q);
-		auto res = std::make_shared<asio::ip::tcp::socket>(io);
-		asio::connect(*res,endpoint);
-}
-
 
 void Execute(int argc, char ** argv) {
 	::google::InitGoogleLogging(argv[0]);
 	Options opts;
 	ParseArgs(argc, argv,opts);
 
+
+
+	asio::io_service io;
+
+	asio::signal_set signals(io,SIGINT);
+	signals.async_wait([&io](const asio::error_code &,
+	                         int ) {
+		                   LOG(INFO) << "Terminating (SIGINT)";
+		                   io.stop();
+	                   });
+
+	auto eventManager = EventManager::Create(io);
+
 	//creates queues
-	auto messages = SerializedMessageBuffer::Create();
-	auto messagesProducer = std::move(messages.first);
-	auto messagesConsumer = std::move(messages.second);
-
-	auto newAnts = UnknownAntsBuffer::Create();
-	auto newAntsProducer = std::move(newAnts.first);
-	auto newAntsConsumer = std::move(newAnts.second);
-
 	ProcessQueue pq = AprilTag2Detector::Create(opts.AprilTag2,
-	                                            messagesProducer,
-	                                            newAntsProducer);
+	                                            io,
+	                                            opts.HermesAddress,
+	                                            opts.NewAntOuputDir);
 
 	if (opts.VideoOutputToStdout) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
-	}
-
-	asio::io_service io;
-	auto eventManager = EventManager::Create(io);
-
-	std::shared_ptr<asio::ip::tcp::socket> upstream;
-	if ( !opts.HermesAddress.empty() ) {
-		upstream = Connect(io,opts.HermesAddress);
 	}
 
 	Euresys::EGenTL gentl;
 
 	EuresysFrameGrabber fg(gentl,opts.Camera,eventManager);
 
+
+	Event e;
+
+
 	//install event handler
-	EventManager::Handler eHandler = [upstream,&messagesConsumer,&newAntsConsumer,&opts,&io](Event e) {
+	EventManager::Handler eHandler = [&opts,&io,&fg](Event e) {
 		switch(e) {
 		case Event::FRAME_READY: {
-
-			break;
-		}
-		case Event::NEW_READOUT: {
-			try {
-				if (!upstream) {
-					messagesConsumer->Pop();
-				}
-
-				asio::async_write<asio::ip::tcp::socket,
-
-				(*upstream,messagesConsumer->Head(),[&messagesConsumer](const asio::error_code & ec,
-					   std::size_t ) {
-					                  if(ec) {
-						                  LOG(ERROR) << "Could not send message upstream";
-					                  }
-					                  try {
-						                  messagesConsumer->Pop();
-					                  } catch ( const SerializedMessageBuffer::EmptyException & ) {
-						                  LOG(ERROR) << "internal error: MessageBuffer should not be empty";
-					                  }
-				                  });
-
-
-			} catch ( const SerializedMessageBuffer::EmptyException &) {
-				LOG(ERROR) << "Internal Error: MessageBuffer should not be empty";
-			}
-			break;
-		}
-		case Event::NEW_ANT_DISCOVERED: {
-			try{
-				if ( opts.NewAntOuputDir.empty() ) {
-					newAntsConsumer->Pop();
-				}
-				std::ostringstream path(opts.NewAntOuputDir);
-				auto a = newAntsConsumer->Head();
-
-				path << "/" << "ant_" << a.ID << ".png";
-				int fd = open(path.str().c_str(),O_CREAT|O_WRONLY|O_NONBLOCK);
-				if ( fd != -1) {
-					auto file = std::shared_ptr<asio::posix::stream_descriptor>(new asio::posix::stream_descriptor(io,fd),[](asio::posix::stream_descriptor * sd) {
-							close(sd->native_handle());
-							delete sd;
-						});
-
-					asio::async_write(*file,asio::buffer(&((*(a.PNGData))[0]),a.PNGData->size()),[file,&newAntsConsumer](const asio::error_code & ec,
-						                               std::size_t ){
-						                  if(ec) {
-							                  LOG(ERROR) << "Could not save png data";
-						                  }
-						                  try {
-							                  newAntsConsumer->Pop();
-						                  } catch ( const UnknownAntsBuffer::EmptyException & ) {
-							                  LOG(ERROR) << "Internal Error: NewAntBuffer should not be empty";
-						                  }
-					                  });
-				} else {
-					LOG(ERROR) << "Could not create '" << path.str() << "': open: " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
-				}
-
-				} catch ( const UnknownAntsBuffer::EmptyException &) {
-					LOG(ERROR) << "Internal Error: NewAntBuffer should not be empty";
+			auto f = fg.CurrentFrame();
+			if (opts.FrameStride > 1 ) {
+				uint64_t IDInStride = f->ID() % opts.FrameStride;
+				if (opts.FrameID.count(IDInStride) == 0 ) {
+					break;
 				}
 			}
-		break;
+			if ( false ) {
+				LOG(ERROR) << "Process overflow : skipping frame " << f->ID();
+				//TODO ? report?
+			}
+			//start process queue
+			break;
 		}
-
+		case Event::PROCESS_NEED_REFRESH: {
+			//TODO execute process
+			break;
+		}
+		default: {}
+		}
 	};
+
+
 
 
 

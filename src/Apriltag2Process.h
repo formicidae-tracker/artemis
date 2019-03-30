@@ -8,6 +8,10 @@
 
 #include "CommonTypes.h"
 
+#include <asio/io_service.hpp>
+#include <asio/strand.hpp>
+#include <asio/streambuf.hpp>
+
 
 class AprilTag2Detector {
 public:
@@ -93,8 +97,9 @@ public:
 		virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
 	private :
 		Finalization(const AprilTag2Detector::Ptr & parent,
-		             SerializedMessageBuffer::Producer::Ptr & messages,
-		             UnknownAntsBuffer::Producer::Ptr & ants,
+		             asio::io_service & service,
+		             const std::string & address,
+		             const std::string & savepath,
 		             size_t newAntROISize);
 
 		Finalization(const Finalization & ) = delete;
@@ -107,22 +112,35 @@ public:
 		                      size_t start=0,
 		                      size_t stride=1);
 
+		void ScheduleReconnect();
+
+
 		AprilTag2Detector::Ptr d_parent;
 		friend class AprilTag2Detector;
 
-		SerializedMessageBuffer::Producer::Ptr d_messages;
 
-		std::mutex                       d_mutex;
-		UnknownAntsBuffer::Producer::Ptr d_newAnts;
-		std::set<int32_t> d_known;
 
-		const size_t d_newAntROISize;
+		asio::io_service & d_service;
+
+		std::string                            d_address;
+		std::shared_ptr<asio::ip::tcp::socket> d_socket;
+		asio::strand                           d_strand;
+
+		typedef RingBuffer<asio::streambuf,16> BufferPool;
+		BufferPool::Consumer::Ptr d_consumer;
+		BufferPool::Producer::Ptr d_producer;
+		std::mutex                d_mutex;
+		std::string               d_savePath;
+		std::set<int32_t>         d_known;
+		const size_t              d_newAntROISize;
+
 	};
 
 
 	static ProcessQueue Create(const Config & config,
-	                           SerializedMessageBuffer::Producer::Ptr & messages,
-	                           UnknownAntsBuffer::Producer::Ptr & ants);
+	                           asio::io_service & service,
+	                           const std::string & address,
+	                           const std::string & savePath);
 
 	~AprilTag2Detector();
 

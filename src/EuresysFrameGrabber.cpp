@@ -30,10 +30,12 @@ EuresysFrameGrabber::~EuresysFrameGrabber() {
 }
 
 const Frame::Ptr & EuresysFrameGrabber::CurrentFrame() {
+	std::lock_guard<std::mutex> lock(d_mutex);
 	return d_currentFrame;
 }
 
 void EuresysFrameGrabber::onNewBufferEvent(const Euresys::NewBufferData &data) {
+	std::lock_guard<std::mutex> lock(d_mutex);
 	d_currentFrame = std::make_shared<EuresysFrame>(*this,data);
 	d_manager->Signal(Event::FRAME_READY);
 }
@@ -66,4 +68,8 @@ uint64_t EuresysFrame::ID() const {
 
 const cv::Mat & EuresysFrame::ToCV() {
 	return d_mat;
+}
+
+void * EuresysFrame::Data() {
+	return getInfo<void*>(GenTL::BUFFER_INFO_BASE);
 }

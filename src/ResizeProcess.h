@@ -11,7 +11,6 @@ public:
 	virtual ~ResizeProcess();
 
 	virtual std::vector<ProcessFunction> Prepare(size_t nbProcess, const cv::Size & size);
-	virtual void Finalize(const cv::Mat & upstream, fort::FrameReadout & readout, cv::Mat & result);
 
 private:
 	Frame::Ptr d_currentFrame;

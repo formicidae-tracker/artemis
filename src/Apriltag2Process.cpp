@@ -9,13 +9,29 @@
 
 #include <cmath>
 
-
 #include <google/protobuf/util/delimited_message_util.h>
+
+#include <asio/write.hpp>
+#include <asio/connect.hpp>
+#include <asio/posix/stream_descriptor.hpp>
+
 
 #include <glog/logging.h>
 
-
 #include <opencv2/imgcodecs.hpp>
+
+
+#include "utils/PosixCall.h"
+
+
+std::shared_ptr<asio::ip::tcp::socket> Connect(asio::io_service & io, const std::string & address) {
+	asio::ip::tcp::resolver resolver(io);
+	asio::ip::tcp::resolver::query q(address.c_str(),"artemis");
+	asio::ip::tcp::resolver::iterator endpoint = resolver.resolve(q);
+	auto res = std::make_shared<asio::ip::tcp::socket>(io);
+	asio::connect(*res,endpoint);
+}
+
 
 
 AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
@@ -164,13 +180,29 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 
 
 AprilTag2Detector::Finalization::Finalization(const AprilTag2Detector::Ptr & parent,
-                                              SerializedMessageBuffer::Producer::Ptr & messages,
-                                              UnknownAntsBuffer::Producer::Ptr & ants,
+                                              asio::io_service & service,
+                                              const std::string & address,
+                                              const std::string & savePath,
                                               size_t newAntROISize)
 	: d_parent(parent)
-	, d_messages(std::move(messages))
-	, d_newAnts(std::move(ants))
+	, d_service(service)
+	, d_address(address)
+	, d_strand(asio::strand(service))
+	, d_savePath(savePath)
 	, d_newAntROISize(newAntROISize) {
+
+	auto prodConsum = BufferPool::Create();
+	d_producer = std::move(prodConsum.first);
+	d_consumer = std::move(prodConsum.second);
+
+	if (!d_address.empty()) {
+		try {
+			d_socket = Connect(d_service,d_address);
+		} catch ( const std::exception & e) {
+			LOG(ERROR) << "Could not connect to '" << d_address << "': " << e.what();
+			ScheduleReconnect();
+		}
+	}
 }
 
 AprilTag2Detector::Finalization::~Finalization() {};
@@ -208,17 +240,58 @@ std::vector<ProcessFunction> AprilTag2Detector::Finalization::Prepare(size_t max
 }
 
 void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout & message) {
-	try {
-		asio::streambuf & tail = d_messages->Tail();
-		//empty the buffer if not emptied
-		tail.consume(tail.max_size());
-		std::ostream os(&tail);
-		google::protobuf::util::SerializeDelimitedToOstream(message,&os);
-		d_messages->Push();
-	} catch ( const SerializedMessageBuffer::FullException & e) {
-		LOG(ERROR) << "Could not serialize messager: " << e.what();
+	if (!d_socket) {
+		LOG(WARNING) << "serialization: discarding data: no socket available";
+		return;
 	}
+
+	if ( d_producer->Full() ) {
+		LOG(WARNING) << "serialization: discarding data: FIFO full";
+	}
+
+	asio::streambuf & buf = d_producer->Tail();
+	buf.consume(buf.max_size());
+	std::ostream output(&buf);
+	google::protobuf::util::SerializeDelimitedToOstream(message, &output);
+	d_producer->Push();
+	d_strand.wrap([this]{
+			if(d_consumer->Empty()) {
+				return;
+			}
+			asio::async_write(*d_socket,
+			                  d_consumer->Head().data(),
+			                  [this](const asio::error_code & ec,
+			                         std::size_t){
+				                  d_consumer->Pop();
+				                  if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
+					                  if (!d_socket) {
+						                  return;
+					                  }
+					                  d_socket.reset();
+					                  ScheduleReconnect();
+				                  }
+			                  });
+		});
+
 }
+
+void AprilTag2Detector::Finalization::ScheduleReconnect() {
+	if (d_socket) {
+		return;
+	}
+	LOG(INFO) << "Reconnecting in 5s to '" << d_address << "'";
+	auto t = std::make_shared<asio::deadline_timer>(d_service,boost::posix_time::seconds(5));
+	t->async_wait([this,t](const asio::error_code & ) {
+			LOG(INFO) << "Reconnecting to '" << d_address << "'";
+			try {
+				d_socket = Connect(d_service,d_address);
+			} catch ( const std::exception & e) {
+				LOG(ERROR) << "Could not connect to '" << d_address << "':  " << e.what();
+				ScheduleReconnect();
+			}
+		});
+}
+
 
 void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
                                                        const fort::FrameReadout & readout,
@@ -226,6 +299,7 @@ void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
                                                        size_t stride) {
 	for (size_t i = start; i < readout.ants_size(); i += stride) {
 		auto a = readout.ants(i);
+		int32_t ID = a.id();
 		{
 			std::lock_guard<std::mutex> lock(d_mutex);
 			if ( d_known.count(a.id()) != 0 ) {
@@ -240,25 +314,33 @@ void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
 		auto pngData =  std::make_shared<std::vector<uint8_t> >();
 		cv::imencode("png",cv::Mat(frame->ToCV(),roi),*pngData);
 
-		try {
-			std::lock_guard<std::mutex> lock(d_mutex);
-			d_newAnts->Tail().ID = a.id();
-			d_newAnts->Tail().PNGData = pngData;
-			d_newAnts->Push();
-			d_known.insert(a.id());
-		} catch ( const UnknownAntsBuffer::FullException & e) {
-			LOG(INFO) << "Not saving ant " << a.id() << ": " << e.what();
-		}
+		d_service.post([this,pngData,ID](){
+				std::ostringstream oss(d_savePath);
+				oss << "/ant_" << ID << ".png";
+				int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK);
+				if (fd == -1) {
+					LOG(ERROR) << "Could not save ant " << ID << ": " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
+					return;
+				}
+				auto stream = std::make_shared<asio::posix::stream_descriptor>(d_service,fd);
+				asio::async_write(*stream,
+				                  asio::const_buffers_1(&((*pngData)[0]),pngData->size()),
+				                  [this,pngData,stream](const asio::error_code & ec,
+				                                        std::size_t ) {
+					                  close(stream->native_handle());
+				                  });
+			});
 	}
 }
 
 ProcessQueue AprilTag2Detector::Create(const Config & config,
-                                       SerializedMessageBuffer::Producer::Ptr & messages,
-                                       UnknownAntsBuffer::Producer::Ptr & ants) {
+                                       asio::io_service & service,
+                                       const std::string & address,
+                                       const std::string & path) {
 	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(config));
 	return {
 		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),
 		std::shared_ptr<ProcessDefinition>(new TagMerging(detector)),
-		std::shared_ptr<ProcessDefinition>(new Finalization(detector,messages,ants,config.NewAntROISize))
+		std::shared_ptr<ProcessDefinition>(new Finalization(detector,service,address,path,config.NewAntROISize))
 	};
 }

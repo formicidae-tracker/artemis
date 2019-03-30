@@ -9,6 +9,8 @@
 #include <opencv2/core.hpp>
 
 
+#include <mutex>
+
 
 struct CameraConfiguration {
 	CameraConfiguration()
@@ -32,7 +34,7 @@ public :
 	virtual ~EuresysFrame();
 
 
-	virtual void * Data() const;
+	virtual void * Data();
 	virtual size_t Width() const;
 	virtual size_t Height() const;
 	virtual uint64_t Timestamp() const;
@@ -63,6 +65,7 @@ private:
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
-	EventManager::Ptr d_manager;
-	Frame::Ptr d_currentFrame;
+	EventManager::Ptr  d_manager;
+	Frame::Ptr         d_currentFrame;
+	std::mutex         d_mutex;
 };
