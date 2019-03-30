@@ -2,10 +2,8 @@
 
 
 EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
-                                         const CameraConfiguration & cameraConfig,
-                                         const EventManager::Ptr & eManager)
-	: Euresys::EGrabber<Euresys::CallbackSingleThread>(gentl)
-	, d_manager(eManager) {
+                                         const CameraConfiguration & cameraConfig)
+	: Euresys::EGrabber<Euresys::CallbackOnDemand>(gentl) {
 
 	using namespace Euresys;
 
@@ -26,21 +24,26 @@ void EuresysFrameGrabber::Start() {
 	start();
 }
 
+void EuresysFrameGrabber::Stop() {
+	start();
+}
+
+
 EuresysFrameGrabber::~EuresysFrameGrabber() {
 }
 
-const Frame::Ptr & EuresysFrameGrabber::CurrentFrame() {
-	std::lock_guard<std::mutex> lock(d_mutex);
-	return d_currentFrame;
+Frame::Ptr EuresysFrameGrabber::NextFrame() {
+	processEvent<Euresys::NewBufferData>(1000);
+	Frame::Ptr res = d_frame;
+	d_frame.reset();
+	return res;
 }
 
 void EuresysFrameGrabber::onNewBufferEvent(const Euresys::NewBufferData &data) {
-	std::lock_guard<std::mutex> lock(d_mutex);
-	d_currentFrame = std::make_shared<EuresysFrame>(*this,data);
-	d_manager->Signal(Event::FRAME_READY);
+	d_frame = std::make_shared<EuresysFrame>(*this,data);
 }
 
-EuresysFrame::EuresysFrame(Euresys::EGrabber<Euresys::CallbackSingleThread> & grabber, const Euresys::NewBufferData & data)
+EuresysFrame::EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData & data)
 	: Euresys::ScopedBuffer(grabber,data)
 	, d_width(getInfo<size_t>(GenTL::BUFFER_INFO_WIDTH))
 	, d_height(getInfo<size_t>(GenTL::BUFFER_INFO_HEIGHT))

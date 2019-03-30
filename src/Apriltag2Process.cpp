@@ -188,6 +188,7 @@ AprilTag2Detector::Finalization::Finalization(const AprilTag2Detector::Ptr & par
 	, d_service(service)
 	, d_address(address)
 	, d_strand(asio::strand(service))
+	, d_sending(false)
 	, d_savePath(savePath)
 	, d_newAntROISize(newAntROISize) {
 
@@ -240,11 +241,9 @@ std::vector<ProcessFunction> AprilTag2Detector::Finalization::Prepare(size_t max
 }
 
 void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout & message) {
-	if (!d_socket) {
-		LOG(WARNING) << "serialization: discarding data: no socket available";
+	if( d_address.empty() ) {
 		return;
 	}
-
 	if ( d_producer->Full() ) {
 		LOG(WARNING) << "serialization: discarding data: FIFO full";
 	}
@@ -254,25 +253,43 @@ void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout 
 	std::ostream output(&buf);
 	google::protobuf::util::SerializeDelimitedToOstream(message, &output);
 	d_producer->Push();
-	d_strand.wrap([this]{
-			if(d_consumer->Empty()) {
+	d_strand.post([this]{
+			if(d_consumer->Empty() || d_sending == true) {
 				return;
 			}
-			asio::async_write(*d_socket,
-			                  d_consumer->Head().data(),
-			                  [this](const asio::error_code & ec,
-			                         std::size_t){
-				                  d_consumer->Pop();
-				                  if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
-					                  if (!d_socket) {
-						                  return;
-					                  }
-					                  d_socket.reset();
-					                  ScheduleReconnect();
-				                  }
-			                  });
+			if (!d_socket) {
+				LOG(WARNING) << "serialization: discarding data: no active connection";
+			}
+			ScheduleSend();
 		});
 
+}
+
+
+void AprilTag2Detector::Finalization::ScheduleSend() {
+	d_sending = true;
+	asio::async_write(*d_socket,
+	                  d_consumer->Head().data(),
+	                  [this](const asio::error_code & ec,
+	                         std::size_t){
+		                  d_consumer->Pop();
+		                  if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
+			                  if (!d_socket) {
+				                  return;
+			                  }
+			                  LOG(ERROR) << "serialization: disconnected: " << ec;
+			                  d_socket.reset();
+			                  ScheduleReconnect();
+		                  } else if ( ec ) {
+			                  LOG(ERROR) << "serialization: could not send data: " << ec;
+		                  }
+
+		                  if (d_consumer->Empty()) {
+			                  d_sending = false;
+			                  return;
+		                  }
+		                  ScheduleSend();
+	                  });
 }
 
 void AprilTag2Detector::Finalization::ScheduleReconnect() {

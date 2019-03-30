@@ -113,7 +113,7 @@ public:
 		                      size_t stride=1);
 
 		void ScheduleReconnect();
-
+		void ScheduleSend();
 
 		AprilTag2Detector::Ptr d_parent;
 		friend class AprilTag2Detector;
@@ -129,6 +129,9 @@ public:
 		typedef RingBuffer<asio::streambuf,16> BufferPool;
 		BufferPool::Consumer::Ptr d_consumer;
 		BufferPool::Producer::Ptr d_producer;
+		bool                      d_sending;
+
+
 		std::mutex                d_mutex;
 		std::string               d_savePath;
 		std::set<int32_t>         d_known;

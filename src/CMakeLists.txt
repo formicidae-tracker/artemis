@@ -25,13 +25,12 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 
 set(SRC_FILES utils/Defer.cpp
 	          WaitGroup.cpp
-	          EventManager.cpp
 	          FrameGrabber.cpp
 	          ProcessDefinition.cpp
 	          ResizeProcess.cpp
 	          Apriltag2Process.cpp
-	          ProcessManager.cpp
 	          RingBuffer.cpp
+	          ProcessQueueExecuter.cpp
 	          utils/PosixCall.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
@@ -40,14 +39,13 @@ set(SRC_FILES utils/Defer.cpp
 
 set(HDR_FILES utils/Defer.h
 	          WaitGroup.h
-	          EventManager.h
 	          utils/PosixCall.h
 	          FrameGrabber.h
 	          ProcessDefinition.h
 	          ResizeProcess.h
 	          Apriltag2Process.h
-	          ProcessManager.h
 	          RingBuffer.h
+	          ProcessQueueExecuter.h
 	          utils/PosixCall.h
 	          utils/FlagParser.h
 	          utils/StringManipulation.h
@@ -57,8 +55,6 @@ set(HDR_FILES utils/Defer.h
 set(UTEST_SRC_FILES main-check.cpp
 	                utils/DeferUTest.cpp
 	                WaitGroupUTest.cpp
-	                EventManagerUTest.cpp
-	                ProcessManagerUTest.cpp
 	                RingBufferUTest.cpp
 	                utils/FlagParserUTest.cpp
 	                utils/StringManipulationUTest.cpp
@@ -66,8 +62,6 @@ set(UTEST_SRC_FILES main-check.cpp
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
 	                WaitGroupUTest.h
-	                EventManagerUTest.h
-	                ProcessManagerUTest.h
 	                RingBufferUTest.h
 	                utils/FlagParserUTest.h
 	                utils/StringManipulationUTest.h

@@ -4,13 +4,7 @@
 
 #include <EGrabber.h>
 
-#include "EventManager.h"
-
 #include <opencv2/core.hpp>
-
-
-#include <mutex>
-
 
 struct CameraConfiguration {
 	CameraConfiguration()
@@ -30,7 +24,7 @@ struct CameraConfiguration {
 
 class EuresysFrame : public Frame,public Euresys::ScopedBuffer {
 public :
-	EuresysFrame(Euresys::EGrabber<Euresys::CallbackSingleThread> & grabber, const Euresys::NewBufferData &);
+	EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData &);
 	virtual ~EuresysFrame();
 
 
@@ -47,25 +41,23 @@ private :
 };
 
 
-class EuresysFrameGrabber : public FrameGrabber,public Euresys::EGrabber<Euresys::CallbackSingleThread> {
+class EuresysFrameGrabber : public FrameGrabber,public Euresys::EGrabber<Euresys::CallbackOnDemand> {
 public :
 	typedef std::shared_ptr<Euresys::ScopedBuffer> BufferPtr;
 
 	EuresysFrameGrabber(Euresys::EGenTL & gentl,
-	                    const CameraConfiguration & cameraConfig,
-	                    const EventManager::Ptr & eManager);
+	                    const CameraConfiguration & cameraConfig);
 
 	virtual ~EuresysFrameGrabber();
 
-	virtual void Start();
 
-	virtual const Frame::Ptr & CurrentFrame();
+	virtual void Start();
+	virtual void Stop();
+	virtual Frame::Ptr NextFrame();
 
 private:
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
-	EventManager::Ptr  d_manager;
-	Frame::Ptr         d_currentFrame;
-	std::mutex         d_mutex;
+	Frame::Ptr         d_frame;
 };

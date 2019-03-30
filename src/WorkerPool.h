@@ -10,24 +10,14 @@
 
 #include <opencv2/core.hpp>
 
-class ProcessDefinition;
-typedef std::shared_ptr<ProcessDefinition> ProcessDefinitionPtr;
-
-class Frame;
-typedef std::shared_ptr<Frame> FramePtr;
-
-namespace fort {
-class FrameReadout;
-}
-typedef std::shared_ptr<fort::FrameReadout> FrameReadoutPtr;
 
 class EventManager;
 typedef std::shared_ptr<EventManager> EventManagerPtr;
 
 
-class ProcessManager {
+class WorkerPool {
 public:
-	ProcessManager(const EventManagerPtr & eventManager, size_t nbWorkers);
+	WorkerPool(const EventManagerPtr & eventManager, size_t nbWorkers);
 
 
 	void Start(const std::vector<std::function < void()> > & jobs);
@@ -51,9 +41,9 @@ private :
 		std::thread d_workThread;
 
 	};
-	typedef std::vector<std::unique_ptr<Worker> > WorkerPool;
+	typedef std::vector<std::unique_ptr<Worker> > Pool;
 
 	EventManagerPtr d_eventManager;
 	WaitGroup       d_waitGroup;
-	WorkerPool      d_workers;
+	Pool      d_workers;
 };

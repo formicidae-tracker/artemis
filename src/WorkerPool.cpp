@@ -1,14 +1,14 @@
-#include "ProcessManager.h"
+#include "WorkerPool.h"
 
 #include "EventManager.h"
 #include "ProcessDefinition.h"
 
-ProcessManager::Worker::Worker()
+WorkerPool::Worker::Worker()
 	: d_quit(false)
-	, d_workThread(&ProcessManager::Worker::Loop,this){
+	, d_workThread(&WorkerPool::Worker::Loop,this){
 }
 
-ProcessManager::Worker::~Worker() {
+WorkerPool::Worker::~Worker() {
 	d_quit.store(true);
 	{
 		std::lock_guard<std::mutex> lock(d_mutex);
@@ -18,7 +18,7 @@ ProcessManager::Worker::~Worker() {
 }
 
 
-void ProcessManager::Worker::StartJob(WaitGroup & wg, const EventManager::Ptr & eventManager, const Job & j) {
+void WorkerPool::Worker::StartJob(WaitGroup & wg, const EventManager::Ptr & eventManager, const Job & j) {
 	std::lock_guard<std::mutex> lock(d_mutex);
 
 	d_job = std::make_shared<Job>([&wg,j,eventManager]{
@@ -31,7 +31,7 @@ void ProcessManager::Worker::StartJob(WaitGroup & wg, const EventManager::Ptr & 
 	d_signal.notify_all();
 }
 
-void ProcessManager::Worker::Loop() {
+void WorkerPool::Worker::Loop() {
 	while(d_quit.load() == false) {
 		std::shared_ptr<Job> toDo;
 		{
@@ -56,14 +56,14 @@ void ProcessManager::Worker::Loop() {
 
 }
 
-ProcessManager::ProcessManager(const EventManagerPtr & eventManager,
+WorkerPool::WorkerPool(const EventManagerPtr & eventManager,
                                size_t nbWorkers)
 	: d_eventManager(eventManager) {
 	if (nbWorkers == 0 ) {
-		throw std::invalid_argument("ProcessManager: Need at least 1 worker");
+		throw std::invalid_argument("WorkerPool: Need at least 1 worker");
 	}
 	if ( !eventManager ) {
-		throw std::invalid_argument("ProcessManager: empty EventManager reference");
+		throw std::invalid_argument("WorkerPool: empty EventManager reference");
 	}
 
 	d_workers.reserve(nbWorkers);
@@ -73,7 +73,7 @@ ProcessManager::ProcessManager(const EventManagerPtr & eventManager,
 }
 
 
-void ProcessManager::Start(const std::vector<std::function < void()> > & jobs) {
+void WorkerPool::Start(const std::vector<std::function < void()> > & jobs) {
 	if (jobs.size() > d_workers.size() ) {
 		throw std::invalid_argument("Too many jobs");
 	}
@@ -85,11 +85,11 @@ void ProcessManager::Start(const std::vector<std::function < void()> > & jobs) {
 }
 
 
-bool ProcessManager::IsDone() {
+bool WorkerPool::IsDone() {
 	return d_waitGroup.IsDone();
 }
 
 
-void ProcessManager::Wait() {
+void WorkerPool::Wait() {
 	d_waitGroup.Wait();
 }

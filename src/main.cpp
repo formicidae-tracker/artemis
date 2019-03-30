@@ -1,5 +1,7 @@
 #include <glog/logging.h>
 
+#include <thread>
+
 #include "Apriltag2Process.h"
 #include "ResizeProcess.h"
 #include "utils/FlagParser.h"
@@ -11,6 +13,8 @@
 
 #include <asio.hpp>
 #include "EventManager.h"
+
+#include "ProcessQueueExecuter.h"
 
 
 struct Options {
@@ -26,8 +30,10 @@ struct Options {
 	std::string NewAntOuputDir;
 
 	std::string frameIDString;
-	uint64      FrameStride;
+	size_t      FrameStride;
 	std::set<uint64> FrameID;
+
+	size_t      Workers;
 };
 
 
@@ -38,7 +44,6 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.VideoOutputHeight = 1080;
 	opts.FrameStride = 1;
 	opts.frameIDString = "";
-
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
@@ -65,7 +70,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("camera-strobe-us",opts.Camera.ExposureTime,"Camera Strobe Length in us");
 	parser.AddFlag("camera-strobe-offset-us",opts.Camera.ExposureTime,"Camera Strobe Offset in us, negative value allowed");
 	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
-
+	parser.AddFlag("workers",opts.Workers,"Number of worker to use for processing");
 
 	parser.Parse(argc,argv);
 	if (opts.PrintHelp == true) {
@@ -77,6 +82,9 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	}
 	if (opts.FrameStride > 100 ) {
 		throw std::invalid_argument("Frame stride to big, mas is 100");
+	}
+	if (opts.Workers == 0 ) {
+		opts.Workers = 1;
 	}
 
 	if ( opts.frameIDString.empty() ) {
@@ -126,8 +134,6 @@ void Execute(int argc, char ** argv) {
 		                   io.stop();
 	                   });
 
-	auto eventManager = EventManager::Create(io);
-
 	//creates queues
 	ProcessQueue pq = AprilTag2Detector::Create(opts.AprilTag2,
 	                                            io,
@@ -141,57 +147,51 @@ void Execute(int argc, char ** argv) {
 
 	Euresys::EGenTL gentl;
 
-	EuresysFrameGrabber fg(gentl,opts.Camera,eventManager);
+	EuresysFrameGrabber fg(gentl,opts.Camera);
+	ProcessQueueExecuter executer(io,opts.Workers);
 
 
-	//install event handler
-	EventManager::Handler eHandler = [&opts,&io,&fg](Event e) {
-		switch(e) {
-		case Event::FRAME_READY: {
-			auto f = fg.CurrentFrame();
-			if (opts.FrameStride > 1 ) {
-				uint64_t IDInStride = f->ID() % opts.FrameStride;
-				if (opts.FrameID.count(IDInStride) == 0 ) {
-					break;
-				}
+	std::function<void()> WaitForFrame = [&WaitForFrame,&io,&executer,&pq,&fg,&opts](){
+		Frame::Ptr f = fg.NextFrame();
+		if ( opts.FrameStride > 1 ) {
+			uint64_t IDInStride = f->ID() % opts.FrameStride;
+			if (opts.FrameID.count(IDInStride) == 0 ) {
+				io.post(WaitForFrame);
+				return;
 			}
 
-			if ( false ) { // TODO Should be testing if the image processing is finished
+			if ( executer.IsDone() == false ) {
 				LOG(ERROR) << "Process overflow : skipping frame " << f->ID();
-				//TODO ? report?
+				//TODO report a message ?
 
-				break;
+				io.post(WaitForFrame);
+				return;
 			}
-			//start process queue
-			break;
-		}
-
-		case Event::PROCESS_NEED_REFRESH: {
-			//TODO execute process
-			break;
-		}
-		default: {}
+			executer.Start(pq,f);
+			io.post(WaitForFrame);
 		}
 	};
 
 
-	Event e;
-	std::function <void()> AsyncHandleEvent = [&e,eventManager,&AsyncHandleEvent,&eHandler]() {
-		asio::async_read(eventManager->Incoming(),
-		                 asio::mutable_buffers_1(&e,sizeof(Event)),
-		                 [&e,&AsyncHandleEvent,&eHandler] (const asio::error_code &,
-		                                                   std::size_t ) {
-			                 eHandler(e);
-			                 AsyncHandleEvent();
-		                 });
-	};
 
-	AsyncHandleEvent();
-	fg.start();
+	fg.Start();
+
+	std::vector<std::thread> threads;
+
+	for(size_t i = 0; i < opts.Workers; ++i) {
+		threads.push_back(std::thread([&io](){
+					io.run();
+				}));
+	}
 
 	io.run();
+	fg.Stop();
 
-	fg.stop();
+	for( auto & t : threads) {
+		t.join();
+	}
+
+
 }
 
 int main(int argc, char ** argv) {
