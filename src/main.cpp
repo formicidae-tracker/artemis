@@ -166,29 +166,29 @@ void Execute(int argc, char ** argv) {
 				io.post(WaitForFrame);
 				return;
 			}
-
-			if ( executer.IsDone() == false ) {
-				LOG(ERROR) << "Process overflow : skipping frame " << f->ID();
-				error.Clear();
-				error.set_timestamp(f->Timestamp());
-				error.set_frameid(f->ID());
-				auto time = error.mutable_time();
-				time->set_seconds(f->Time().tv_sec);
-				time->set_nanos(f->Time().tv_usec*1000);
-				error.set_error(fort::FrameReadout::PROCESS_OVERFLOW);
-
-				connection->PostMessage(error);
-
-				io.post(WaitForFrame);
-				return;
-			}
-			executer.Start(pq,f);
-			io.post(WaitForFrame);
 		}
+
+		if ( executer.IsDone() == false ) {
+			LOG(ERROR) << "Process overflow : skipping frame " << f->ID();
+			error.Clear();
+			error.set_timestamp(f->Timestamp());
+			error.set_frameid(f->ID());
+			auto time = error.mutable_time();
+			time->set_seconds(f->Time().tv_sec);
+			time->set_nanos(f->Time().tv_usec*1000);
+			error.set_error(fort::FrameReadout::PROCESS_OVERFLOW);
+
+			connection->PostMessage(error);
+
+			io.post(WaitForFrame);
+			return;
+		}
+		executer.Start(pq,f);
+		io.post(WaitForFrame);
 	};
 
 	fg.Start();
-
+	io.post(WaitForFrame);
 	std::vector<std::thread> threads;
 
 	for(size_t i = 0; i < opts.Workers; ++i) {
