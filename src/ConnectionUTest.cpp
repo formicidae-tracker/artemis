@@ -135,11 +135,13 @@ TEST_F(ConnectionUTest,CanReconnect) {
 	m.set_frameid(1);
 	m.set_timestamp(20000);
 
+
+	//this will make the data be lost.
 	Connection::PostMessage(connection,m);
 	d_accept.Wait();
 
 	d_accept.Wait();
-
+	// the data was discarded by the connection object, safe to send ID 1 again
 	Connection::PostMessage(connection,m);
 
 	connection.reset();
