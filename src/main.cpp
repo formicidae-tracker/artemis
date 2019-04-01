@@ -24,7 +24,8 @@ struct Options {
 	CameraConfiguration       Camera;
 
 
-	std::string HermesAddress;
+	std::string Host;
+	uint16_t    Port;
 	bool        VideoOutputToStdout;
 	size_t      VideoOutputHeight;
 	std::string NewAntOuputDir;
@@ -44,6 +45,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.VideoOutputHeight = 1080;
 	opts.FrameStride = 1;
 	opts.frameIDString = "";
+	opts.Port = 3002;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
@@ -59,7 +61,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("at-quad-max-line-mse",opts.AprilTag2.QuadMaxLineMSE,"MSE threshold to reject a fitted quad");
 	parser.AddFlag("at-quad-min-bw-diff",opts.AprilTag2.QuadMinBWDiff,"Difference in pixel value to consider a region black or white");
 	parser.AddFlag("at-quad-deglitch",opts.AprilTag2.QuadDeglitch,"Deglitch only for noisy images");
-	parser.AddFlag("address", opts.HermesAddress, "Address to send tag detection readout",'a');
+	parser.AddFlag("host", opts.Host, "Host to send tag detection readout",'h');
+	parser.AddFlag("port", opts.Port, "Port to send tag detection readout",'p');
 	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
 	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
 	parser.AddFlag("new-ant-output-dir",opts.NewAntOuputDir,"Path where to save new detected ant pictures");
@@ -135,8 +138,8 @@ void Execute(int argc, char ** argv) {
 	                   });
 
 	Connection::Ptr connection;
-	if (!opts.HermesAddress.empty()) {
-		connection = std::make_shared<Connection>(io,opts.HermesAddress);
+	if (!opts.Host.empty()) {
+		connection = Connection::Create(io,opts.Host,opts.Port);
 	}
 
 
@@ -178,7 +181,7 @@ void Execute(int argc, char ** argv) {
 			time->set_nanos(f->Time().tv_usec*1000);
 			error.set_error(fort::FrameReadout::PROCESS_OVERFLOW);
 
-			connection->PostMessage(error);
+			Connection::PostMessage(connection,error);
 
 			io.post(WaitForFrame);
 			return;

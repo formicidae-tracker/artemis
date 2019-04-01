@@ -223,7 +223,7 @@ void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout 
 	if( !d_connection ) {
 		return;
 	}
-	d_connection->PostMessage(message);
+	Connection::PostMessage(d_connection,message);
 }
 
 

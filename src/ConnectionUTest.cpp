@@ -11,60 +11,79 @@
 
 #include "Connection.h"
 
+#include <glog/logging.h>
+
 class IncommingConnection {
 public :
-	IncommingConnection(asio::io_service & service) : d_socket(service), d_continue(true) {}
-
+	IncommingConnection(asio::io_service & service, Barrier & closed) : d_closed(closed), d_socket(service), d_continue(true), d_received(0) {
+	}
+	~IncommingConnection() {
+	}
+	Barrier &              d_closed;
 	asio::ip::tcp::socket  d_socket;
-	asio::streambuf        d_streambuf;
+	uint8_t                d_data[8];
 	bool                   d_continue;
+	size_t                 d_received;
+	static void Read(const std::shared_ptr<IncommingConnection> & self) {
+		asio::async_read(self->d_socket,asio::mutable_buffers_1(self->d_data,8),
+		                 [self](const asio::error_code & ec,std::size_t) {
+			                 if (ec == asio::error::eof) {
+				                 self->d_closed.SignalOne();
+				                 return;
+			                 }
+			                 google::protobuf::io::CodedInputStream ciss(static_cast<const uint8_t*>(&(self->d_data[0])),8);
+			                 fort::FrameReadout m;
+			                 //bug ??
+			                 bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&m,&ciss,NULL);
+			                 parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&m,&ciss,NULL);
+			                 if (!parsed) {
+				                 ADD_FAILURE() << "Could not parse message";
+			                 }
+			                 ++self->d_received;
+			                 EXPECT_EQ(m.frameid(),self->d_received);
+			                 EXPECT_EQ(m.timestamp(),self->d_received*20000);
+			                 Read(self);
+		                 });
+	}
 };
 
 ConnectionUTest::ConnectionUTest()
-	: d_acceptor(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12345)) {
+	: d_acceptor(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12345))
+	, d_rejector(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12346)){
+	d_rejectLoop = [this] {
+		auto connection = std::make_shared<IncommingConnection>(d_rejector.get_io_service(),d_closed);
+		d_rejector.async_accept(connection->d_socket,[this,connection](const asio::error_code & ec) {
+				if (!d_rejected) {
+					d_rejected = true;
+					connection->d_socket.close();
+					d_accept.SignalOne();
+				} else {
+					IncommingConnection::Read(connection);
+					d_accept.SignalOne();
+				}
+				d_rejectLoop();
+			});
+	};
+
+
+
 	d_acceptLoop = [this]{
-		auto connection = std::make_shared<IncommingConnection>(d_acceptor.get_io_service());
+		auto connection = std::make_shared<IncommingConnection>(d_acceptor.get_io_service(),d_closed);
 		d_acceptor.async_accept(connection->d_socket,[this,connection](const asio::error_code & ec) {
 				d_acceptLoop();
 				EXPECT_EQ(!ec,true);
 				d_accept.SignalOne();
-				asio::async_read(connection->d_socket,connection->d_streambuf,[this,connection](const asio::error_code & ec,std::size_t) {
-						EXPECT_EQ(ec,asio::error::eof);
-						std::istream is(&connection->d_streambuf);
-						google::protobuf::io::IstreamInputStream iss(&is);
-						bool stop = false;
-						fort::FrameReadout m;
-						uint64_t i = 1;
-						while(!stop) {
-							bool clean_eof;
-							bool parsed = google::protobuf::util::ParseDelimitedFromZeroCopyStream(&m,&iss,&clean_eof);
-							if(parsed == false && clean_eof == true) {
-								stop = true;
-								continue;
-							}
-							if (parsed = false ) {
-								stop = true;
-							} else {
-								EXPECT_EQ(m.frameid(),i);
-								++i;
-							}
-							EXPECT_EQ(parsed,true);
-							EXPECT_EQ(clean_eof,false);
-						}
-
-						d_closed.SignalOne();
-					});
+				IncommingConnection::Read(connection);
 			});
 	};
 
+
 }
-
-
-
 
 void ConnectionUTest::SetUp() {
 	d_service.reset();
-
+	d_rejected = false;
+	d_rejectLoop();
 	d_acceptLoop();
 
 	d_service.post([this](){ d_running.SignalOne(); });
@@ -82,23 +101,51 @@ void ConnectionUTest::TearDown() {
 
 TEST_F(ConnectionUTest,DoesNotMangle) {
 	d_running.Wait();
-
-	auto socket = std::make_shared<asio::ip::tcp::socket>(d_service);
+	Connection::Ptr connection;
 
 	try {
-		using namespace asio::ip;
-
-		tcp::resolver resolver(d_service);
-		tcp::resolver::query query("localhost","12345");
-		tcp::resolver::iterator ep = resolver.resolve(query);
-		asio::connect(*socket,ep);
-
+		connection = Connection::Create(d_service, "localhost", 12345);
 	} catch (const std::exception & e) {
 		FAIL() << "Could not connect: " << e.what();
 	}
 	d_accept.Wait();
+	std::vector<fort::FrameReadout> messages;
+	for (size_t i = 0; i < 4; ++i) {
+		fort::FrameReadout m;
+		m.set_frameid(i+1);
+		m.set_timestamp(20000*(i+1));
+		messages.push_back(m);
+	}
+	for(auto &m : messages) {
+		Connection::PostMessage(connection,m);
 
-	socket->close();
+	}
+
+
+	connection.reset();
 	d_closed.Wait();
+
+}
+
+TEST_F(ConnectionUTest,CanReconnect) {
+	d_running.Wait();
+	auto connection = Connection::Create(d_service,"localhost",12346,std::chrono::milliseconds(5));
+
+	fort::FrameReadout m;
+	m.set_frameid(1);
+	m.set_timestamp(20000);
+
+	Connection::PostMessage(connection,m);
+	d_accept.Wait();
+
+	d_accept.Wait();
+
+	Connection::PostMessage(connection,m);
+
+	connection.reset();
+	d_closed.Wait();
+
+
+
 
 }

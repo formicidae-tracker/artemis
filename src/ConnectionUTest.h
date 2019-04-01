@@ -46,8 +46,9 @@ protected:
 
 
 	asio::io_service        d_service;
-	asio::ip::tcp::acceptor d_acceptor;
-	std::function<void ()>  d_acceptLoop;
+	asio::ip::tcp::acceptor d_acceptor,d_rejector;
+	std::function<void ()>  d_acceptLoop,d_rejectLoop;
 	std::thread             d_thread;
 	Barrier                 d_running,d_accept,d_closed,d_read;
+	bool                    d_rejected;
 };
