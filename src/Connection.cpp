@@ -9,31 +9,49 @@
 
 
 
-std::shared_ptr<asio::ip::tcp::socket> Connect(asio::io_service & io, const std::string & address) {
+std::shared_ptr<asio::ip::tcp::socket> Connect(asio::io_service & io, const std::string & host,uint16_t port) {
+	std::ostringstream oss;
+	oss << port;
 	asio::ip::tcp::resolver resolver(io);
-	asio::ip::tcp::resolver::query q(address.c_str(),"artemis");
+	asio::ip::tcp::resolver::query q(host.c_str(),oss.str().c_str());
 	asio::ip::tcp::resolver::iterator endpoint = resolver.resolve(q);
 	auto res = std::make_shared<asio::ip::tcp::socket>(io);
 	asio::connect(*res,endpoint);
 }
 
 
-Connection::Connection(asio::io_service & service, const std::string & address)
+Connection::Connection(asio::io_service & service, const std::string & host,uint16_t port)
 	: d_service(service)
-	, d_strand(service)
+	, d_strand(std::make_shared<asio::strand>(service))
+	, d_host(host)
+	, d_port(port)
 	, d_sending(false) {
 
 	auto prodConsum = BufferPool::Create();
 	d_producer = std::move(prodConsum.first);
 	d_consumer = std::move(prodConsum.second);
 
+
 	try {
-		d_socket = Connect(d_service,d_address);
+		d_socket = Connect(d_service,d_host,d_port);
 	} catch ( const std::exception & e) {
-		LOG(ERROR) << "Could not connect to '" << d_address << "': " << e.what();
+		LOG(ERROR) << "Could not connect to '" << d_host << ":" << d_port << "': " << e.what();
 		ScheduleReconnect();
 	}
 
+}
+
+Connection::~Connection() {
+	LOG(INFO) << "Destructor";
+	auto socket = d_socket;
+	auto strand = d_strand;
+	LOG(INFO) << "Posting closing" ;
+	d_service.post([socket,strand](){
+			LOG(INFO) << "Actual closing";
+			socket->close();
+
+		});
+	std::cerr << "Done" << std::endl;
 }
 
 void Connection::PostMessage(const google::protobuf::MessageLite & message) {
@@ -50,7 +68,8 @@ void Connection::PostMessage(const google::protobuf::MessageLite & message) {
 		d_producer->Push();
 	}
 
-	d_strand.post([this]{
+	d_strand->post([this]{
+			std::cerr << d_consumer.get() << std::endl;
 			if(d_consumer->Empty() || d_sending == true) {
 				return;
 			}
@@ -66,7 +85,7 @@ void Connection::ScheduleSend() {
 	d_sending = true;
 	asio::async_write(*d_socket,
 	                  d_consumer->Head().data(),
-	                  d_strand.wrap([this](const asio::error_code & ec,
+	                  d_strand->wrap([this](const asio::error_code & ec,
 	                                       std::size_t){
 		                                d_consumer->Pop();
 		                                if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
@@ -92,15 +111,24 @@ void Connection::ScheduleReconnect() {
 	if (d_socket) {
 		return;
 	}
-	LOG(INFO) << "Reconnecting in 5s to '" << d_address << "'";
+	LOG(INFO) << "Reconnecting in 5s to '" << d_host << ":" << d_port << "'";
 	auto t = std::make_shared<asio::deadline_timer>(d_service,boost::posix_time::seconds(5));
-	t->async_wait(d_strand.wrap([this,t](const asio::error_code & ) {
-				LOG(INFO) << "Reconnecting to '" << d_address << "'";
+	t->async_wait(d_strand->wrap([this,t](const asio::error_code & ) {
+				LOG(INFO) << "Reconnecting to '" << d_host << ":" << d_port << "'";
 				try {
-					d_socket = Connect(d_service,d_address);
+					d_socket = Connect(d_service,d_host,d_port);
 				} catch ( const std::exception & e) {
-					LOG(ERROR) << "Could not connect to '" << d_address << "':  " << e.what();
+					LOG(ERROR) << "Could not connect to '" << d_host << ":" << d_port << "':  " << e.what();
 					ScheduleReconnect();
 				}
 			}));
+}
+
+
+asio::strand & Connection::Strand() {
+	return *d_strand;
+}
+
+bool Connection::Empty() {
+	return d_consumer->Empty();
 }

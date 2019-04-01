@@ -60,12 +60,14 @@ set(UTEST_SRC_FILES main-check.cpp
 	                RingBufferUTest.cpp
 	                utils/FlagParserUTest.cpp
 	                utils/StringManipulationUTest.cpp
+	                ConnectionUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
 	                RingBufferUTest.h
 	                utils/FlagParserUTest.h
 	                utils/StringManipulationUTest.h
+	                ConnectionUTest.h
 	                )
 
 if(EGrabber_FOUND)

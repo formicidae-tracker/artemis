@@ -232,13 +232,16 @@ void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
                                                        const fort::FrameReadout & readout,
                                                        size_t start,
                                                        size_t stride) {
+	auto FID = frame->ID();
 	for (size_t i = start; i < readout.ants_size(); i += stride) {
 		auto a = readout.ants(i);
 		int32_t ID = a.id();
 		{
 			std::lock_guard<std::mutex> lock(d_mutex);
-			if ( d_known.count(a.id()) != 0 ) {
+			if ( d_known.count(ID) != 0 ) {
 				continue;
+			} else {
+				d_known.insert(ID);
 			}
 		}
 		cv::Rect roi(cv::Point2d(((size_t)a.x())-d_newAntROISize/2,
@@ -249,22 +252,28 @@ void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
 		auto pngData =  std::make_shared<std::vector<uint8_t> >();
 		cv::imencode("png",cv::Mat(frame->ToCV(),roi),*pngData);
 
-		d_service.post([this,pngData,ID](){
-				std::ostringstream oss(d_savePath);
-				oss << "/ant_" << ID << ".png";
-				int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK);
-				if (fd == -1) {
-					LOG(ERROR) << "Could not save ant " << ID << ": " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
-					return;
-				}
-				auto stream = std::make_shared<asio::posix::stream_descriptor>(d_service,fd);
-				asio::async_write(*stream,
-				                  asio::const_buffers_1(&((*pngData)[0]),pngData->size()),
-				                  [this,pngData,stream](const asio::error_code & ec,
-				                                        std::size_t ) {
-					                  close(stream->native_handle());
-				                  });
-			});
+		std::ostringstream oss(d_savePath);
+		oss << "/ant_" << ID << "_frame_" << FID << ".png";
+		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK);
+		if (fd == -1) {
+			LOG(ERROR) << "Could not save ant " << ID << ": " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
+			std::lock_guard<std::mutex> lock(d_mutex);
+			d_known.erase(ID);
+			return;
+		}
+		auto stream = std::make_shared<asio::posix::stream_descriptor>(d_service,fd);
+		asio::async_write(*stream,
+		                  asio::const_buffers_1(&((*pngData)[0]),pngData->size()),
+		                  [this,pngData,stream,ID](const asio::error_code & ec,
+		                                           std::size_t ) {
+			                  if (ec) {
+				                  LOG(ERROR) << "Could not save ant " << ID << ": " << ec;
+				                  std::lock_guard<std::mutex> lock(d_mutex);
+				                  d_known.erase(ID);
+			                  }
+			                  close(stream->native_handle());
+
+		                  });
 	}
 }
 
