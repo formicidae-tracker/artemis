@@ -148,6 +148,4 @@ TEST_F(ConnectionUTest,CanReconnect) {
 	d_closed.Wait();
 
 
-
-
 }

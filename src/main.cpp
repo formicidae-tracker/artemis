@@ -172,17 +172,19 @@ void Execute(int argc, char ** argv) {
 		}
 
 		if ( executer.IsDone() == false ) {
-			LOG(ERROR) << "Process overflow : skipping frame " << f->ID();
-			error.Clear();
-			error.set_timestamp(f->Timestamp());
-			error.set_frameid(f->ID());
-			auto time = error.mutable_time();
-			time->set_seconds(f->Time().tv_sec);
-			time->set_nanos(f->Time().tv_usec*1000);
-			error.set_error(fort::FrameReadout::PROCESS_OVERFLOW);
+			LOG(WARNING) << "Process overflow : skipping frame " << f->ID();
+			if (connection) {
 
-			Connection::PostMessage(connection,error);
+				error.Clear();
+				error.set_timestamp(f->Timestamp());
+				error.set_frameid(f->ID());
+				auto time = error.mutable_time();
+				time->set_seconds(f->Time().tv_sec);
+				time->set_nanos(f->Time().tv_usec*1000);
+				error.set_error(fort::FrameReadout::PROCESS_OVERFLOW);
 
+				Connection::PostMessage(connection,error);
+			}
 			io.post(WaitForFrame);
 			return;
 		}
