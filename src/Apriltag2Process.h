@@ -105,6 +105,10 @@ private:
 	FamilyPtr d_family;
 	std::unique_ptr<apriltag_detector_t,std::function<void (apriltag_detector_t*)> > d_detector;
 
-	std::vector<zarray_t*> d_results;
-	std::vector<size_t> d_offsets;
+	struct Detection {
+		int32_t ID;
+		double X,Y,Theta;
+	};
+
+	std::vector<std::vector<Detection> > d_results;
 };

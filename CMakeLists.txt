@@ -16,7 +16,7 @@ find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
 find_package(Protobuf 3.5.0 REQUIRED)
 find_package(Asio 1.10.8 REQUIRED)
-
+find_package(Eigen3 REQUIRED)
 
 include(ExternalProject)
 ExternalProject_Add(APRILTAG2
@@ -33,13 +33,14 @@ set(APRILTAG2_LIBRARIES ${PROJECT_BINARY_DIR}/APRILTAG2-prefix/lib/${CMAKE_SHARE
                         )
 add_definitions("-D_GNU_SOURCE")
 
-
+add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${GLOG_INCLUDE_DIRS}
 	                ${APRILTAG2_INCLUDE_DIRS}
 	                ${OPENCV_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
+	                ${EIGEN3_INCLUDE_DIRS}
 	                )
 
 

@@ -23,7 +23,8 @@
 #include "utils/PosixCall.h"
 
 
-
+#include <Eigen/Geometry>
+#include <Eigen/SVD>
 
 
 AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
@@ -93,16 +94,14 @@ AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
 std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t maxProcess, const cv::Size & size ) {
 	d_parent->d_results.resize(maxProcess);
-	d_parent->d_offsets.resize(maxProcess);
 
 	std::vector<ProcessFunction> toReturn;
 	toReturn.reserve(maxProcess);
 	for (size_t i = 0; i < maxProcess; ++i) {
-		d_parent->d_results[i] = NULL;
+		d_parent->d_results.reserve(256);
+		d_parent->d_results[i].clear();
 		size_t margin = 75;
 		cv::Rect roi = computeROI(i,maxProcess,size,margin);
-		d_parent->d_offsets[i] = roi.x;
-
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
 		                                const cv::Mat & upstream,
 		                                fort::FrameReadout & readout,		                                                                            cv::Mat & result) {
@@ -114,11 +113,32 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   .buf = withROI.data
 			                   };
 
-			                   d_parent->d_results[i] = apriltag_detector_detect(d_parent->d_detector.get(),&img);
+			                   auto detections = apriltag_detector_detect(d_parent->d_detector.get(),&img);
+			                   apriltag_detection_t * q;
+			                   Detection d;
+			                   typedef Eigen::Transform<double,2,Eigen::Projective> Homography;
+			                   Homography hm;
+			                   Eigen::Matrix2d rotation;
+			                   Eigen::Matrix2d scaling;
+			                   for( int j = 0; j < zarray_size(detections); ++j ) {
+				                   zarray_get(detections,j,&q);
+				                   d.ID = q->id;
+				                   d.X = q->c[0] + roi.x;
+				                   d.Y = q->c[1];
+				                   //angle estimation
+				                   hm.matrix() <<
+					                   q->H->data[0], q->H->data[1], q->H->data[2],
+					                   q->H->data[3], q->H->data[4], q->H->data[5],
+					                   q->H->data[6], q->H->data[7], q->H->data[8];
+
+				                   hm.computeRotationScaling(&rotation,&scaling);
+				                   d.Theta = Eigen::Rotation2D<double>(rotation).angle();
+				                   d_parent->d_results[i].push_back(d);
+			                   }
+			                   apriltag_detections_destroy(detections);
 		                   });
 	}
 	return toReturn;
-
 }
 
 
@@ -135,38 +155,28 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 	                const cv::Mat & upstream,
 	                fort::FrameReadout & readout,
 	                cv::Mat & result) {
-			std::map<int32_t,apriltag_detection_t*> results;
+			std::set<int32_t> results;
 
-			for(size_t i = 0; i < d_parent->d_results.size(); ++i ) {
-				for( int j = 0; j < zarray_size(d_parent->d_results[i]); ++j ) {
-					apriltag_detection_t * q;
-					zarray_get(d_parent->d_results[i],j,&q);
-					if (results.count((int32_t)q->id) != 0 ) {
-						continue;
-					}
-					results[q->id] = q;
-					q->c[0] += d_parent->d_offsets[i];
-				}
-			}
 			readout.set_timestamp(frame->Timestamp());
 			readout.set_frameid(frame->ID());
 			readout.clear_ants();
 			auto time = readout.mutable_time();
 			time->set_seconds(frame->Time().tv_sec);
 			time->set_nanos(frame->Time().tv_usec * 1000);
-			for ( auto & kv : results ) {
-				auto a = readout.add_ants();
-				a->set_id(kv.second->id);
-				a->set_x(kv.second->c[0]);
-				a->set_y(kv.second->c[1]);
-				//TODO: compute angle!!!
-				a->set_theta(0.0);
-			}
 
-			for(size_t i = 0 ; i < d_parent->d_results.size(); ++ i ) {
-				apriltag_detections_destroy(d_parent->d_results[i]);
+			for(auto const & detections : d_parent->d_results ) {
+				for( auto const & d : detections ) {
+					if (results.count((int32_t)d.ID) != 0 ) {
+						continue;
+					}
+					results.insert(d.ID);
+					auto a = readout.add_ants();
+					a->set_id(d.ID);
+					a->set_x(d.X);
+					a->set_y(d.Y);
+					a->set_theta(d.Theta);
+				}
 			}
-
 			if (d_connection) {
 				Connection::PostMessage(d_connection,readout);
 			}
@@ -174,7 +184,6 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 
 			//clear any upstream transformation
 			result = frame->ToCV();
-
 
 		}
 	};
