@@ -130,9 +130,13 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 void Execute(int argc, char ** argv) {
 	::google::InitGoogleLogging(argv[0]);
-	FLAGS_stderrthreshold = 0;
 	Options opts;
 	ParseArgs(argc, argv,opts);
+
+	FLAGS_stderrthreshold = 0;
+	if ( opts.VideoOutputToStdout ) {
+		FLAGS_stderrthreshold = 4;
+	}
 
 
 

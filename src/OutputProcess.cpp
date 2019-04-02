@@ -15,9 +15,9 @@ OutputProcess::OutputProcess(asio::io_service & service)
 
 	int flags = fcntl(STDOUT_FILENO, F_GETFL);
 	if ( flags == -1 ) {
-		throw ARTEMIS_SYSTEM_ERROR(fcntl,errno);
+		throw ARTEMIS_SYSTEM_ERROR(fcntl-get,errno);
 	}
-	p_call(fcntl,STDOUT_FILENO,flags | O_NONBLOCK);
+	p_call(fcntl,STDOUT_FILENO,F_SETFL,flags | O_NONBLOCK);
 
 }
 
@@ -27,9 +27,9 @@ std::vector<ProcessFunction> OutputProcess::Prepare(size_t maxProcess, const cv:
 	return {[this](const Frame::Ptr &, const cv::Mat & upstream, fort::FrameReadout & readout, cv::Mat & result) {
 			{
 				std::lock_guard<std::mutex> lock(d_mutex);
-				if (!d_done) {
+				if (d_done == false) {
 					LOG(ERROR) << "Frame output: skipping as previous is not done";
-					return d_done;
+					return;
 				}
 				d_done = false;
 			}

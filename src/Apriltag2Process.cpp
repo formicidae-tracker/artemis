@@ -188,7 +188,6 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 				Connection::PostMessage(d_connection,readout);
 			}
 
-
 			//clear any upstream transformation
 			result = frame->ToCV();
 
