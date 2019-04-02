@@ -85,7 +85,8 @@ public:
 	};
 
 
-	static ProcessQueue Create(const Config & config,
+	static ProcessQueue Create(size_t maxWorker,
+	                           const Config & config,
 	                           const Connection::Ptr & address);
 
 	~AprilTag2Detector();
@@ -96,12 +97,21 @@ private:
 	friend class TagMerging;
 	friend class Finalization;
 
-	AprilTag2Detector(const Config & config);
+	AprilTag2Detector(size_t maxWorker,
+	                  const Config & config);
+
+
 
 	typedef std::unique_ptr<apriltag_family_t, std::function <void (apriltag_family_t *) > > FamilyPtr;
+	typedef std::unique_ptr<apriltag_detector_t,std::function<void (apriltag_detector_t*)> > DetectorPtr;
 	static FamilyPtr OpenFamily(const std::string & name);
-	FamilyPtr d_family;
-	std::unique_ptr<apriltag_detector_t,std::function<void (apriltag_detector_t*)> > d_detector;
+
+
+	std::vector<FamilyPtr>   d_families;
+	std::vector<DetectorPtr> d_detectors;
+
+
+
 
 	struct Detection {
 		int32_t ID;

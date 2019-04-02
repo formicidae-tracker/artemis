@@ -153,7 +153,8 @@ void Execute(int argc, char ** argv) {
 
 
 	//creates queues
-	ProcessQueue pq = AprilTag2Detector::Create(opts.AprilTag2,
+	ProcessQueue pq = AprilTag2Detector::Create(opts.Workers,
+	                                            opts.AprilTag2,
 	                                            connection);
 
 	if ( !opts.NewAntOuputDir.empty() ) {

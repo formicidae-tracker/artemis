@@ -27,25 +27,32 @@
 #include <Eigen/SVD>
 
 
-AprilTag2Detector::AprilTag2Detector(const AprilTag2Detector::Config & config)
-	: d_family(OpenFamily(config.Family))
-	, d_detector(apriltag_detector_create(),apriltag_detector_destroy) {
-	apriltag_detector_add_family(d_detector.get(),d_family.get());
-	d_detector->nthreads = 1;
+AprilTag2Detector::AprilTag2Detector(size_t maxWorkers,
+	                                 const AprilTag2Detector::Config & config)
+{
+	d_detectors.reserve(maxWorkers);
+	d_families.reserve(maxWorkers);
+	for (size_t i = 0 ; i < maxWorkers; ++i ) {
+		d_families.push_back(std::move(OpenFamily(config.Family)));
+		DetectorPtr detector(apriltag_detector_create(),apriltag_detector_destroy);
+		apriltag_detector_add_family(detector.get(),d_families[i].get());
+		detector->nthreads = 1;
 
-	d_detector->quad_decimate = config.QuadDecimate;
-	d_detector->quad_sigma = config.QuadSigma;
-	d_detector->refine_edges = config.RefineEdges ? 1 : 0;
-	d_detector->refine_decode = config.NoRefineDecode ? 0 : 1;
-	d_detector->refine_pose = config.RefinePose ? 1 : 0;
-	d_detector->debug = false;
-	d_detector->qtp.min_cluster_pixels = config.QuadMinClusterPixel;
-	d_detector->qtp.max_nmaxima = config.QuadMaxNMaxima;
-	d_detector->qtp.critical_rad = config.QuadCriticalRadian;
-	d_detector->qtp.max_line_fit_mse = config.QuadMaxLineMSE;
-	d_detector->qtp.min_white_black_diff = config.QuadMinBWDiff;
-	d_detector->qtp.deglitch = config.QuadDeglitch ? 1 : 0;
+		detector->quad_decimate = config.QuadDecimate;
+		detector->quad_sigma = config.QuadSigma;
+		detector->refine_edges = config.RefineEdges ? 1 : 0;
+		detector->refine_decode = config.NoRefineDecode ? 0 : 1;
+		detector->refine_pose = config.RefinePose ? 1 : 0;
+		detector->debug = false;
+		detector->qtp.min_cluster_pixels = config.QuadMinClusterPixel;
+		detector->qtp.max_nmaxima = config.QuadMaxNMaxima;
+		detector->qtp.critical_rad = config.QuadCriticalRadian;
+		detector->qtp.max_line_fit_mse = config.QuadMaxLineMSE;
+		detector->qtp.min_white_black_diff = config.QuadMinBWDiff;
+		detector->qtp.deglitch = config.QuadDeglitch ? 1 : 0;
 
+		d_detectors.push_back(std::move(detector));
+	}
 }
 
 AprilTag2Detector::~AprilTag2Detector() {}
@@ -113,7 +120,7 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   .buf = withROI.data
 			                   };
 
-			                   auto detections = apriltag_detector_detect(d_parent->d_detector.get(),&img);
+			                   auto detections = apriltag_detector_detect(d_parent->d_detectors[i].get(),&img);
 			                   apriltag_detection_t * q;
 			                   Detection d;
 			                   typedef Eigen::Transform<double,2,Eigen::Projective> Homography;
@@ -192,11 +199,12 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 
 
 
-ProcessQueue AprilTag2Detector::Create(const Config & config,
+ProcessQueue AprilTag2Detector::Create(size_t maxWorkers,
+                                       const Config & config,
                                        const Connection::Ptr & connection) {
-	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(config));
+	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(maxWorkers,config));
 	return {
 		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),
-			std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection)),
+		std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection)),
 	};
 }
