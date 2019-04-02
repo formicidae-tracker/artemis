@@ -74,60 +74,21 @@ public:
 
 		virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
 	private:
-		TagMerging(const AprilTag2Detector::Ptr & parent);
+		TagMerging(const AprilTag2Detector::Ptr & parent,
+		           const Connection::Ptr & connection);
 
 		TagMerging(const TagMerging & ) = delete;
 		TagMerging & operator=(const TagMerging &) = delete;
 
 
 		AprilTag2Detector::Ptr d_parent;
+		Connection::Ptr        d_connection;
 		friend class AprilTag2Detector;
-	};
-
-	// Finalizes the detection in multiple threads
-	// * Serialize the message in a buffer
-	// * Extract New detected ID, copy the new image around the ant,
-	//   and sends them to a new AntBuffer
-	class Finalization : public ProcessDefinition {
-	public :
-		virtual ~Finalization();
-
-		virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
-	private :
-		Finalization(const AprilTag2Detector::Ptr & parent,
-		             asio::io_service & service,
-		             const Connection::Ptr & connection,
-		             const std::string & savepath,
-		             size_t newAntROISize);
-
-		Finalization(const Finalization & ) = delete;
-		Finalization & operator=(const Finalization &) = delete;
-
-
-		void SerializeMessage(const fort::FrameReadout & message);
-		void CheckForNewAnts( const Frame::Ptr & ptr,
-		                      const fort::FrameReadout & readout,
-		                      size_t start=0,
-		                      size_t stride=1);
-
-		AprilTag2Detector::Ptr d_parent;
-		friend class AprilTag2Detector;
-
-		asio::io_service &        d_service;
-		Connection::Ptr           d_connection;
-
-		std::mutex                d_mutex;
-		std::string               d_savePath;
-		std::set<int32_t>         d_known;
-		const size_t              d_newAntROISize;
-
 	};
 
 
 	static ProcessQueue Create(const Config & config,
-	                           asio::io_service & service,
-	                           const Connection::Ptr & address,
-	                           const std::string & savePath);
+	                           const Connection::Ptr & address);
 
 	~AprilTag2Detector();
 

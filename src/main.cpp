@@ -5,6 +5,7 @@
 #include "Apriltag2Process.h"
 #include "ResizeProcess.h"
 #include "OutputProcess.h"
+#include "AntCataloguerProcess.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
@@ -145,9 +146,12 @@ void Execute(int argc, char ** argv) {
 
 	//creates queues
 	ProcessQueue pq = AprilTag2Detector::Create(opts.AprilTag2,
-	                                            io,
-	                                            connection,
-	                                            opts.NewAntOuputDir);
+	                                            connection);
+
+	if ( !opts.NewAntOuputDir.empty() ) {
+		pq.push_back(std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.AprilTag2.NewAntROISize));
+
+	}
 	//queues when outputting data
 	if (opts.VideoOutputToStdout) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));

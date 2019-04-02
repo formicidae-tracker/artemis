@@ -17,7 +17,6 @@
 
 
 #include <glog/logging.h>
-
 #include <opencv2/imgcodecs.hpp>
 
 
@@ -122,8 +121,11 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 
 }
 
-AprilTag2Detector::TagMerging::TagMerging(const AprilTag2Detector::Ptr & parent)
-	: d_parent(parent){
+
+AprilTag2Detector::TagMerging::TagMerging(const AprilTag2Detector::Ptr & parent,
+                                          const Connection::Ptr & connection)
+	: d_parent(parent)
+	, d_connection(connection) {
 }
 
 AprilTag2Detector::TagMerging::~TagMerging() {}
@@ -165,126 +167,27 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 				apriltag_detections_destroy(d_parent->d_results[i]);
 			}
 
+			if (d_connection) {
+				Connection::PostMessage(d_connection,readout);
+			}
+
+
 			//clear any upstream transformation
 			result = frame->ToCV();
+
+
 		}
 	};
 }
 
 
-AprilTag2Detector::Finalization::Finalization(const AprilTag2Detector::Ptr & parent,
-                                              asio::io_service & service,
-                                              const Connection::Ptr & connection,
-                                              const std::string & savePath,
-                                              size_t newAntROISize)
-	: d_parent(parent)
-	, d_service(service)
-	, d_connection(connection)
-	, d_savePath(savePath)
-	, d_newAntROISize(newAntROISize) {
 
-}
-
-AprilTag2Detector::Finalization::~Finalization() {};
-
-std::vector<ProcessFunction> AprilTag2Detector::Finalization::Prepare(size_t maxProcess, const cv::Size &) {
-	if (maxProcess == 1) {
-		return {[this](const Frame::Ptr & frame,
-		               const cv::Mat & upstream,
-		               fort::FrameReadout & readout,
-		               cv::Mat & result){
-				SerializeMessage(readout);
-				CheckForNewAnts(frame,readout,0,1);
-			}};
-	}
-
-	std::vector<ProcessFunction> res;
-	res.reserve(maxProcess);
-	res.push_back([this](const Frame::Ptr & frame,
-	                     const cv::Mat & upstream,
-	                     fort::FrameReadout & readout,
-	                     cv::Mat & result) {
-		              SerializeMessage(readout);
-	              });
-	// uncomment to avoid multi-threading
-	// maxProcess = 2;
-	for (size_t i = 1; i < maxProcess; ++i) {
-		res.push_back([this,i,maxProcess](const Frame::Ptr & frame,
-		                                  const cv::Mat & upstream,
-		                                  fort::FrameReadout & readout,
-		                                  cv::Mat & result) {
-			              CheckForNewAnts(frame,readout,i-1,maxProcess-1);
-		              });
-	};
-	return res;
-}
-
-void AprilTag2Detector::Finalization::SerializeMessage(const fort::FrameReadout & message) {
-	if( !d_connection ) {
-		return;
-	}
-	Connection::PostMessage(d_connection,message);
-}
-
-
-
-void AprilTag2Detector::Finalization::CheckForNewAnts( const Frame::Ptr & frame,
-                                                       const fort::FrameReadout & readout,
-                                                       size_t start,
-                                                       size_t stride) {
-	auto FID = frame->ID();
-	for (size_t i = start; i < readout.ants_size(); i += stride) {
-		auto a = readout.ants(i);
-		int32_t ID = a.id();
-		{
-			std::lock_guard<std::mutex> lock(d_mutex);
-			if ( d_known.count(ID) != 0 ) {
-				continue;
-			} else {
-				d_known.insert(ID);
-			}
-		}
-		cv::Rect roi(cv::Point2d(((size_t)a.x())-d_newAntROISize/2,
-		                         ((size_t)a.y())-d_newAntROISize/2),
-		             cv::Size(d_newAntROISize,
-		                      d_newAntROISize));
-
-		auto pngData =  std::make_shared<std::vector<uint8_t> >();
-		cv::imencode("png",cv::Mat(frame->ToCV(),roi),*pngData);
-
-		std::ostringstream oss(d_savePath);
-		oss << "/ant_" << ID << "_frame_" << FID << ".png";
-		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK);
-		if (fd == -1) {
-			LOG(ERROR) << "Could not save ant " << ID << ": " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
-			std::lock_guard<std::mutex> lock(d_mutex);
-			d_known.erase(ID);
-			return;
-		}
-		auto stream = std::make_shared<asio::posix::stream_descriptor>(d_service,fd);
-		asio::async_write(*stream,
-		                  asio::const_buffers_1(&((*pngData)[0]),pngData->size()),
-		                  [this,pngData,stream,ID](const asio::error_code & ec,
-		                                           std::size_t ) {
-			                  if (ec) {
-				                  LOG(ERROR) << "Could not save ant " << ID << ": " << ec;
-				                  std::lock_guard<std::mutex> lock(d_mutex);
-				                  d_known.erase(ID);
-			                  }
-			                  close(stream->native_handle());
-
-		                  });
-	}
-}
 
 ProcessQueue AprilTag2Detector::Create(const Config & config,
-                                       asio::io_service & service,
-                                       const Connection::Ptr & connection,
-                                       const std::string & path) {
+                                       const Connection::Ptr & connection) {
 	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(config));
 	return {
 		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),
-		std::shared_ptr<ProcessDefinition>(new TagMerging(detector)),
-		std::shared_ptr<ProcessDefinition>(new Finalization(detector,service,connection,path,config.NewAntROISize))
+			std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection)),
 	};
 }

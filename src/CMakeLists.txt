@@ -35,6 +35,7 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/StringManipulation.cpp
 	          OutputProcess.cpp
 	          Connection.cpp
+	          AntCataloguerProcess.cpp
 	          )
 
 
@@ -52,6 +53,7 @@ set(HDR_FILES utils/Defer.h
 	          utils/StringManipulation.h
 	          OutputProcess.h
 	          Connection.h
+	          AntCataloguerProcess.h
 	          )
 
 
