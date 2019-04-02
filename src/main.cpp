@@ -6,6 +6,7 @@
 #include "ResizeProcess.h"
 #include "OutputProcess.h"
 #include "AntCataloguerProcess.h"
+#include "DrawDetectionProcess.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
@@ -27,9 +28,12 @@ struct Options {
 
 	std::string Host;
 	uint16_t    Port;
+	bool        DrawDetection;
 	bool        VideoOutputToStdout;
 	size_t      VideoOutputHeight;
+
 	std::string NewAntOuputDir;
+	size_t      NewAntROISize;
 
 	std::string frameIDString;
 	size_t      FrameStride;
@@ -47,10 +51,12 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.FrameStride = 1;
 	opts.frameIDString = "";
 	opts.Port = 3002;
+	opts.DrawDetection = false;
+	opts.NewAntROISize = 500;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
-	parser.AddFlag("new-ant-roi-size", opts.AprilTag2.NewAntROISize, "Size of the image to save when a new ant is found");
+	parser.AddFlag("new-ant-roi-size", opts.NewAntROISize, "Size of the image to save when a new ant is found");
 	parser.AddFlag("at-quad-decimate",opts.AprilTag2.QuadDecimate,"Decimate original image for faster computation but worse pose estimation. Should be 1.0 (no decimation), 1.5, 2, 3 or 4");
 	parser.AddFlag("at-quad-sigma",opts.AprilTag2.QuadSigma,"Apply a gaussian filter for quad detection, noisy image likes a slight filter like 0.8");
 	parser.AddFlag("at-refine-edges",opts.AprilTag2.RefineEdges,"Refines the edge of the quad, especially needed if decimation is used, inexpensive");
@@ -75,7 +81,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("camera-strobe-offset-us",opts.Camera.ExposureTime,"Camera Strobe Offset in us, negative value allowed");
 	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
 	parser.AddFlag("workers",opts.Workers,"Number of worker to use for processing");
-
+	parser.AddFlag("draw-detection",opts.DrawDetection,"Draw detection on the output if activated");
 	parser.Parse(argc,argv);
 	if (opts.PrintHelp == true) {
 		parser.PrintUsage(std::cerr);
@@ -149,12 +155,15 @@ void Execute(int argc, char ** argv) {
 	                                            connection);
 
 	if ( !opts.NewAntOuputDir.empty() ) {
-		pq.push_back(std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.AprilTag2.NewAntROISize));
+		pq.push_back(std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.NewAntROISize));
 
 	}
 	//queues when outputting data
 	if (opts.VideoOutputToStdout) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
+		if (opts.DrawDetection ) {
+			pq.push_back(std::make_shared<DrawDetectionProcess>());
+		}
 		pq.push_back(std::make_shared<OutputProcess>(io));
 	}
 

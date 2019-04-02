@@ -36,7 +36,9 @@ set(SRC_FILES utils/Defer.cpp
 	          OutputProcess.cpp
 	          Connection.cpp
 	          AntCataloguerProcess.cpp
+	          DrawDetectionProcess.cpp
 	          )
+
 
 
 
@@ -54,6 +56,7 @@ set(HDR_FILES utils/Defer.h
 	          OutputProcess.h
 	          Connection.h
 	          AntCataloguerProcess.h
+	          DrawDetectionProcess.h
 	          )
 
 

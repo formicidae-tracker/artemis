@@ -46,6 +46,8 @@ void ProcessQueueExecuter::SpawnCurrentUnsafe() {
 	auto jobs = (*d_current)->Prepare(d_maxWorkers,d_frame->ToCV().size());
 	d_nbActiveWorkers += jobs.size();
 
+	*(d_currentResult+1) = *d_currentResult;
+
 	for(auto & j : jobs) {
 		d_service.post([this,j](){
 				j(d_frame,*d_currentResult,d_message,*(d_currentResult+1));

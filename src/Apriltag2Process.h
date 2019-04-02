@@ -18,7 +18,6 @@ public:
 	struct Config {
 		Config()
 			: Family("36h11")
-			, NewAntROISize(1000)
 			, QuadDecimate(1.0)
 			, QuadSigma(0.0)
 			, RefineEdges(false)
@@ -34,7 +33,6 @@ public:
 
 
 		std::string Family;
-		size_t      NewAntROISize;
 		float       QuadDecimate;
 		float       QuadSigma;
 		bool        RefineEdges;
