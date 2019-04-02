@@ -53,6 +53,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.Port = 3002;
 	opts.DrawDetection = false;
 	opts.NewAntROISize = 500;
+	opts.Workers = 1;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
@@ -68,7 +69,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("at-quad-max-line-mse",opts.AprilTag2.QuadMaxLineMSE,"MSE threshold to reject a fitted quad");
 	parser.AddFlag("at-quad-min-bw-diff",opts.AprilTag2.QuadMinBWDiff,"Difference in pixel value to consider a region black or white");
 	parser.AddFlag("at-quad-deglitch",opts.AprilTag2.QuadDeglitch,"Deglitch only for noisy images");
-	parser.AddFlag("host", opts.Host, "Host to send tag detection readout",'h');
+	parser.AddFlag("host", opts.Host, "Host to send tag detection readout");
 	parser.AddFlag("port", opts.Port, "Port to send tag detection readout",'p');
 	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
 	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
@@ -129,6 +130,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 void Execute(int argc, char ** argv) {
 	::google::InitGoogleLogging(argv[0]);
+	FLAGS_stderrthreshold = 0;
 	Options opts;
 	ParseArgs(argc, argv,opts);
 
@@ -201,6 +203,7 @@ void Execute(int argc, char ** argv) {
 			io.post(WaitForFrame);
 			return;
 		}
+		DLOG(INFO) << "Processing frame " << f->ID();
 		executer.Start(pq,f);
 		io.post(WaitForFrame);
 	};
@@ -209,7 +212,7 @@ void Execute(int argc, char ** argv) {
 	io.post(WaitForFrame);
 	std::vector<std::thread> threads;
 
-	for(size_t i = 0; i < opts.Workers; ++i) {
+	for(size_t i = 0; i < opts.Workers+1; ++i) {
 		threads.push_back(std::thread([&io](){
 					io.run();
 				}));
@@ -219,9 +222,8 @@ void Execute(int argc, char ** argv) {
 	fg.Stop();
 
 	for( auto & t : threads) {
-		t.join();
+		t.detach();
 	}
-
 
 }
 

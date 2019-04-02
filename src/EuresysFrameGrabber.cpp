@@ -1,5 +1,6 @@
 #include "EuresysFrameGrabber.h"
 
+#include <glog/logging.h>
 
 EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
                                          const CameraConfiguration & cameraConfig)
@@ -7,29 +8,42 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 
 	using namespace Euresys;
 
+	DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
 	setFloat<RemoteModule>("AcquisitionFrameRate",cameraConfig.FPS);
+	DLOG(INFO) << "CameraControlMethod: RG";
 	setString<DeviceModule>("CameraControlMethod","RG");
+	DLOG(INFO) << "ExposureTime: " << cameraConfig.ExposureTime;
 	setInteger<DeviceModule>("ExposureTime",cameraConfig.ExposureTime);
+	DLOG(INFO) << "StrobeDuration: " << cameraConfig.StrobeDuration;
 	setInteger<DeviceModule>("StrobeDuration",cameraConfig.StrobeDuration);
 
+	DLOG(INFO) << "LineSelector: IOUT11";
 	setString<InterfaceModule>("LineSelector","IOUT11");
+	DLOG(INFO) << "LineInverter: True";
 	setString<InterfaceModule>("LineInverter","True");
-	setString<InterfaceModule>("LineSource","Device0Stribe");
+	DLOG(INFO) << "LineSource: Device0Strobe";
+	setString<InterfaceModule>("LineSource","Device0Strobe");
 
+	DLOG(INFO) << "Enable Event";
 	enableEvent<NewBufferData>();
+	DLOG(INFO) << "Realloc Buffer";
 	reallocBuffers(4);
 }
 
 void EuresysFrameGrabber::Start() {
+	DLOG(INFO) << "Starting framegrabber";
 	start();
 }
 
 void EuresysFrameGrabber::Stop() {
-	start();
+	DLOG(INFO) << "Stopping framegrabber";
+	stop();
+	DLOG(INFO) << "Framegrabber stopped";
 }
 
 
 EuresysFrameGrabber::~EuresysFrameGrabber() {
+	DLOG(INFO) << "Cleaning FrameGrabber";
 }
 
 Frame::Ptr EuresysFrameGrabber::NextFrame() {

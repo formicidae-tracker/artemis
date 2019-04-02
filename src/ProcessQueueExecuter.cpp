@@ -1,12 +1,15 @@
 #include "ProcessQueueExecuter.h"
 
+#include <glog/logging.h>
 
 ProcessQueueExecuter::ProcessQueueExecuter(asio::io_service & service, size_t workers)
 	: d_service(service)
 	, d_maxWorkers(workers)
 	, d_nbActiveWorkers(0) {
 }
-ProcessQueueExecuter::~ProcessQueueExecuter() {}
+ProcessQueueExecuter::~ProcessQueueExecuter() {
+	DLOG(INFO) << "Cleaning ProcessQueueExecutor";
+}
 
 
 void ProcessQueueExecuter::Start(ProcessQueue & queue,const Frame::Ptr & frame) {
