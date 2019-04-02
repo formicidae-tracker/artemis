@@ -1,11 +1,14 @@
 find_path(GTEST_INCLUDE_DIR gtest/gtest.h
 	                        HINTS $ENV{GTEST_ROOT}/include
 	                              ${GTEST_ROOT}/include
-	                              )
+	                        PATHS /usr/include
+	                              /usr/src
+	                        PATH_SUFFIXES googletest/googletest/include
+	                        )
 
 find_path(GTEST_SRC_DIR src/gtest-all.cc
-	                    HINTS $ENV{GTEST_ROOT}/include
-	                          ${GTEST_ROOT}/include
+	                    HINTS $ENV{GTEST_ROOT}/src
+	                          ${GTEST_ROOT}/src
 	                    PATHS /usr/src
 	                    PATH_SUFFIXES googletest/googletest
 	                    )

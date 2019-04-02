@@ -1,11 +1,14 @@
 find_path(GMOCK_INCLUDE_DIR gmock/gmock.h
 	                        HINTS $ENV{GTEST_ROOT}/include
 	                              ${GTEST_ROOT}/include
-	                              )
+	                        PATHS /usr/include
+	                              /usr/src
+	                        PATH_SUFFIXES googletest/googlemock/include
+	                        )
 
 find_path(GMOCK_SRC_DIR src/gmock-all.cc
-	                    HINTS $ENV{GTEST_ROOT}/include
-	                          ${GTEST_ROOT}/include
+	                    HINTS $ENV{GTEST_ROOT}/src
+	                          ${GTEST_ROOT}/src
 	                    PATHS /usr/src
 	                    PATH_SUFFIXES googletest/googlemock
 	                    )
