@@ -1,5 +1,6 @@
 #include "ProcessQueueExecuter.h"
 
+
 ProcessQueueExecuter::ProcessQueueExecuter(asio::io_service & service, size_t workers)
 	: d_service(service)
 	, d_maxWorkers(workers)
@@ -21,7 +22,7 @@ void ProcessQueueExecuter::Start(ProcessQueue & queue,const Frame::Ptr & frame) 
 	d_results.resize(queue.size()+1);
 	d_currentResult = d_results.begin();
 
-	SpawnCurrent();
+	SpawnCurrentUnsafe();
 }
 
 bool ProcessQueueExecuter::IsDone() {
@@ -37,32 +38,30 @@ bool ProcessQueueExecuter::IsDoneUnsafe() {
 	if (d_current == d_end ) {
 		return true;
 	}
+	return false;
 }
 
 
-void ProcessQueueExecuter::SpawnCurrent() {
+void ProcessQueueExecuter::SpawnCurrentUnsafe() {
 	auto jobs = (*d_current)->Prepare(d_maxWorkers,d_frame->ToCV().size());
-	{
-		std::lock_guard<std::mutex> lock(d_mutex);
-		d_nbActiveWorkers += jobs.size();
-	}
+	d_nbActiveWorkers += jobs.size();
 
 	for(auto & j : jobs) {
 		d_service.post([this,j](){
 				j(d_frame,*d_currentResult,d_message,*(d_currentResult+1));
-				{
-					std::lock_guard<std::mutex> lock(d_mutex);
-					if ( --d_nbActiveWorkers != 0 ) {
-						//still unfinished work
-						return;
-					}
-					if (++d_current == d_end){
-						// no more job to do
-						return;
-					}
-					++d_currentResult;
+
+				std::lock_guard<std::mutex> lock(d_mutex);
+				if ( --d_nbActiveWorkers != 0 ) {
+					//still unfinished work
+					return;
 				}
-				SpawnCurrent();
+				if (++d_current == d_end){
+					// no more job to do
+					return;
+				}
+				++d_currentResult;
+
+				SpawnCurrentUnsafe();
 			});
 	}
 

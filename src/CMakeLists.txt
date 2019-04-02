@@ -63,6 +63,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                utils/FlagParserUTest.cpp
 	                utils/StringManipulationUTest.cpp
 	                ConnectionUTest.cpp
+	                ProcessQueueExecuterUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
@@ -70,6 +71,7 @@ set(UTEST_HDR_FILES utils/DeferUTest.h
 	                utils/FlagParserUTest.h
 	                utils/StringManipulationUTest.h
 	                ConnectionUTest.h
+	                ProcessQueueExecuterUTest.h
 	                )
 
 if(EGrabber_FOUND)

@@ -21,7 +21,7 @@ public:
 	bool IsDone();
 
 private:
-	void SpawnCurrent();
+	void SpawnCurrentUnsafe();
 	bool IsDoneUnsafe();
 
 
