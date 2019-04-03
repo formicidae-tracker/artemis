@@ -13,7 +13,7 @@
 #include <EGrabber.h>
 
 #include "utils/PosixCall.h"
-
+#include "utils/CPUMap.h"
 #include <asio.hpp>
 
 #include "ProcessQueueExecuter.h"
@@ -39,7 +39,6 @@ struct Options {
 	size_t      FrameStride;
 	std::set<uint64> FrameID;
 
-	size_t      Workers;
 };
 
 
@@ -53,7 +52,6 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.Port = 3002;
 	opts.DrawDetection = false;
 	opts.NewAntROISize = 500;
-	opts.Workers = 1;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
@@ -80,7 +78,6 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("camera-strobe-us",opts.Camera.StrobeDuration,"Camera Strobe Length in us");
 	parser.AddFlag("camera-strobe-delay-us",opts.Camera.StrobeDelay,"Camera Strobe Delay in us, negative value allowed");
 	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
-	parser.AddFlag("workers",opts.Workers,"Number of worker to use for processing");
 	parser.AddFlag("draw-detection",opts.DrawDetection,"Draw detection on the output if activated");
 	parser.Parse(argc,argv);
 	if (opts.PrintHelp == true) {
@@ -92,9 +89,6 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	}
 	if (opts.FrameStride > 100 ) {
 		throw std::invalid_argument("Frame stride to big, max is 100");
-	}
-	if (opts.Workers == 0 ) {
-		opts.Workers = 1;
 	}
 
 	if ( opts.frameIDString.empty() ) {
@@ -137,16 +131,46 @@ void Execute(int argc, char ** argv) {
 		FLAGS_stderrthreshold = 4;
 	}
 
+	std::vector<CPUID> ioCPUs;
+	std::vector<CPUID> workCPUs;
+	auto coremap = GetCoreMap();
+	if ( coremap.size() == 1 ) {
+		ioCPUs.push_back(coremap[0].CPUs[0]);
+		if (coremap[0].CPUs.size() == 0 ) {
+			workCPUs.push_back(coremap[0].CPUs[0]);
+		} else {
+			for ( size_t i = 1; i < coremap[0].CPUs.size(); ++i ) {
+				workCPUs.push_back(coremap[0].CPUs[i]);
+			}
+		}
+	} else {
+		for( size_t i = 0; i < std::min(coremap[0].CPUs.size(),(size_t)2); ++i ) {
+			ioCPUs.push_back(coremap[0].CPUs[i]);
+		}
+		for (size_t i = 2; i < coremap[0].CPUs.size(); ++i ) {
+			workCPUs.push_back(coremap[0].CPUs[i]);
+		}
+		for (size_t i = 1; i < coremap.size(); ++i ) {
+			for ( size_t j = 0 ; j < coremap[i].CPUs.size(); ++j ) {
+				workCPUs.push_back(coremap[i].CPUs[j]);
+			}
+		}
+	}
+
+
+
 
 
 	asio::io_service io;
+	asio::io_service workload;
 
 	//Stops on SIGINT
 	asio::signal_set signals(io,SIGINT);
-	signals.async_wait([&io](const asio::error_code &,
+	signals.async_wait([&io,&workload](const asio::error_code &,
 	                         int ) {
 		                   LOG(INFO) << "Terminating (SIGINT)";
 		                   io.stop();
+		                   workload.stop();
 	                   });
 
 	Connection::Ptr connection;
@@ -155,8 +179,9 @@ void Execute(int argc, char ** argv) {
 	}
 
 
+
 	//creates queues
-	ProcessQueue pq = AprilTag2Detector::Create(opts.Workers,
+	ProcessQueue pq = AprilTag2Detector::Create(workCPUs.size(),
 	                                            opts.AprilTag2,
 	                                            connection);
 
@@ -175,7 +200,7 @@ void Execute(int argc, char ** argv) {
 
 	Euresys::EGenTL gentl;
 	EuresysFrameGrabber  fg(gentl,opts.Camera);
-	ProcessQueueExecuter executer(io,opts.Workers);
+	ProcessQueueExecuter executer(workload,workCPUs.size());
 
 
 	fort::FrameReadout error;
@@ -214,18 +239,43 @@ void Execute(int argc, char ** argv) {
 
 	fg.Start();
 	io.post(WaitForFrame);
-	std::vector<std::thread> threads;
 
-	for(size_t i = 0; i < opts.Workers+1; ++i) {
-		threads.push_back(std::thread([&io](){
+	std::vector<std::thread> workThreads,ioThreads;
+
+	for(size_t i = 0; i < workCPUs.size(); ++i) {
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		CPU_SET(workCPUs[i],&cpuset);
+		workThreads.push_back(std::thread([&workload](){
+					workload.run();
+				}));
+		p_call(pthread_setaffinity_np,workThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
+	}
+
+	for ( size_t i = 1; i < ioCPUs.size(); ++i) {
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		CPU_SET(ioCPUs[i],&cpuset);
+		ioThreads.push_back(std::thread([&io]() {
 					io.run();
 				}));
+		p_call(pthread_setaffinity_np,ioThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
+
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(ioCPUs[0],&cpuset);
+	p_call(sched_setaffinity,getpid(),sizeof(cpu_set_t),&cpuset);
 
 	io.run();
 	fg.Stop();
 
-	for( auto & t : threads) {
+
+	for (auto & t : ioThreads ) {
+		t.detach();
+	}
+
+	for( auto & t : workThreads) {
 		t.detach();
 	}
 
