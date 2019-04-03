@@ -9,15 +9,13 @@
 struct CameraConfiguration {
 	CameraConfiguration()
 		: FPS(20.0)
-		, ExposureTime(2500)
 		, StrobeDuration(2000)
-		, StrobeOffset(0)
+		, StrobeDelay(0)
 		, Slave(false) {}
 
 	double FPS;
-	uint32_t ExposureTime;
 	uint32_t StrobeDuration;
-	int32_t  StrobeOffset;
+	int32_t  StrobeDelay;
 	bool     Slave;
 };
 

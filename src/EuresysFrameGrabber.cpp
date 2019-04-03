@@ -10,12 +10,19 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 
 	DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
 	setFloat<RemoteModule>("AcquisitionFrameRate",cameraConfig.FPS);
-	DLOG(INFO) << "CameraControlMethod: RG";
-	setString<DeviceModule>("CameraControlMethod","RG");
-	DLOG(INFO) << "ExposureTime: " << cameraConfig.ExposureTime;
-	setInteger<DeviceModule>("ExposureTime",cameraConfig.ExposureTime);
+	DLOG(INFO) << "CameraControlMethod: RC";
+	setString<DeviceModule>("CameraControlMethod","RC");
+	setInteger<DeviceModule>("ExposureTime",6000);
 	DLOG(INFO) << "StrobeDuration: " << cameraConfig.StrobeDuration;
 	setInteger<DeviceModule>("StrobeDuration",cameraConfig.StrobeDuration);
+
+	DLOG(INFO) << "StrobeDelay: " << cameraConfig.StrobeDuration;
+	setInteger<DeviceModule>("StrobeDelay",cameraConfig.StrobeDelay);
+
+	size_t Period = 1.0e6/cameraConfig.FPS;
+	DLOG(INFO) << "CycleMinimunPeriod: " << Period;
+	setInteger<DeviceModule>("CycleMinimumPeriod",Period);
+
 
 	DLOG(INFO) << "LineSelector: IOUT11";
 	setString<InterfaceModule>("LineSelector","IOUT11");

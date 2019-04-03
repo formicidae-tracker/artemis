@@ -77,9 +77,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("frame-stride",opts.FrameStride,"Frame sequence length");
 	parser.AddFlag("frame-ids",opts.frameIDString,"Frame ID to consider in the frame sequence, if empty consider all");
 	parser.AddFlag("camera-fps",opts.Camera.FPS,"Camera FPS to use");
-	parser.AddFlag("camera-exposure-us",opts.Camera.ExposureTime,"Camera Exposure time in us");
-	parser.AddFlag("camera-strobe-us",opts.Camera.ExposureTime,"Camera Strobe Length in us");
-	parser.AddFlag("camera-strobe-offset-us",opts.Camera.ExposureTime,"Camera Strobe Offset in us, negative value allowed");
+	parser.AddFlag("camera-strobe-us",opts.Camera.StrobeDuration,"Camera Strobe Length in us");
+	parser.AddFlag("camera-strobe-delay-us",opts.Camera.StrobeDelay,"Camera Strobe Delay in us, negative value allowed");
 	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
 	parser.AddFlag("workers",opts.Workers,"Number of worker to use for processing");
 	parser.AddFlag("draw-detection",opts.DrawDetection,"Draw detection on the output if activated");
