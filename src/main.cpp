@@ -91,7 +91,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 		opts.FrameStride = 1;
 	}
 	if (opts.FrameStride > 100 ) {
-		throw std::invalid_argument("Frame stride to big, mas is 100");
+		throw std::invalid_argument("Frame stride to big, max is 100");
 	}
 	if (opts.Workers == 0 ) {
 		opts.Workers = 1;
