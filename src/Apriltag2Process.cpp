@@ -119,6 +119,11 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   .stride = (int32_t) withROI.step[0],
 				                   .buf = withROI.data
 			                   };
+			                   if ( i == 0 ) {
+				                   cv::Scalar mean,dev;
+				                   cv::meanStdDev(withROI,mean,dev);
+				                   DLOG(INFO) << "mean is " << mean;
+			                   }
 
 			                   auto detections = apriltag_detector_detect(d_parent->d_detectors[i].get(),&img);
 			                   apriltag_detection_t * q;

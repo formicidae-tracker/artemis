@@ -2,6 +2,8 @@
 
 #include <opencv2/imgproc.hpp>
 
+#include <glog/logging.h>
+
 ResizeProcess::ResizeProcess(size_t height)
 	: d_height(height)
 	, d_initialized(false) {
@@ -23,6 +25,9 @@ std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::
 		             fort::FrameReadout & readout,
 		             cv::Mat & result) {
 			cv::resize(upstream,d_resized,d_resized.size());
+			cv::Scalar mean,dev;
+			cv::meanStdDev(d_resized,mean,dev);
+			DLOG(INFO) << "Mean is now : " << mean;
 			cv::cvtColor(d_resized,result,CV_GRAY2RGB);
 		}
 	};
