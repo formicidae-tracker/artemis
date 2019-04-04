@@ -111,8 +111,6 @@ private:
 	std::vector<DetectorPtr> d_detectors;
 
 
-
-
 	struct Detection {
 		int32_t ID;
 		double X,Y,Theta;

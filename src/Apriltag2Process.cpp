@@ -100,6 +100,8 @@ AprilTag2Detector::ROITagDetection::ROITagDetection(const AprilTag2Detector::Ptr
 AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
 std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t maxProcess, const cv::Size & size ) {
+	maxProcess = std::min(maxProcess,d_parent->d_detectors.size());
+
 	d_parent->d_results.resize(maxProcess);
 
 	std::vector<ProcessFunction> toReturn;
