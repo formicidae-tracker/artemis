@@ -21,6 +21,7 @@
 
 
 #include "utils/PosixCall.h"
+#include "utils/Partitions.h"
 
 
 #include <Eigen/Geometry>
@@ -84,33 +85,28 @@ AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & n
 
 
 
-cv::Rect computeROI(size_t i, size_t nbROI, const cv::Size & imageSize, size_t margin) {
-	size_t bandWidth = imageSize.width/nbROI;
-	size_t leftMargin = (i == 0 ) ? 0 : margin;
-	size_t rightMargin = (i == (nbROI - 1) ) ? 0 : margin;
-	cv::Point2d roiOrig ((i*bandWidth) - leftMargin ,0);
-	cv::Size roiSize(bandWidth + leftMargin + rightMargin, imageSize.height);
-	return cv::Rect(roiOrig,roiSize);
-}
-
 AprilTag2Detector::ROITagDetection::ROITagDetection(const AprilTag2Detector::Ptr & parent)
 	: d_parent(parent ) {
 }
 
 AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
+
 std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t maxProcess, const cv::Size & size ) {
 	maxProcess = std::min(maxProcess,d_parent->d_detectors.size());
 
 	d_parent->d_results.resize(maxProcess);
+	size_t margin = 75;
+	Partition partitions;
+	PartitionRectangle(cv::Rect(cv::Point(0,0),size),maxProcess,partitions);
+	AddMargin(size,margin,partitions);
 
 	std::vector<ProcessFunction> toReturn;
 	toReturn.reserve(maxProcess);
 	for (size_t i = 0; i < maxProcess; ++i) {
 		d_parent->d_results.reserve(256);
 		d_parent->d_results[i].clear();
-		size_t margin = 75;
-		cv::Rect roi = computeROI(i,maxProcess,size,margin);
+		cv::Rect roi = partitions[i];
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
 		                                const cv::Mat & upstream,
 		                                fort::FrameReadout & readout,		                                                                            cv::Mat & result) {
