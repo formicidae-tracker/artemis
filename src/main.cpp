@@ -18,6 +18,8 @@
 
 #include "ProcessQueueExecuter.h"
 
+#include <sys/syscall.h>
+#include <unistd.h>
 
 struct Options {
 	bool PrintHelp;
@@ -122,7 +124,6 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 
 void Execute(int argc, char ** argv) {
-	::google::InitGoogleLogging(argv[0]);
 	Options opts;
 	ParseArgs(argc, argv,opts);
 
@@ -130,6 +131,10 @@ void Execute(int argc, char ** argv) {
 	if ( opts.VideoOutputToStdout ) {
 		FLAGS_stderrthreshold = 4;
 	}
+	::google::InitGoogleLogging(argv[0]);
+	::google::InstallFailureSignalHandler();
+
+
 
 	std::vector<CPUID> ioCPUs;
 	std::vector<CPUID> workCPUs;
@@ -145,13 +150,16 @@ void Execute(int argc, char ** argv) {
 		}
 	} else {
 		for( size_t i = 0; i < std::min(coremap[0].CPUs.size(),(size_t)2); ++i ) {
+			DLOG(INFO) << "IO Core: " << coremap[0].ID << " CPU: " << coremap[0].CPUs[i];
 			ioCPUs.push_back(coremap[0].CPUs[i]);
 		}
 		for (size_t i = 2; i < coremap[0].CPUs.size(); ++i ) {
+			DLOG(INFO) << "WORK Core: " << coremap[0].ID << " CPU: " << coremap[0].CPUs[i];
 			workCPUs.push_back(coremap[0].CPUs[i]);
 		}
 		for (size_t i = 1; i < coremap.size(); ++i ) {
 			for ( size_t j = 0 ; j < coremap[i].CPUs.size(); ++j ) {
+				DLOG(INFO) << "WORK Core: " << coremap[i].ID << " CPU: " << coremap[i].CPUs[j];
 				workCPUs.push_back(coremap[i].CPUs[j]);
 			}
 		}
@@ -163,6 +171,7 @@ void Execute(int argc, char ** argv) {
 
 	asio::io_service io;
 	asio::io_service workload;
+	asio::io_service::work work(workload);
 
 	//Stops on SIGINT
 	asio::signal_set signals(io,SIGINT);
@@ -246,16 +255,18 @@ void Execute(int argc, char ** argv) {
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
 		CPU_SET(workCPUs[i],&cpuset);
+		DLOG(INFO) << "Spawning worker on CPU " << workCPUs[i];
 		workThreads.push_back(std::thread([&workload](){
 					workload.run();
 				}));
 		p_call(pthread_setaffinity_np,workThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
 
-	for ( size_t i = 1; i < ioCPUs.size(); ++i) {
+	for ( size_t i = 0; i < ioCPUs.size(); ++i) {
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
 		CPU_SET(ioCPUs[i],&cpuset);
+		DLOG(INFO) << "Spawning io on CPU " << ioCPUs[i];
 		ioThreads.push_back(std::thread([&io]() {
 					io.run();
 				}));
@@ -265,15 +276,16 @@ void Execute(int argc, char ** argv) {
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
 	CPU_SET(ioCPUs[0],&cpuset);
-	p_call(sched_setaffinity,getpid(),sizeof(cpu_set_t),&cpuset);
 
-	io.run();
-	fg.Stop();
+	long int tid = syscall(SYS_gettid);
+
+
 
 
 	for (auto & t : ioThreads ) {
-		t.detach();
+		t.join();
 	}
+	fg.Stop();
 
 	for( auto & t : workThreads) {
 		t.detach();
