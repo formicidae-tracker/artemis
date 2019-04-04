@@ -24,7 +24,12 @@ std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::
 		             const cv::Mat & upstream,
 		             fort::FrameReadout & readout,
 		             cv::Mat & result) {
-			cv::resize(upstream,d_resized,d_resized.size());
+			if ( upstream.size() == cv::Size(0,0) ) {
+				cv::resize(frame->ToCV(),d_resized,d_resized.size());
+			} else {
+				cv::resize(upstream,d_resized,d_resized.size());
+			}
+
 			cv::Scalar mean,dev;
 			cv::meanStdDev(d_resized,mean,dev);
 			DLOG(INFO) << "Mean is now : " << mean;
