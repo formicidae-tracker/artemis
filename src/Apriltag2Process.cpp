@@ -119,12 +119,6 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   .stride = (int32_t) withROI.step[0],
 				                   .buf = withROI.data
 			                   };
-			                   if ( i == 0 ) {
-				                   cv::Scalar mean,dev;
-				                   cv::meanStdDev(withROI,mean,dev);
-				                   DLOG(INFO) << "mean is " << mean;
-			                   }
-
 			                   auto detections = apriltag_detector_detect(d_parent->d_detectors[i].get(),&img);
 			                   apriltag_detection_t * q;
 			                   Detection d;
@@ -137,16 +131,36 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   d.ID = q->id;
 				                   d.X = q->c[0] + roi.x;
 				                   d.Y = q->c[1];
-				                   //angle estimation
-				                   hm.matrix() <<
-					                   q->H->data[0], q->H->data[1], q->H->data[2],
-					                   q->H->data[3], q->H->data[4], q->H->data[5],
-					                   q->H->data[6], q->H->data[7], q->H->data[8];
+				                   // //angle estimation
+				                   // hm.matrix() <<
+					               //     q->H->data[0], q->H->data[1], q->H->data[2],
+					               //     q->H->data[3], q->H->data[4], q->H->data[5],
+					               //     q->H->data[6], q->H->data[7], q->H->data[8];
 
-				                   hm.computeRotationScaling(&rotation,&scaling);
-				                   d.Theta = Eigen::Rotation2D<double>(rotation).angle();
+				                   // hm.computeRotationScaling(&rotation,&scaling);
+				                   // d.Theta = Eigen::Rotation2D<double>(rotation).angle();
+				                   d.Theta = 0;
 				                   d_parent->d_results[i].push_back(d);
 			                   }
+
+
+
+			                   if( i == 0 ) {
+				                   auto tp = d_parent->d_detectors[i]->tp;
+				                   timeprofile_stamp(tp,"artemis/saving");
+				                   int64_t lastutime = tp->utime;
+				                   for(size_t j = 0; j < zarray_size(d_parent->d_detectors[i]->tp->stamps); ++j) {
+					                   struct timeprofile_entry *stamp;
+					                   zarray_get_volatile(tp->stamps,j,&stamp);
+					                   double cumtimeMS = (stamp->utime - tp->utime)/1.0e3;
+					                   double parttimeMS = (stamp->utime - lastutime)/1.0e3;
+					                   lastutime = stamp->utime;
+					                   DLOG(INFO) << j <<": " << stamp->name
+					                              << " itself:" << parttimeMS
+					                              << "ms  total:" << cumtimeMS << "ms";
+				                   }
+			                   }
+
 			                   apriltag_detections_destroy(detections);
 		                   });
 	}
