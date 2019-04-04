@@ -1,3 +1,4 @@
+
 #include "ProcessQueueExecuter.h"
 
 #include <glog/logging.h>
@@ -7,27 +8,28 @@ ProcessQueueExecuter::ProcessQueueExecuter(asio::io_service & service, size_t wo
 	, d_maxWorkers(workers)
 	, d_nbActiveWorkers(0) {
 }
+
 ProcessQueueExecuter::~ProcessQueueExecuter() {
 	DLOG(INFO) << "Cleaning ProcessQueueExecutor";
 }
 
-
 void ProcessQueueExecuter::Start(ProcessQueue & queue,const Frame::Ptr & frame) {
 	std::lock_guard<std::mutex> lock(d_mutex);
-	if (!IsDoneUnsafe()) {
-		throw std::runtime_error("Should be done");
+	if ( d_next ){
+		throw Overflow();
 	}
 
-	d_current = queue.begin();
-	d_end = queue.end();
+	if (!IsDoneUnsafe()) {
+		d_next = frame;
+		d_nextBegin = queue.begin();
+		d_nextEnd = queue.end();
+		return;
+	}
 
-	d_frame = frame;
-	d_results.resize(queue.size()+1);
-	d_currentResult = d_results.begin();
+	Init(queue.begin(),queue.end(),frame);
 
 	SpawnCurrentUnsafe();
 }
-
 
 std::string ProcessQueueExecuter::State() {
 	std::ostringstream os;
@@ -36,9 +38,16 @@ std::string ProcessQueueExecuter::State() {
 	return os.str();
 }
 
-bool ProcessQueueExecuter::IsDone() {
-	std::lock_guard<std::mutex> lock(d_mutex);
-	return IsDoneUnsafe();
+void ProcessQueueExecuter::Init(const ProcessQueue::iterator & begin,
+                                const ProcessQueue::iterator & end,
+                                const Frame::Ptr & frame) {
+	d_current = begin;
+	d_end = end;
+
+	d_frame = frame;
+	d_results.resize((end-begin)+1);
+	d_currentResult = d_results.begin();
+
 }
 
 bool ProcessQueueExecuter::IsDoneUnsafe() {
@@ -68,18 +77,26 @@ void ProcessQueueExecuter::SpawnCurrentUnsafe() {
 						//still unfinished work
 						return;
 					}
-					if (++d_current == d_end){
-						// no more job to do
 
-						//cleanup buffer
+					if (++d_current == d_end){
+
+						if ( d_next ) {
+
+							Init(d_nextBegin,d_nextEnd,d_next);
+							d_next.reset();
+							SpawnCurrentUnsafe();
+							return;
+
+						}
+						//clean current
 						d_frame.reset();
+						// no more job to do
 						return;
 					}
-					++d_currentResult;
 
+					++d_currentResult;
 					SpawnCurrentUnsafe();
 				}
 			});
 	}
-
 }

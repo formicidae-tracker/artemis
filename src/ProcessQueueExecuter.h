@@ -14,26 +14,37 @@ typedef std::shared_ptr<Frame> FramePtr;
 
 class ProcessQueueExecuter  {
 public:
+	class Overflow : public std::runtime_error {
+	public:
+		Overflow() : std::runtime_error("Process Overflow") {}
+		virtual ~Overflow() {}
+	};
+
 	ProcessQueueExecuter(asio::io_service & service, size_t maxWorkers);
 	virtual ~ProcessQueueExecuter();
 
 	void Start(ProcessQueue & queue, const Frame::Ptr & current);
-	bool IsDone();
 	std::string State();
-
 
 private:
 	void SpawnCurrentUnsafe();
 	bool IsDoneUnsafe();
+
+	void Init(const ProcessQueue::iterator & begin,
+	          const ProcessQueue::iterator & end,
+	          const Frame::Ptr & frame);
 
 
 	asio::io_service &     d_service;
 	const size_t           d_maxWorkers;
 	std::mutex             d_mutex;
 	size_t                 d_nbActiveWorkers;
-	ProcessQueue::iterator d_current,d_end;
+	ProcessQueue::iterator d_current,d_end,d_nextBegin,d_nextEnd;
 	fort::FrameReadout     d_message;
-	Frame::Ptr             d_frame;
+	Frame::Ptr             d_frame,d_next;
+
+
+
 
 	typedef std::vector<cv::Mat> ResultPool;
 

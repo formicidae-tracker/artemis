@@ -224,10 +224,13 @@ void Execute(int argc, char ** argv) {
 			}
 		}
 
-		if ( executer.IsDone() == false ) {
-			LOG(WARNING) << "Process overflow : skipping frame " << f->ID() << " state " << executer.State();
-			if (connection) {
+		try {
+			executer.Start(pq,f);
+			DLOG(INFO) << "Processing frame " << f->ID();
+		} catch ( const ProcessQueueExecuter::Overflow & e ) {
+			LOG(WARNING) << "Process overflow : skipping frame " << f->ID() <<  " state: " << executer.State();
 
+			if (connection) {
 				error.Clear();
 				error.set_timestamp(f->Timestamp());
 				error.set_frameid(f->ID());
@@ -238,11 +241,8 @@ void Execute(int argc, char ** argv) {
 
 				Connection::PostMessage(connection,error);
 			}
-			io.post(WaitForFrame);
-			return;
 		}
-		DLOG(INFO) << "Processing frame " << f->ID();
-		executer.Start(pq,f);
+
 		io.post(WaitForFrame);
 	};
 
