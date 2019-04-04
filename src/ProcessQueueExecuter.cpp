@@ -28,6 +28,14 @@ void ProcessQueueExecuter::Start(ProcessQueue & queue,const Frame::Ptr & frame) 
 	SpawnCurrentUnsafe();
 }
 
+
+std::string ProcessQueueExecuter::State() {
+	std::ostringstream os;
+	std::lock_guard<std::mutex> lock(d_mutex);
+	os << (d_end - d_current) << " remaining, " << d_nbActiveWorkers << " active";
+	return os.str();
+}
+
 bool ProcessQueueExecuter::IsDone() {
 	std::lock_guard<std::mutex> lock(d_mutex);
 	return IsDoneUnsafe();
@@ -54,19 +62,23 @@ void ProcessQueueExecuter::SpawnCurrentUnsafe() {
 	for(auto & j : jobs) {
 		d_service.post([this,j](){
 				j(d_frame,*d_currentResult,d_message,*(d_currentResult+1));
+				{
+					std::lock_guard<std::mutex> lock(d_mutex);
+					if ( --d_nbActiveWorkers != 0 ) {
+						//still unfinished work
+						return;
+					}
+					if (++d_current == d_end){
+						// no more job to do
 
-				std::lock_guard<std::mutex> lock(d_mutex);
-				if ( --d_nbActiveWorkers != 0 ) {
-					//still unfinished work
-					return;
-				}
-				if (++d_current == d_end){
-					// no more job to do
-					return;
-				}
-				++d_currentResult;
+						//cleanup buffer
+						d_frame.reset();
+						return;
+					}
+					++d_currentResult;
 
-				SpawnCurrentUnsafe();
+					SpawnCurrentUnsafe();
+				}
 			});
 	}
 

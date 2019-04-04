@@ -147,20 +147,19 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 
 
 
-			                   if( i == 0 ) {
-				                   auto tp = d_parent->d_detectors[i]->tp;
-				                   timeprofile_stamp(tp,"artemis/saving");
-				                   int64_t lastutime = tp->utime;
-				                   for(size_t j = 0; j < zarray_size(d_parent->d_detectors[i]->tp->stamps); ++j) {
-					                   struct timeprofile_entry *stamp;
-					                   zarray_get_volatile(tp->stamps,j,&stamp);
-					                   double cumtimeMS = (stamp->utime - tp->utime)/1.0e3;
-					                   double parttimeMS = (stamp->utime - lastutime)/1.0e3;
-					                   lastutime = stamp->utime;
-					                   DLOG(INFO) << j <<": " << stamp->name
-					                              << " itself:" << parttimeMS
-					                              << "ms  total:" << cumtimeMS << "ms";
-				                   }
+			                   auto tp = d_parent->d_detectors[i]->tp;
+			                   timeprofile_stamp(tp,"artemis/saving");
+			                   int64_t lastutime = tp->utime;
+			                   for(size_t j = 0; j < zarray_size(d_parent->d_detectors[i]->tp->stamps); ++j) {
+				                   struct timeprofile_entry *stamp;
+				                   zarray_get_volatile(tp->stamps,j,&stamp);
+				                   double cumtimeMS = (stamp->utime - tp->utime)/1.0e3;
+				                   double parttimeMS = (stamp->utime - lastutime)/1.0e3;
+				                   lastutime = stamp->utime;
+				                   DLOG(INFO) << i << "." << j
+				                              <<": " << stamp->name
+				                              << " itself:" << parttimeMS
+				                              << "ms  total:" << cumtimeMS << "ms";
 			                   }
 
 			                   apriltag_detections_destroy(detections);

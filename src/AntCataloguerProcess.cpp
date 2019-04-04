@@ -66,7 +66,7 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 
 		std::ostringstream oss(d_savePath);
 		oss << "/ant_" << ID << "_frame_" << FID << ".png";
-		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK);
+		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK,0644);
 		if (fd == -1) {
 			LOG(ERROR) << "Could not save ant " << ID << ": " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
 			std::lock_guard<std::mutex> lock(d_mutex);

@@ -19,6 +19,8 @@ public:
 
 	void Start(ProcessQueue & queue, const Frame::Ptr & current);
 	bool IsDone();
+	std::string State();
+
 
 private:
 	void SpawnCurrentUnsafe();

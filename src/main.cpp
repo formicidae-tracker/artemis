@@ -225,7 +225,7 @@ void Execute(int argc, char ** argv) {
 		}
 
 		if ( executer.IsDone() == false ) {
-			LOG(WARNING) << "Process overflow : skipping frame " << f->ID();
+			LOG(WARNING) << "Process overflow : skipping frame " << f->ID() << " state " << executer.State();
 			if (connection) {
 
 				error.Clear();
