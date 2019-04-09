@@ -133,15 +133,14 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   d.ID = q->id;
 				                   d.X = q->c[0] + roi.x;
 				                   d.Y = q->c[1];
-				                   // //angle estimation
-				                   // hm.matrix() <<
-					               //     q->H->data[0], q->H->data[1], q->H->data[2],
-					               //     q->H->data[3], q->H->data[4], q->H->data[5],
-					               //     q->H->data[6], q->H->data[7], q->H->data[8];
+				                   //angle estimation
+				                   hm.matrix() <<
+					                   q->H->data[0], q->H->data[1], q->H->data[2],
+					                   q->H->data[3], q->H->data[4], q->H->data[5],
+					                   q->H->data[6], q->H->data[7], q->H->data[8];
 
-				                   // hm.computeRotationScaling(&rotation,&scaling);
-				                   // d.Theta = Eigen::Rotation2D<double>(rotation).angle();
-				                   d.Theta = 0;
+				                   hm.computeRotationScaling(&rotation,&scaling);
+				                   d.Theta = Eigen::Rotation2D<double>(rotation).angle();
 				                   d_parent->d_results[i].push_back(d);
 			                   }
 

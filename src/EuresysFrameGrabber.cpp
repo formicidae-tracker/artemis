@@ -34,7 +34,7 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 	DLOG(INFO) << "Enable Event";
 	enableEvent<NewBufferData>();
 	DLOG(INFO) << "Realloc Buffer";
-	reallocBuffers(3);
+	reallocBuffers(4);
 }
 
 void EuresysFrameGrabber::Start() {
