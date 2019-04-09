@@ -10,7 +10,7 @@ compiler:
 
 before_install:
   - sudo apt-get update
-  - sudo apt-get install -y googletest libgoogle-glog-dev libopencv-dev librpotobuf-dev protoc libasio-dev libeigen3-dev curl
+  - sudo apt-get install -y googletest libgoogle-glog-dev libopencv-dev librpotobuf-dev protobuf-compiler libasio-dev libeigen3-dev curl
 
 before_script:
   - mkdir build
