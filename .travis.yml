@@ -8,6 +8,10 @@ compiler:
   - gcc
   - clang
 
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install -y googletest libgoogle-glog-dev libopencv-dev librpotobuf-dev protoc libasio-dev libeigen3-dev curl
+
 before_script:
   - mkdir build
   - cd build
