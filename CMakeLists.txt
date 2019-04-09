@@ -19,16 +19,16 @@ find_package(Asio 1.10.8 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 include(ExternalProject)
-ExternalProject_Add(APRILTAG2
-	URL https://april.eecs.umich.edu/media/apriltag/apriltag-2016-12-01.tgz
-	URL_HASH MD5=5607f8c4eba3dfa0c62bcd77b751aef3
-	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile && sed -i.bak s/HUGE/FLT_MAX/g common/image_f32.c
+ExternalProject_Add(APRILTAG3
+	GIT_REPOSITORY https://github.com/AprilRobotics/apriltags.git
+	GIT_TAG v3.0.0
+	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile
 	CONFIGURE_COMMAND echo done
-	INSTALL_COMMAND PREFIX=${PROJECT_BINARY_DIR}/APRILTAG2-prefix make install
+	INSTALL_COMMAND PREFIX=${PROJECT_BINARY_DIR}/APRILTAG3-prefix make install
 	BUILD_IN_SOURCE 1
 	)
-set(APRILTAG2_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/APRILTAG2-prefix/include)
-set(APRILTAG2_LIBRARIES ${PROJECT_BINARY_DIR}/APRILTAG2-prefix/lib/${CMAKE_SHARED_LIBRARY_PREFIX}apriltag${CMAKE_SHARED_LIBRARY_SUFFIX}
+set(APRILTAG3_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/include)
+set(APRILTAG3_LIBRARIES ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/lib/${CMAKE_SHARED_LIBRARY_PREFIX}apriltag${CMAKE_SHARED_LIBRARY_SUFFIX}
                         Threads::Threads
                         )
 add_definitions("-D_GNU_SOURCE")
@@ -37,7 +37,7 @@ add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${GLOG_INCLUDE_DIRS}
-	                ${APRILTAG2_INCLUDE_DIRS}
+	                ${APRILTAG3_INCLUDE_DIRS}
 	                ${OPENCV_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}

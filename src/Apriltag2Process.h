@@ -21,8 +21,6 @@ public:
 			, QuadDecimate(1.0)
 			, QuadSigma(0.0)
 			, RefineEdges(false)
-			, NoRefineDecode(false)
-			, RefinePose(false)
 			, QuadMinClusterPixel(5)
 			, QuadMaxNMaxima(10)
 			, QuadCriticalRadian(0.174533)
