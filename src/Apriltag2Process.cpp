@@ -1,11 +1,14 @@
 #include "Apriltag2Process.h"
 
 #include <apriltag/tag16h5.h>
-#include <apriltag/tag25h7.h>
 #include <apriltag/tag25h9.h>
-#include <apriltag/tag36artoolkit.h>
-#include <apriltag/tag36h10.h>
 #include <apriltag/tag36h11.h>
+#include <apriltag/tagCircle21h7.h>
+#include <apriltag/tagCircle49h12.h>
+#include <apriltag/tagCustom48h12.h>
+#include <apriltag/tagStandard41h12.h>
+#include <apriltag/tagStandard52h13.h>
+
 
 #include <cmath>
 
@@ -21,6 +24,7 @@
 
 
 #include "utils/PosixCall.h"
+#include "utils/Partitions.h"
 
 
 #include <Eigen/Geometry>
@@ -41,8 +45,6 @@ AprilTag2Detector::AprilTag2Detector(size_t maxWorkers,
 		detector->quad_decimate = config.QuadDecimate;
 		detector->quad_sigma = config.QuadSigma;
 		detector->refine_edges = config.RefineEdges ? 1 : 0;
-		detector->refine_decode = config.NoRefineDecode ? 0 : 1;
-		detector->refine_pose = config.RefinePose ? 1 : 0;
 		detector->debug = false;
 		detector->qtp.min_cluster_pixels = config.QuadMinClusterPixel;
 		detector->qtp.max_nmaxima = config.QuadMaxNMaxima;
@@ -68,11 +70,13 @@ AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & n
 
 	static std::map<std::string,FamilyInterface > familyFactory = {
 		{"16h5",{.c = tag16h5_create, .d=tag16h5_destroy}},
-		{"25h7",{.c =tag25h7_create, .d=tag25h7_destroy}},
 		{"25h9",{.c =tag25h9_create, .d=tag25h9_destroy}},
-		{"36artoolkit",{.c =tag36artoolkit_create, .d=tag36artoolkit_destroy}},
-		{"36h10",{.c =tag36h10_create, .d=tag36h10_destroy}},
-		{"36h11",{.c =tag36h11_create, .d=tag36h11_destroy}}
+		{"36h11",{.c =tag36h11_create, .d=tag36h11_destroy}},
+		{"Circle21h7",{.c =tagCircle21h7_create, .d=tagCircle21h7_destroy}},
+		{"Circle49h12",{.c =tagCircle49h12_create, .d=tagCircle49h12_destroy}},
+		{"Custom48h12",{.c =tagCustom48h12_create, .d=tagCustom48h12_destroy}},
+		{"Standard41h12",{.c =tagStandard41h12_create, .d=tagStandard41h12_destroy}},
+		{"Standard52h13",{.c =tagStandard52h13_create, .d=tagStandard52h13_destroy}},
 	};
 
 	auto fi = familyFactory.find(name);
@@ -84,33 +88,28 @@ AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & n
 
 
 
-cv::Rect computeROI(size_t i, size_t nbROI, const cv::Size & imageSize, size_t margin) {
-	size_t bandWidth = imageSize.width/nbROI;
-	size_t leftMargin = (i == 0 ) ? 0 : margin;
-	size_t rightMargin = (i == (nbROI - 1) ) ? 0 : margin;
-	cv::Point2d roiOrig ((i*bandWidth) - leftMargin ,0);
-	cv::Size roiSize(bandWidth + leftMargin + rightMargin, imageSize.height);
-	return cv::Rect(roiOrig,roiSize);
-}
-
 AprilTag2Detector::ROITagDetection::ROITagDetection(const AprilTag2Detector::Ptr & parent)
 	: d_parent(parent ) {
 }
 
 AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
+
 std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t maxProcess, const cv::Size & size ) {
 	maxProcess = std::min(maxProcess,d_parent->d_detectors.size());
 
 	d_parent->d_results.resize(maxProcess);
+	size_t margin = 75;
+	Partition partitions;
+	PartitionRectangle(cv::Rect(cv::Point(0,0),size),maxProcess,partitions);
+	AddMargin(size,margin,partitions);
 
 	std::vector<ProcessFunction> toReturn;
 	toReturn.reserve(maxProcess);
 	for (size_t i = 0; i < maxProcess; ++i) {
 		d_parent->d_results.reserve(256);
 		d_parent->d_results[i].clear();
-		size_t margin = 75;
-		cv::Rect roi = computeROI(i,maxProcess,size,margin);
+		cv::Rect roi = partitions[i];
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
 		                                const cv::Mat & upstream,
 		                                fort::FrameReadout & readout,		                                                                            cv::Mat & result) {

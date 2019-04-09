@@ -118,8 +118,7 @@ TEST_F(ProcessQueueExecuterUTest,ExecuteProcessQueue) {
 
 
 
-	auto expect_state([&barriers,&pe](bool done,size_t b0,size_t b1,size_t b2, size_t b3, size_t b4) {
-			EXPECT_EQ(pe.IsDone(),done);
+	auto expect_state([&barriers,&pe,&pq](bool done,size_t b0,size_t b1,size_t b2, size_t b3, size_t b4) {
 			EXPECT_EQ(barriers[0]->Current(),b0);
 			EXPECT_EQ(barriers[1]->Current(),b1);
 			EXPECT_EQ(barriers[2]->Current(),b2);

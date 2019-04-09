@@ -38,6 +38,7 @@ set(SRC_FILES utils/Defer.cpp
 	          AntCataloguerProcess.cpp
 	          DrawDetectionProcess.cpp
 	          utils/CPUMap.cpp
+	          utils/Partitions.cpp
 	          )
 
 
@@ -59,6 +60,7 @@ set(HDR_FILES utils/Defer.h
 	          AntCataloguerProcess.h
 	          DrawDetectionProcess.h
 	          utils/CPUMap.h
+	          utils/Partitions.h
 	          )
 
 
@@ -69,6 +71,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                utils/StringManipulationUTest.cpp
 	                ConnectionUTest.cpp
 	                ProcessQueueExecuterUTest.cpp
+	                utils/PartitionsUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
@@ -77,6 +80,7 @@ set(UTEST_HDR_FILES utils/DeferUTest.h
 	                utils/StringManipulationUTest.h
 	                ConnectionUTest.h
 	                ProcessQueueExecuterUTest.h
+	                utils/PartitionsUTest.h
 	                )
 
 if(EGrabber_FOUND)
@@ -87,7 +91,7 @@ endif(EGrabber_FOUND)
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
-	                                 ${APRILTAG2_LIBRARIES}
+	                                 ${APRILTAG3_LIBRARIES}
 	                                 hermes
 	                                 ${OpenCV_LIBS}
 	                                  "-ldl")
