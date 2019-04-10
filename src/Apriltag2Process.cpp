@@ -139,13 +139,15 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 		cv::Rect roi = partitions[i];
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
 		                                const cv::Mat & upstream,
-		                                fort::FrameReadout & readout,		                                                                            cv::Mat & result) {
+		                                fort::FrameReadout & readout,
+		                                cv::Mat & result) {
 			                   cv::Mat withROI(frame->ToCV(),roi);
+			                   cv::Mat cloned = withROI.clone();
 			                   image_u8_t img = {
-				                   .width = withROI.cols,
-				                   .height = withROI.rows,
-				                   .stride = (int32_t) withROI.step[0],
-				                   .buf = withROI.data
+				                   .width = cloned.cols,
+				                   .height = cloned.rows,
+				                   .stride = cloned.cols,
+				                   .buf = cloned.data
 			                   };
 			                   auto detections = apriltag_detector_detect(d_parent->d_detectors[i].get(),&img);
 			                   apriltag_detection_t * q;
