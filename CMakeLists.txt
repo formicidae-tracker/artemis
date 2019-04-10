@@ -22,7 +22,7 @@ include(ExternalProject)
 ExternalProject_Add(APRILTAG3
 	GIT_REPOSITORY https://github.com/AprilRobotics/apriltags.git
 	GIT_TAG v3.0.0
-	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile
+	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile && sed -i.bak s/-O3/-O1\ -g/ Makefile
 	CONFIGURE_COMMAND echo done
 	INSTALL_COMMAND PREFIX=${PROJECT_BINARY_DIR}/APRILTAG3-prefix make install
 	BUILD_IN_SOURCE 1
