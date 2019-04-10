@@ -94,6 +94,33 @@ AprilTag2Detector::ROITagDetection::ROITagDetection(const AprilTag2Detector::Ptr
 
 AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
+double ComputeAngleFromCorner(apriltag_detection *q) {
+	Eigen::Vector2d c0(q->p[0][0],q->p[0][1]);
+	Eigen::Vector2d c1(q->p[1][0],q->p[1][1]);
+	Eigen::Vector2d c2(q->p[2][0],q->p[2][1]);
+	Eigen::Vector2d c3(q->p[3][0],q->p[3][1]);
+
+	Eigen::Vector2d delta = (c1 + c2) / 2.0 - (c0 + c3) / 2.0;
+
+
+	return atan2(delta.y(),delta.x());
+}
+
+double ComputeAngleFromHomography(apriltag_detection *q) {
+	typedef Eigen::Transform<double,2,Eigen::Projective> Homography;
+	Homography hm;
+	Eigen::Matrix2d rotation;
+	Eigen::Matrix2d scaling;
+	//angle estimation
+	hm.matrix() <<
+		q->H->data[0], q->H->data[1], q->H->data[2],
+		q->H->data[3], q->H->data[4], q->H->data[5],
+		q->H->data[6], q->H->data[7], q->H->data[8];
+
+	hm.computeRotationScaling(&rotation,&scaling);
+	return Eigen::Rotation2D<double>(rotation).angle();
+}
+
 
 std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t maxProcess, const cv::Size & size ) {
 	maxProcess = std::min(maxProcess,d_parent->d_detectors.size());
@@ -123,23 +150,13 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 			                   auto detections = apriltag_detector_detect(d_parent->d_detectors[i].get(),&img);
 			                   apriltag_detection_t * q;
 			                   Detection d;
-			                   typedef Eigen::Transform<double,2,Eigen::Projective> Homography;
-			                   Homography hm;
-			                   Eigen::Matrix2d rotation;
-			                   Eigen::Matrix2d scaling;
 			                   for( int j = 0; j < zarray_size(detections); ++j ) {
 				                   zarray_get(detections,j,&q);
 				                   d.ID = q->id;
 				                   d.X = q->c[0] + roi.x;
-				                   d.Y = q->c[1];
-				                   //angle estimation
-				                   hm.matrix() <<
-					                   q->H->data[0], q->H->data[1], q->H->data[2],
-					                   q->H->data[3], q->H->data[4], q->H->data[5],
-					                   q->H->data[6], q->H->data[7], q->H->data[8];
-
-				                   hm.computeRotationScaling(&rotation,&scaling);
-				                   d.Theta = Eigen::Rotation2D<double>(rotation).angle();
+				                   d.Y = q->c[1] + roi.y;
+				                   //d.Theta = ComputeAngleFromHomography(q);
+				                   d.Theta = ComputeAngleFromCorner(q);
 				                   d_parent->d_results[i].push_back(d);
 			                   }
 
