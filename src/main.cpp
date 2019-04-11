@@ -17,6 +17,7 @@
 #include <asio.hpp>
 
 #include "ProcessQueueExecuter.h"
+#include "StubFrameGrabber.h"
 
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -41,6 +42,8 @@ struct Options {
 	size_t      FrameStride;
 	std::set<uint64> FrameID;
 
+
+	std::string StubImagePath;
 };
 
 
@@ -81,6 +84,9 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("camera-strobe-delay-us",opts.Camera.StrobeDelay,"Camera Strobe Delay in us, negative value allowed");
 	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
 	parser.AddFlag("draw-detection",opts.DrawDetection,"Draw detection on the output if activated");
+	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
+
+
 	parser.Parse(argc,argv);
 	if (opts.PrintHelp == true) {
 		parser.PrintUsage(std::cerr);
@@ -207,15 +213,22 @@ void Execute(int argc, char ** argv) {
 		pq.push_back(std::make_shared<OutputProcess>(io));
 	}
 
-	Euresys::EGenTL gentl;
-	EuresysFrameGrabber  fg(gentl,opts.Camera);
+	std::shared_ptr<FrameGrabber> fg;
+	std::shared_ptr<Euresys::EGenTL> gentl;
+	if (opts.StubImagePath.empty() ) {
+		gentl = std::make_shared<Euresys::EGenTL>();
+		fg = std::make_shared<EuresysFrameGrabber>(*gentl,opts.Camera);
+	} else {
+		fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
+	}
+
 	ProcessQueueExecuter executer(workload,workCPUs.size());
 
 
 	fort::FrameReadout error;
 
 	std::function<void()> WaitForFrame = [&WaitForFrame,&io,&executer,&pq,&fg,&opts,&error,connection](){
-		Frame::Ptr f = fg.NextFrame();
+		Frame::Ptr f = fg->NextFrame();
 		if ( opts.FrameStride > 1 ) {
 			uint64_t IDInStride = f->ID() % opts.FrameStride;
 			if (opts.FrameID.count(IDInStride) == 0 ) {
@@ -246,7 +259,7 @@ void Execute(int argc, char ** argv) {
 		io.post(WaitForFrame);
 	};
 
-	fg.Start();
+	fg->Start();
 	io.post(WaitForFrame);
 
 	std::vector<std::thread> workThreads,ioThreads;
@@ -285,7 +298,7 @@ void Execute(int argc, char ** argv) {
 	for (auto & t : ioThreads ) {
 		t.join();
 	}
-	fg.Stop();
+	fg->Stop();
 
 	for( auto & t : workThreads) {
 		t.detach();

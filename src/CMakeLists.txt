@@ -39,6 +39,7 @@ set(SRC_FILES utils/Defer.cpp
 	          DrawDetectionProcess.cpp
 	          utils/CPUMap.cpp
 	          utils/Partitions.cpp
+	          StubFrameGrabber.cpp
 	          )
 
 
@@ -61,6 +62,7 @@ set(HDR_FILES utils/Defer.h
 	          DrawDetectionProcess.h
 	          utils/CPUMap.h
 	          utils/Partitions.h
+	          StubFrameGrabber.h
 	          )
 
 
