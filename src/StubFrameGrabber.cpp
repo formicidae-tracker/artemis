@@ -13,7 +13,7 @@ StubFrame::StubFrame(const cv::Mat & mat, uint64_t timestamp, uint64_t ID)
 StubFrame::~StubFrame() {}
 
 void * StubFrame::Data() {
-	return const_cast<void*>(reinterpret_cast<const void *>(d_mat.datastart));
+	return d_mat.data;
 }
 
 size_t StubFrame::Width() const {
@@ -41,6 +41,9 @@ StubFrameGrabber::StubFrameGrabber(const std::string & path)
 	: d_ID(0)
 	, d_timestamp(0) {
 	d_image = cv::imread(path,0);
+	if ( d_image.data == NULL ) {
+		throw std::runtime_error("Could not load '" + path + "'");
+	}
 }
 
 StubFrameGrabber::~StubFrameGrabber() {
