@@ -40,7 +40,7 @@ AprilTag2Detector::AprilTag2Detector(size_t maxWorkers,
 		d_families.push_back(std::move(OpenFamily(config.Family)));
 		DetectorPtr detector(apriltag_detector_create(),apriltag_detector_destroy);
 		apriltag_detector_add_family(detector.get(),d_families[i].get());
-		detector->nthreads = 1;
+		//detector->nthreads = 1;
 
 		detector->quad_decimate = config.QuadDecimate;
 		detector->quad_sigma = config.QuadSigma;
@@ -95,6 +95,7 @@ AprilTag2Detector::ROITagDetection::ROITagDetection(const AprilTag2Detector::Ptr
 AprilTag2Detector::ROITagDetection::~ROITagDetection() {}
 
 double ComputeAngleFromCorner(apriltag_detection *q) {
+
 	Eigen::Vector2d c0(q->p[0][0],q->p[0][1]);
 	Eigen::Vector2d c1(q->p[1][0],q->p[1][1]);
 	Eigen::Vector2d c2(q->p[2][0],q->p[2][1]);
@@ -158,7 +159,8 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   d.X = q->c[0] + roi.x;
 				                   d.Y = q->c[1] + roi.y;
 				                   //d.Theta = ComputeAngleFromHomography(q);
-				                   d.Theta = ComputeAngleFromCorner(q);
+				                   //d.Theta = ComputeAngleFromCorner(q);
+				                   d.Theta = 0;
 				                   d_parent->d_results[i].push_back(d);
 			                   }
 

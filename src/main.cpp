@@ -301,7 +301,7 @@ void Execute(int argc, char ** argv) {
 	fg->Stop();
 
 	for( auto & t : workThreads) {
-		t.detach();
+		t.join();
 	}
 
 }
