@@ -31,7 +31,7 @@ set(APRILTAG3_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/include)
 set(APRILTAG3_LIBRARIES ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/lib/${CMAKE_SHARED_LIBRARY_PREFIX}apriltag${CMAKE_SHARED_LIBRARY_SUFFIX}
                         Threads::Threads
                         )
-add_definitions("-D_GNU_SOURCE" "-DNDEBUG")
+add_definitions("-D_GNU_SOURCE")
 
 add_definitions(${EIGEN3_DEFINITIONS})
 

@@ -1,3 +1,5 @@
+add_subdirectory(maytags)
+
 add_subdirectory(hermes)
 
 include(CheckCXXSourceRuns)
