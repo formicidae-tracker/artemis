@@ -8,14 +8,17 @@ class ComponentConnecter {
 public :
 	void ConnectComponent(const cv::Mat & image);
 
-	size_t GetRepresentative(size_t);
-	size_t GetSize(size_t);
+	uint32_t GetRepresentative(uint32_t);
+	uint32_t GetSize(uint32_t);
 
 	void PrintDebug(const cv::Size & ,cv::Mat & );
 private:
-	std::vector<size_t> d_parent,d_size;
+	std::vector<uint32_t> d_parent,d_size;
 
-	size_t Connect(size_t a, size_t b);
+	uint32_t Connect(uint32_t a, uint32_t b);
 };
 
 } // namespace maytags
+
+
+#define REPRESENTATIVE_ID(x,y,w) ( (y) * (w) + (x) )

@@ -1,6 +1,8 @@
 #include "ComponentConnecter.h"
 #include <map>
 
+#include "ColorLabeller.h"
+
 using namespace maytags;
 
 void ComponentConnecter::ConnectComponent(const cv::Mat & image) {
@@ -29,7 +31,7 @@ void ComponentConnecter::ConnectComponent(const cv::Mat & image) {
 
 	}
 
-#define ID(x,y) ((y) * image.cols + (x))
+#define ID(x,y) REPRESENTATIVE_ID(x,y,image.cols)
 
 	for ( size_t y = 1; y < image.rows; ++y ) {
 		uint8_t v_m1_m1;
@@ -80,7 +82,7 @@ void ComponentConnecter::ConnectComponent(const cv::Mat & image) {
 
 }
 
-size_t ComponentConnecter::GetRepresentative(size_t ID) {
+uint32_t ComponentConnecter::GetRepresentative(uint32_t ID) {
 #ifndef NDEBUG
 	if ( ID >= d_parent.size() ) {
 		throw std::out_of_range("index out of range");
@@ -93,7 +95,7 @@ size_t ComponentConnecter::GetRepresentative(size_t ID) {
 		return ID;
 	}
 
-	size_t root = ID;
+	uint32_t root = ID;
 	while ( d_parent[root] != root ) {
 #ifndef NDEBUG
 		if (root >= d_parent.size() ) {
@@ -104,7 +106,7 @@ size_t ComponentConnecter::GetRepresentative(size_t ID) {
 	}
 
 	while ( d_parent[ID] != root ) {
-		size_t tmp = d_parent[ID];
+		uint32_t tmp = d_parent[ID];
 		d_parent[ID] = root;
 		ID = tmp;
 	}
@@ -113,15 +115,15 @@ size_t ComponentConnecter::GetRepresentative(size_t ID) {
 }
 
 
-size_t ComponentConnecter::Connect(size_t a, size_t b) {
-	size_t aRoot = GetRepresentative(a);
-	size_t bRoot = GetRepresentative(b);
+uint32_t ComponentConnecter::Connect(uint32_t a, uint32_t b) {
+	uint32_t aRoot = GetRepresentative(a);
+	uint32_t bRoot = GetRepresentative(b);
 
 	if ( aRoot == bRoot ) {
 		return aRoot;
 	}
-	size_t aSize = d_size[aRoot];
-	size_t bSize = d_size[bRoot];
+	uint32_t aSize = d_size[aRoot];
+	uint32_t bSize = d_size[bRoot];
 
 	if (aSize > bSize ) {
 		d_parent[bRoot] = aRoot;
@@ -135,7 +137,7 @@ size_t ComponentConnecter::Connect(size_t a, size_t b) {
 
 }
 
-size_t ComponentConnecter::GetSize(size_t ID) {
+uint32_t ComponentConnecter::GetSize(uint32_t ID) {
 #ifndef NDEBUG
 	if ( ID >= d_size.size() ) {
 		throw std::out_of_range("ID is out of range");
@@ -151,40 +153,17 @@ void ComponentConnecter::PrintDebug(const cv::Size & s ,cv::Mat & res) {
 
 	res = cv::Mat(s.height,s.width,CV_8UC3);
 
-	std::vector<cv::Vec3b> colors = {
-		cv::Vec3b(219,112,147),
-		cv::Vec3b(200,0,0),
-		cv::Vec3b(230,100,60),
-		cv::Vec3b(242,155,120),
-		cv::Vec3b(230,224,176),
-		cv::Vec3b(170,178,32),
-		cv::Vec3b(50,205,154),
-		cv::Vec3b(87,139,46),
-		cv::Vec3b(190,230,245),
-		cv::Vec3b(135,184,222),
-		cv::Vec3b(0,225,255),
-		cv::Vec3b(0,165,255),
-		cv::Vec3b(0,69,255),
-		cv::Vec3b(34,34,178),
-		cv::Vec3b(193,182,255),
-		cv::Vec3b(147,20,255),
-	};
-	size_t nextColor = 0;
-	std::map<size_t,size_t> colorMapping;
+	ColorLabeller labeller;
+
 
 	for (size_t y = 0; y < res.rows; ++y ) {
 		for (size_t x = 0; x < res.cols; ++x ) {
-			size_t rep = GetRepresentative(y*res.cols+x);
+			uint32_t rep = GetRepresentative(y*res.cols+x);
 			if (GetSize(rep) < 5 ) {
-				res.at<cv::Vec3b>(y,x) = cv::Vec3b(00,0,0);
+				res.at<cv::Vec3b>(y,x) = cv::Vec3b(0,0,0);
 				continue;
 			}
-			if ( colorMapping.count(rep) == 0 ) {
-				colorMapping[rep] = nextColor;
-				nextColor = (nextColor + 1) % colors.size();
-			}
-			cv::Vec3b color = colors[colorMapping[rep]];
-			res.at<cv::Vec3b>(y,x) = color;
+			res.at<cv::Vec3b>(y,x) = labeller.Color(rep);
 		}
 	}
 

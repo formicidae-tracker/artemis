@@ -2,7 +2,9 @@ set(SRC_FILES Detector.cpp
 	          Family.cpp
 	          Implementation.cpp
 	          Thresholder.cpp
+	          ColorLabeller.cpp
 	          ComponentConnecter.cpp
+	          GradientClusterizer.cpp
 	          )
 
 
@@ -10,13 +12,16 @@ set(HDR_FILES Detector.h
 	          Family.h
 	          Implementation.h
 	          Thresholder.h
+	          ColorLabeller.h
 	          ComponentConnecter.h
+	          GradientClusterizer.h
 	          )
 
 
 set(UTEST_HDR_FILES ThresholderUTest.h
 	                ImageResource.h
 	                ComponentConnecterUTest.h
+
 	                )
 
 set(UTEST_SRC_FILES ThresholderUTest.cpp

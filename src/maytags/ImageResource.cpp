@@ -63,6 +63,7 @@ void ImageResource::ExpectEqual8uc3(const cv::Mat & mat) {
 				diff.at<cv::Vec3b>(y,x) = expected;
 			} else {
 				diff.at<cv::Vec3b>(y,x) = cv::Vec3b(255-expected[0],255-expected[1],255-expected[2]);
+				++nbErrors;
 			}
 #endif
 
