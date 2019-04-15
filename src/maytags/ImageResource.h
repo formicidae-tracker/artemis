@@ -10,6 +10,9 @@ public:
 	void ExpectEqual(const cv::Mat & mat);
 private :
 	cv::Mat d_image;
+
+	void ExpectEqual8uc1(const cv::Mat & mat);
+	void ExpectEqual8uc3(const cv::Mat & mat);
 };
 
 #define LOAD_IMAGE(x) [](){	  \

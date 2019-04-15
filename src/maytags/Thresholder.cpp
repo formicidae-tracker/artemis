@@ -1,5 +1,6 @@
 #include "Thresholder.h"
 
+#include <iostream>
 
 
 using namespace maytags;
@@ -9,7 +10,6 @@ using namespace maytags;
 void Thresholder::Threshold(const cv::Mat & image, uint8_t minBWDiff) {
 	size_t tileWidth = image.cols / TileSize;
 	size_t tileHeight = image.rows / TileSize;
-
 
 	if ( image.size() != Thresholded.size() ) {
 		Thresholded = cv::Mat(image.size(),CV_8U);
@@ -25,7 +25,7 @@ void Thresholder::Threshold(const cv::Mat & image, uint8_t minBWDiff) {
 			uint8_t max(0), min(255);
 			for( size_t dy = 0; dy < TileSize; ++dy ) {
 				for( size_t dx = 0; dx < TileSize; ++dx ) {
-					uint8_t v = image.at<uint8_t>(ty+dy,tx+dx);
+					uint8_t v = image.at<uint8_t>(ty*TileSize+dy,tx*TileSize+dx);
 					if ( v < min ) {
 						min = v;
 					}
@@ -45,12 +45,12 @@ void Thresholder::Threshold(const cv::Mat & image, uint8_t minBWDiff) {
 			uint8_t max(0), min(255);
 			for ( int dy = -1; dy < 2; ++dy ) {
 				int iy(dy + ty);
-				if ( iy < 0 || iy > tileHeight ) {
+				if ( iy < 0 || iy >= tileHeight ) {
 					continue;
 				}
 				for ( int dx = -1; dx < 2; ++dx ) {
 					int ix(dx + tx);
-					if (ix < 0 || ix > tileWidth ) {
+					if ( ix < 0 || ix >= tileWidth ) {
 						continue;
 					}
 					uint8_t v = d_maxTmp.at<uint8_t>(iy,ix);
@@ -59,14 +59,14 @@ void Thresholder::Threshold(const cv::Mat & image, uint8_t minBWDiff) {
 					}
 					v = d_minTmp.at<uint8_t>(iy,ix);
 					if (v < min ) {
-						min =v;
+						min = v;
 					}
-
-					d_min.at<uint8_t>(iy,ix) = min;
-					d_max.at<uint8_t>(iy,ix) = max;
 
 				}
 			}
+
+			d_min.at<uint8_t>(ty,tx) = min;
+			d_max.at<uint8_t>(ty,tx) = max;
 		}
 	}
 
@@ -79,12 +79,12 @@ void Thresholder::Threshold(const cv::Mat & image, uint8_t minBWDiff) {
 				for( size_t dx = 0; dx < TileSize; ++dx ) {
 
 					if ( lowContrast == true ) {
-						Thresholded.at<uint8_t>(ty+dy,tx+dx) = 127;
+						Thresholded.at<uint8_t>(ty*TileSize+dy,tx*TileSize+dx) = 127;
 					} else {
-						if (image.at<uint8_t>(ty+dy,tx+dx) > thresh ) {
-							Thresholded.at<uint8_t>(ty+dy,tx+dx) = 255;
+						if (image.at<uint8_t>(ty*TileSize+dy,tx*TileSize+dx) > thresh ) {
+							Thresholded.at<uint8_t>(ty*TileSize+dy,tx*TileSize+dx) = 255;
 						} else {
-							Thresholded.at<uint8_t>(ty+dy,tx+dx) = 0;
+							Thresholded.at<uint8_t>(ty*TileSize+dy,tx*TileSize+dx) = 0;
 						}
 					}
 				}
@@ -123,6 +123,4 @@ void Thresholder::Threshold(const cv::Mat & image, uint8_t minBWDiff) {
 			}
 		}
 	}
-
-
 }
