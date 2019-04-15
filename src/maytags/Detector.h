@@ -43,7 +43,7 @@ public :
 	public :
 		Config();
 
-		std::vector<Family> Families;
+		std::vector<Family::Ptr> Families;
 
 		double QuadDecimate;
 		double QuadBlurSigma;
