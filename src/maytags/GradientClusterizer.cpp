@@ -2,11 +2,13 @@
 
 #include <Eigen/Core>
 #include <map>
+#include "ColorLabeller.h"
+
 
 using namespace maytags;
 
 void GradientClusterizer::GradientCluster(const cv::Mat & binaryImage, ComponentConnecter & cc, size_t minClusterSize) {
-	ClusterMap res;
+	Clusters.clear();
 
 	for ( int y = 0; y < binaryImage.rows-1; ++y ) {
 		for (int x = 1; x < binaryImage.cols-1; ++x) {
@@ -35,14 +37,14 @@ void GradientClusterizer::GradientCluster(const cv::Mat & binaryImage, Component
 				} else { \
 					clusterID = (rep0 << 32) + rep1; \
 				} \
-				if(res.count(clusterID) == 0 ) { \
-					res[clusterID] = ListOfPoint(); \
+				if(Clusters.count(clusterID) == 0 ) { \
+					Clusters[clusterID] = ListOfPoint(); \
 				}\
-			res[clusterID].push_back(Point{ \
+				Clusters[clusterID].push_back(Point{ \
 						.Position = Eigen::Vector2d(x+(double)dx/2.0,y+(double)dy/2.0), \
-						.Gradient= Eigen::Vector2d(v1-v0,v1-v0), \
-						.Slope = 0.0, \
-						}); \
+							.Gradient= Eigen::Vector2d(v1-v0,v1-v0), \
+							.Slope = 0.0, \
+							}); \
 			}while(0)
 
 			do_connect(1,0);
@@ -51,9 +53,24 @@ void GradientClusterizer::GradientCluster(const cv::Mat & binaryImage, Component
 			do_connect(-1,1);
 			do_connect(1,1);
 
+#undef do_connect
+
 		}
 	}
 
 
 
+}
+
+
+void GradientClusterizer::PrintDebug(const cv::Size & size,cv::Mat & image) {
+	ColorLabeller labeller;
+	image = cv::Mat(size,CV_8UC3);
+
+	for(auto const & kv : Clusters ) {
+		cv::Vec3b color  = labeller.Color(kv.first);
+		for (auto const & p : kv.second ) {
+			image.at<cv::Vec3b>(p.Position.y(),p.Position.x()) = color;
+		}
+	}
 }

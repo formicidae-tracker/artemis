@@ -24,9 +24,12 @@ public:
 
 	typedef std::map<uint64_t, ListOfPoint> ClusterMap;
 
+	ClusterMap Clusters;
+
+
 	void GradientCluster(const cv::Mat & binaryImage,ComponentConnecter & cc, size_t minClusterSize);
 
-	void DebugPrint(cv::Mat & image);
+	void PrintDebug(const cv::Size & size,cv::Mat & image);
 private:
 
 };

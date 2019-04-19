@@ -5,6 +5,7 @@ set(SRC_FILES Detector.cpp
 	          ColorLabeller.cpp
 	          ComponentConnecter.cpp
 	          GradientClusterizer.cpp
+	          QuadFitter.cpp
 	          )
 
 
@@ -15,13 +16,13 @@ set(HDR_FILES Detector.h
 	          ColorLabeller.h
 	          ComponentConnecter.h
 	          GradientClusterizer.h
+	          QuadFitter.h
 	          )
 
 
 set(UTEST_HDR_FILES ThresholderUTest.h
 	                ImageResource.h
 	                ComponentConnecterUTest.h
-
 	                )
 
 set(UTEST_SRC_FILES ThresholderUTest.cpp
@@ -32,7 +33,11 @@ set(UTEST_SRC_FILES ThresholderUTest.cpp
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data)
 
-set(RESSOURCES_FILES data/debug_threshold.pxm data/debug_preprocess.pxm data/debug_segmentation.pxm)
+set(RESSOURCES_FILES data/debug_threshold.pxm
+	                 data/debug_preprocess.pxm
+	                 data/debug_segmentation.pxm
+	                 data/debug_clusters.pxm
+	                 )
 
 include(add_ressources)
 
