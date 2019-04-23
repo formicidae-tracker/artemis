@@ -6,8 +6,8 @@
 
 #include <opencv2/imgproc.hpp>
 
-#include <iostream>
-#include <iomanip>
+//#include <iostream>
+//#include <iomanip>
 
 using namespace maytags;
 
@@ -50,13 +50,13 @@ void QuadFitter::FitQuad(const cv::Mat & image,
                          bool reversedBorder,
                          GradientClusterizer::ListOfPoint & cluster) {
 	if ( cluster.size() < d_config.MinimumPixelPerCluster ) {
-		std::cerr << "Not enough pixel in cluster: " << cluster.size() << std::endl;
+		// std::cerr << "Not enough pixel in cluster: " << cluster.size() << std::endl;
 		return;
 	}
 
 
 	if (cluster.size() > 3*(2*image.cols+2*image.rows)) {
-		std::cerr << "Too many pixel in cluster: " << cluster.size() << std::endl;
+		// std::cerr << "Too many pixel in cluster: " << cluster.size() << std::endl;
 		return;
 	}
 
@@ -84,7 +84,7 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 	}
 	Eigen::Vector2d center((xMax + xMin) * 0.5 + 0.05118,
 	                       (yMax + yMin) * 0.5 - 0.028581);
-	std::cerr << " + center is : " << center.transpose() << std::endl;
+	// std::cerr << " + center is : " << center.transpose() << std::endl;
 	double dot = 0;
 	for(auto & p : cluster ) {
 		Eigen::Vector2d delta = p.Position - center;
@@ -97,17 +97,17 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 	Quad quad;
 	quad.ReversedBorder = dot < 0.0;
 	if (reversedBorder == false && quad.ReversedBorder == true) {
-		std::cerr << " + reversed border disabled." << std::endl;
+		// std::cerr << " + reversed border disabled." << std::endl;
 		return;
 	}
 
 	if (normalBorder == false && quad.ReversedBorder == false) {
-		std::cerr << " + normal border disabled." << std::endl;
+		// std::cerr << " + normal border disabled." << std::endl;
 		return;
 	}
 
 	std::sort(cluster.begin(),cluster.end(),ascendingSlope);
-	std::cerr << " + before removing duplicates:" << cluster.size() << std::endl;
+	// std::cerr << " + before removing duplicates:" << cluster.size() << std::endl;
 	//removes duplicate.
 	auto last = cluster.begin();
 	for ( auto iter = cluster.begin() + 1; iter != cluster.end(); ) {
@@ -118,9 +118,9 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 			++iter;
 		}
 	}
-	std::cerr << " + after removing duplicates:" << cluster.size() << std::endl;
+	// std::cerr << " + after removing duplicates:" << cluster.size() << std::endl;
 	if ( cluster.size() < d_config.MinimumPixelPerCluster ) {
-		std::cerr << " + too few pixel left:" << cluster.size() << std::endl;
+		// std::cerr << " + too few pixel left:" << cluster.size() << std::endl;
 		return;
 	}
 	CumulativeMoment moments;
@@ -130,13 +130,13 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 	QuadLines lines;
 	FindSegmentMaxima(moments, lines);
 	if ( lines.size() != 4 ) {
-		std::cerr << " + no quad found." << std::endl;
+		// std::cerr << " + no quad found." << std::endl;
 		return;
 	}
 
 
 	for ( size_t i = 0; i < 4; ++i ) {
-		std::cerr << " + line: " << lines[i].transpose() << std::endl;
+		// std::cerr << " + line: " << lines[i].transpose() << std::endl;
 		size_t j = (i+1)%4;
 		Eigen::Matrix2d A;
 		A << lines[i].w(), -(lines[j].w()),
@@ -144,14 +144,14 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 		Eigen::Vector2d B = lines[j].block<2,1>(0,0) - lines[i].block<2,1>(0,0);
 		double det = A.determinant();
 		if ( std::abs(det) < 1e-3 )  {
-			std::cerr << " + Could not solve corner." << std::endl;
+			// std::cerr << " + Could not solve corner." << std::endl;
 			return;
 		}
 		Eigen::Vector2d W(A(1,1),-A(0,1));
 		W /= det;
 		quad.Corners[i] = lines[i].block<2,1>(0,0) + W.dot(B) * A.block<2,1>(0,0);
 	}
-	std::cerr << " + last moments: " << std::fixed << std::setprecision(15) << moments[moments.size()-1].Moment2.transpose() << " " << moments[moments.size()-2].Moment2.transpose() << std::endl;
+	// std::cerr << " + last moments: " << std::fixed << std::setprecision(15) << moments[moments.size()-1].Moment2.transpose() << " " << moments[moments.size()-2].Moment2.transpose() << std::endl;
 
 	double area = 0.0;
 	Eigen::Vector3d sides;
@@ -171,9 +171,13 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 	area += std::sqrt((p-sides.array()).prod()*p);
 
 	if (area < minTagWidth * minTagWidth ) {
-		std::cerr << " + Area is too small: " << area << std::endl;
+		// std::cerr << " + Area is too small: " << area << std::endl;
 		return;
 	}
+
+	//TODO : Check angles !!!
+
+
 
 	Quads.push_back(quad);
 
@@ -204,7 +208,7 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 	int kernelSize = std::min(20,size/12);
 
 	if ( kernelSize < 2 ) {
-		std::cerr << "    + KernelSize too small: " << kernelSize << std::endl;
+		// std::cerr << "    + KernelSize too small: " << kernelSize << std::endl;
 		return;
 	}
 	Eigen::VectorXd errors(size);
@@ -233,20 +237,20 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 			maxima.push_back({.Idx = (size_t)i, .Error = smoothed(i)});
 		}
 	}
-	std::cerr << "    + Maxima : " << maxima.size() << std::endl;
+	// std::cerr << "    + Maxima : " << maxima.size() << std::endl;
 
 	if (maxima.size() < 4 ) {
-		std::cerr << "    + Too few maxima: " << maxima.size() << std::endl;
+		// std::cerr << "    + Too few maxima: " << maxima.size() << std::endl;
 		return;
 	}
 
 	if ( maxima.size() > d_config.MaximumNumberOfMaxima ) {
-		std::cerr << "    + maxima unsorted: " << maxima[0].Error << " " << maxima[1].Error << std::endl;
+		// std::cerr << "    + maxima unsorted: " << maxima[0].Error << " " << maxima[1].Error << std::endl;
 		std::sort(maxima.begin(),maxima.end(),descendingMaximum);
-		std::cerr << "    + maxima sorted: " << maxima[0].Error << " " << maxima[1].Error << std::endl;
+		// std::cerr << "    + maxima sorted: " << maxima[0].Error << " " << maxima[1].Error << std::endl;
 		maxima.resize(d_config.MaximumNumberOfMaxima);
 		std::sort(maxima.begin(),maxima.end(),ascendingIndices);
-		std::cerr << "    + maxima resorted: " << maxima[0].Idx << " " << maxima[1].Idx << std::endl;
+		// std::cerr << "    + maxima resorted: " << maxima[0].Idx << " " << maxima[1].Idx << std::endl;
 	}
 
 	//now we have some candidates for corners, we should just find the best fits !!
@@ -263,7 +267,7 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 			int idx1 = maxima[m1].Idx;
 			FitLine(moments,idx0,idx1,&(params[0]),&(err[0]),&(mse[0]));
 			if (mse[0] > d_config.MaxLineMSE ) {
-				std::cerr << "    + line0 mse: " << mse[0] << std::endl;
+				// std::cerr << "    + line0 mse: " << mse[0] << std::endl;
 				continue;
 			}
 
@@ -272,13 +276,13 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 
 				FitLine(moments,idx1,idx2,&(params[1]),&(err[1]),&(mse[1]));
 				if (mse[1] > d_config.MaxLineMSE ) {
-					std::cerr << "    + line1 mse: " << mse[1] << std::endl;
+					// std::cerr << "    + line1 mse: " << mse[1] << std::endl;
 					continue;
 				}
 
 				double dot = params[0].block<2,1>(2,0).dot(params[1].block<2,1>(2,0));
 				if ( std::abs(dot) > d_config.CosCriticalRadian ) {
-					std::cerr << "    + angle 0-1: " << dot << std::endl;
+					// std::cerr << "    + angle 0-1: " << dot << std::endl;
 					continue;
 				}
 
@@ -286,7 +290,7 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 					int idx3 = maxima[m3].Idx;
 					FitLine(moments,idx2,idx3,&(params[2]),&(err[2]),&(mse[2]));
 					if ( mse[2] > d_config.MaxLineMSE ) {
-						std::cerr << "    + line2 mse: " << mse[2] << std::endl;
+						// std::cerr << "    + line2 mse: " << mse[2] << std::endl;
 						continue;
 					}
 					// dot = params[1].block<2,1>(2,0).dot(params[2].block<2,1>(2,0));
@@ -298,18 +302,18 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 
 					FitLine(moments,idx3,idx0,&(params[3]),&(err[3]),&(mse[3]));
 					if ( mse[3] > d_config.MaxLineMSE ) {
-						std::cerr << "    + line3 mse: " << mse[3] << std::endl;
+						// std::cerr << "    + line3 mse: " << mse[3] << std::endl;
 						continue;
 					}
 
 					// dot = params[2].block<2,1>(2,0).dot(params[3].block<2,1>(2,0));
 					// if ( std::abs(dot) > d_config.CosCriticalRadian ) {
-					// 	std::cerr << "    + angle 2-3: " << dot << std::endl;
+					// 	// std::cerr << "    + angle 2-3: " << dot << std::endl;
 					// 	continue;
 					// }
 					// dot = params[3].block<2,1>(2,0).dot(params[0].block<2,1>(2,0));
 					// if ( std::abs(dot) > d_config.CosCriticalRadian ) {
-					// 	std::cerr << "    + angle 0-3: " << dot << std::endl;
+					// 	// std::cerr << "    + angle 0-3: " << dot << std::endl;
 					// 	continue;
 					// }
 
@@ -317,7 +321,7 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 					double sumErr = err[0] + err[1] + err[2] + err[3];
 					if ( sumErr < bestError ) {
 						bestError = sumErr;
-						std::cerr << " + points " << idx0 << " " << idx1 << " " << idx2 << " " << idx3 << std::endl;
+						// std::cerr << " + points " << idx0 << " " << idx1 << " " << idx2 << " " << idx3 << std::endl;
 						lines[0] = params[0];
 						lines[1] = params[1];
 						lines[2] = params[2];
@@ -432,9 +436,9 @@ void QuadFitter::FitQuads(const cv::Mat & image,
 	d_config.CosCriticalRadian = std::cos(d_config.CriticalCornerAngleRadian);
 
 	for(auto & kv : clustermap ) {
-		std::cerr << "Fitting a cluster" << std::endl;
+		// std::cerr << "Fitting a cluster" << std::endl;
 		FitQuad(image,minTagWidth,normalBorder,reversedBorder,kv.second);
-		std::cerr << "Number of quads:" << Quads.size() << std::endl;
+		// std::cerr << "Number of quads:" << Quads.size() << std::endl;
 	}
 
 
