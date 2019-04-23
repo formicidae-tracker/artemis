@@ -52,22 +52,22 @@ TEST_F(ComponentConnecterUTest, Image) {
 
 	QuadFitter expected;
 	expected.Quads.resize(2);
-	expected.Quads[0].Corners[0] = Eigen::Vector2d(98.023689270019531,79.592376708984375);
-	expected.Quads[0].Corners[1] = Eigen::Vector2d(104.148109436035156,85.645683288574219);
-	expected.Quads[0].Corners[2] = Eigen::Vector2d(92.280052185058594,90.468368530273438);
-	expected.Quads[0].Corners[3] = Eigen::Vector2d(89.000450134277344,77.864562988281250);
-	expected.Quads[1].Corners[0] = Eigen::Vector2d(129.867385864257812,81.201515197753906);
-	expected.Quads[1].Corners[1] = Eigen::Vector2d(104.276916503906250,119.425476074218750);
-	expected.Quads[1].Corners[2] = Eigen::Vector2d(65.589057922363281,93.655731201171875);
-	expected.Quads[1].Corners[3] = Eigen::Vector2d(91.968605041503906,56.273712158203125);
+	expected.Quads[1].Corners[0] = Eigen::Vector2d(98.023689270019531,79.592376708984375);
+	expected.Quads[1].Corners[1] = Eigen::Vector2d(104.148109436035156,85.645683288574219);
+	expected.Quads[1].Corners[2] = Eigen::Vector2d(92.280052185058594,90.468368530273438);
+	expected.Quads[1].Corners[3] = Eigen::Vector2d(89.000450134277344,77.864562988281250);
+	expected.Quads[0].Corners[0] = Eigen::Vector2d(129.867385864257812,81.201515197753906);
+	expected.Quads[0].Corners[1] = Eigen::Vector2d(104.276916503906250,119.425476074218750);
+	expected.Quads[0].Corners[2] = Eigen::Vector2d(65.589057922363281,93.655731201171875);
+	expected.Quads[0].Corners[3] = Eigen::Vector2d(91.968605041503906,56.273712158203125);
 
 	QuadFitter qf;
 
 
 	qf.FitQuads(input.Image(), config, 10, true, false, gc.Clusters);
 
-	ASSERT_EQ(expected.Quads.size(),qf.Quads.size());
-	for(size_t i = 0; i < expected.Quads.size(); ++i) {
+	EXPECT_EQ(expected.Quads.size(),qf.Quads.size());
+	for(size_t i = 0; i < std::min(expected.Quads.size(),qf.Quads.size()); ++i) {
 		ExpectEqual(expected.Quads[i].Corners[0],qf.Quads[i].Corners[0]);
 		ExpectEqual(expected.Quads[i].Corners[1],qf.Quads[i].Corners[1]);
 		ExpectEqual(expected.Quads[i].Corners[2],qf.Quads[i].Corners[2]);

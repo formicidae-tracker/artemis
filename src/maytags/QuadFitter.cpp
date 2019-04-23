@@ -7,6 +7,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include <iostream>
+#include <iomanip>
 
 using namespace maytags;
 
@@ -27,8 +28,8 @@ QuadFitter::QuadFitter() {
 
 }
 
-bool comparePoint(const GradientClusterizer::Point & a, const GradientClusterizer::Point & b) {
-	return a.Slope > b.Slope;
+bool ascendingSlope(const GradientClusterizer::Point & a, const GradientClusterizer::Point & b) {
+	return a.Slope < b.Slope;
 }
 
 
@@ -105,7 +106,7 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 		return;
 	}
 
-	std::sort(cluster.begin(),cluster.end(),&comparePoint);
+	std::sort(cluster.begin(),cluster.end(),ascendingSlope);
 	std::cerr << " + before removing duplicates:" << cluster.size() << std::endl;
 	//removes duplicate.
 	auto last = cluster.begin();
@@ -135,6 +136,7 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 
 
 	for ( size_t i = 0; i < 4; ++i ) {
+		std::cerr << " + line: " << lines[i].transpose() << std::endl;
 		size_t j = (i+1)%4;
 		Eigen::Matrix2d A;
 		A << lines[i].w(), -(lines[j].w()),
@@ -149,6 +151,7 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 		W /= det;
 		quad.Corners[i] = lines[i].block<2,1>(0,0) + W.dot(B) * A.block<2,1>(0,0);
 	}
+	std::cerr << " + last moments: " << std::fixed << std::setprecision(15) << moments[moments.size()-1].Moment2.transpose() << " " << moments[moments.size()-2].Moment2.transpose() << std::endl;
 
 	double area = 0.0;
 	Eigen::Vector3d sides;
@@ -314,6 +317,7 @@ void QuadFitter::FindSegmentMaxima(const CumulativeMoment & moments,QuadLines & 
 					double sumErr = err[0] + err[1] + err[2] + err[3];
 					if ( sumErr < bestError ) {
 						bestError = sumErr;
+						std::cerr << " + points " << idx0 << " " << idx1 << " " << idx2 << " " << idx3 << std::endl;
 						lines[0] = params[0];
 						lines[1] = params[1];
 						lines[2] = params[2];
@@ -347,6 +351,7 @@ void QuadFitter::FitLine(const CumulativeMoment & moments, size_t start, size_t 
 			m.Weight  -= mstart.Weight;
 		}
 	} else {
+		N = moments.size() + end + 1 - start;
 		auto const & mstart = moments[start-1];
 		auto const & mend = moments[end];
 		m = moments.back();
@@ -366,7 +371,7 @@ void QuadFitter::FitLine(const CumulativeMoment & moments, size_t start, size_t 
 	double eigen_small = 0.5*(m.Moment2.x() + m.Moment2.z() - discr );
 	if (line != NULL ) {
 		line->block<2,1>(0,0) = m.Moment1;
-		double eigen_large = 0.5*(m.Moment2.x() + m.Moment2.y() + discr );
+		double eigen_large = 0.5*(m.Moment2.x() + m.Moment2.z() + discr );
 		Eigen::Vector2d n1(m.Moment2.x() - eigen_large,m.Moment2.y());
 		Eigen::Vector2d n2(m.Moment2.y() ,m.Moment2.z() -eigen_large);
 		double M1(n1.squaredNorm()), M2(n2.squaredNorm());
