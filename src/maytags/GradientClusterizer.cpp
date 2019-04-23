@@ -42,7 +42,7 @@ void GradientClusterizer::GradientCluster(const cv::Mat & binaryImage, Component
 				}\
 				Clusters[clusterID].push_back(Point{ \
 						.Position = Eigen::Vector2d(x+(double)dx/2.0,y+(double)dy/2.0), \
-							.Gradient= Eigen::Vector2d(v1-v0,v1-v0), \
+							.Gradient= Eigen::Vector2d(dx*(v1-v0),dy*(v1-v0)), \
 							.Slope = 0.0, \
 							}); \
 			}while(0)

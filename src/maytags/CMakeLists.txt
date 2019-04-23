@@ -20,13 +20,11 @@ set(HDR_FILES Detector.h
 	          )
 
 
-set(UTEST_HDR_FILES ThresholderUTest.h
-	                ImageResource.h
+set(UTEST_HDR_FILES ImageResource.h
 	                ComponentConnecterUTest.h
 	                )
 
-set(UTEST_SRC_FILES ThresholderUTest.cpp
-	                ImageResource.cpp
+set(UTEST_SRC_FILES ImageResource.cpp
 	                main-check.cpp
 	                ComponentConnecterUTest.cpp
 	                )

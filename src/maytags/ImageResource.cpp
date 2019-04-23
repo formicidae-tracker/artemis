@@ -28,17 +28,17 @@ const cv::Mat & ImageResource::Image() {
 }
 
 
-void ImageResource::ExpectEqual(const cv::Mat & mat) {
-	ASSERT_EQ(mat.rows,d_image.rows);
-	ASSERT_EQ(mat.cols,d_image.cols);
+void ImageResource::ExpectEqual(const cv::Mat & expected, const cv::Mat & actual) {
+	ASSERT_EQ(expected.rows,actual.rows);
+	ASSERT_EQ(expected.cols,actual.cols);
+	ASSERT_EQ(expected.type(),actual.type());
 
-
-	switch(mat.type()) {
+	switch(expected.type()) {
 	case CV_8U:
-		ExpectEqual8uc1(mat);
+		ExpectEqual8uc1(expected,actual);
 		break;
 	case CV_8UC3:
-		ExpectEqual8uc3(mat);
+		ExpectEqual8uc3(expected,actual);
 		break;
 	default:
 		throw std::runtime_error("nsupported image type");
@@ -46,23 +46,23 @@ void ImageResource::ExpectEqual(const cv::Mat & mat) {
 
 }
 
-void ImageResource::ExpectEqual8uc3(const cv::Mat & mat) {
+void ImageResource::ExpectEqual8uc3(const cv::Mat & expected, const cv::Mat & actual) {
 #ifndef NDEBUG
-	cv::Mat diff(mat.size(),CV_8UC3);
+	cv::Mat diff(expected.size(),CV_8UC3);
 #endif
 
 	size_t nbErrors = 0;
 
-	for(size_t y = 0; y < mat.rows; ++y) {
-		for(size_t x = 0; x < mat.cols; ++x) {
-			auto expected = d_image.at<cv::Vec3b>(y,x);
-			auto actual = mat.at<cv::Vec3b>(y,x);
+	for(size_t y = 0; y < expected.rows; ++y) {
+		for(size_t x = 0; x < expected.cols; ++x) {
+			auto expectedP = expected.at<cv::Vec3b>(y,x);
+			auto actualP = actual.at<cv::Vec3b>(y,x);
 
 #ifndef NDEBUG
-			if ( expected == actual ) {
-				diff.at<cv::Vec3b>(y,x) = expected;
+			if ( expectedP == actualP ) {
+				diff.at<cv::Vec3b>(y,x) = expectedP;
 			} else {
-				diff.at<cv::Vec3b>(y,x) = cv::Vec3b(255-expected[0],255-expected[1],255-expected[2]);
+				diff.at<cv::Vec3b>(y,x) = cv::Vec3b(255-expectedP[0],255-expectedP[1],255-expectedP[2]);
 				++nbErrors;
 			}
 #endif
@@ -71,14 +71,14 @@ void ImageResource::ExpectEqual8uc3(const cv::Mat & mat) {
 				continue;
 			}
 
-			EXPECT_EQ(expected[0],actual[0]);
-			EXPECT_EQ(expected[1],actual[1]);
-			EXPECT_EQ(expected[2],actual[2]);
+			EXPECT_EQ(expectedP[0],actualP[0]);
+			EXPECT_EQ(expectedP[1],actualP[1]);
+			EXPECT_EQ(expectedP[2],actualP[2]);
 		}
 	}
 #ifndef NDEBUG
-	cv::imshow("expected",d_image);
-	cv::imshow("actual",mat);
+	cv::imshow("expected",expected);
+	cv::imshow("actual",actual);
 
 	cv::imshow("difference",diff);
 
@@ -88,20 +88,20 @@ void ImageResource::ExpectEqual8uc3(const cv::Mat & mat) {
 
 }
 
-void ImageResource::ExpectEqual8uc1(const cv::Mat & mat) {
+void ImageResource::ExpectEqual8uc1(const cv::Mat & expected,const cv::Mat & actual) {
 #ifndef NDEBUG
-	cv::Mat diff(mat.size(),CV_8UC3);
+	cv::Mat diff(expected.size(),CV_8UC3);
 #endif
 
 	size_t nbErrors = 0;
 
-	for(size_t j = 0; j < mat.rows; ++j) {
-		for(size_t i = 0; i < mat.cols; ++i) {
-			auto expected = d_image.at<uint8_t>(j,i);
-			auto actual = mat.at<uint8_t>(j,i);
+	for(size_t j = 0; j < expected.rows; ++j) {
+		for(size_t i = 0; i < actual.cols; ++i) {
+			auto expectedP = expected.at<uint8_t>(j,i);
+			auto actualP = actual.at<uint8_t>(j,i);
 
 
-			if (expected != actual && nbErrors < 20 ) {
+			if (expectedP != actualP && nbErrors < 20 ) {
 				++nbErrors;
 				ADD_FAILURE() << "At (" << i << "," << j << ")";
 
@@ -109,11 +109,11 @@ void ImageResource::ExpectEqual8uc1(const cv::Mat & mat) {
 
 #ifndef NDEBUG
 			cv::Vec3b color;
-			if ( expected == actual ) {
-				color[2] = expected;
-				color[1] = expected;
-				color[0] = expected;
-			} else if (expected > actual) {
+			if ( expectedP == actualP ) {
+				color[2] = expectedP;
+				color[1] = expectedP;
+				color[0] = expectedP;
+			} else if (expectedP > actualP) {
 				color[2] = 0xff;
 				color[1] = 0;
 				color[0] = 0;
@@ -128,8 +128,8 @@ void ImageResource::ExpectEqual8uc1(const cv::Mat & mat) {
 	}
 
 #ifndef NDEBUG
-	cv::imshow("expected",d_image);
-	cv::imshow("actual",mat);
+	cv::imshow("expected",expected);
+	cv::imshow("actual",actual);
 
 	cv::imshow("difference",diff);
 

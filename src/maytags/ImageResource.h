@@ -7,12 +7,12 @@ public:
 	ImageResource(const uint8_t *start, const uint8_t * end);
 
 	const cv::Mat & Image();
-	void ExpectEqual(const cv::Mat & mat);
+	static void ExpectEqual(const cv::Mat & expected,const cv::Mat & actual);
 private :
 	cv::Mat d_image;
 
-	void ExpectEqual8uc1(const cv::Mat & mat);
-	void ExpectEqual8uc3(const cv::Mat & mat);
+	static void ExpectEqual8uc1(const cv::Mat & expected,const cv::Mat & actual);
+	static void ExpectEqual8uc3(const cv::Mat & expected,const cv::Mat & actual);
 };
 
 #define LOAD_IMAGE(x) [](){	  \
