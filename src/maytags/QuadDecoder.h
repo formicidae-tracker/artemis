@@ -10,7 +10,7 @@ class QuadDecoder {
 public:
 	QuadDecoder(const Family::Ptr & family);
 
-	bool Decode(const cv::Mat & image, const QuadFitter::Quad & quad, Detection & detection);
+	bool Decode(const cv::Mat & image, const QuadFitter::Quad & quad, double decodeSharpening, Detection & detection);
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 private:
 	const static size_t NbSamplers = 8;

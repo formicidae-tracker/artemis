@@ -69,7 +69,7 @@ double ValueAt(const cv::Mat & image,const Eigen::Vector2d & pos) {
 }
 
 
-bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, Detection & detection) {
+bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, double decodeSharpening, Detection & detection) {
 	Graymodel white,black;
 
 	for (size_t i = 0; i< NbSamplers; ++i ) {
@@ -125,13 +125,15 @@ bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, D
 		d_sampled.at<double>(location.y()-minCoord,location.x()-minCoord) = v - thresh;
 	}
 
-	cv::filter2D(d_sampled,d_sharpened,-1,d_kernel,cv::Point(-1,-1),0,cv::BORDER_REPLICATE);
+	cv::filter2D(d_sampled,d_sharpened,-1,d_kernel,cv::Point(-1,-1),decodeSharpening,cv::BORDER_REPLICATE);
+
+	d_sampled = d_sampled + d_sharpened;
 
 	Code rcode = 0;
 	for (size_t i =0; i < d_family->NumberOfBits; ++i ) {
 		auto const & location = d_family->BitLocation[i];
 		rcode = (rcode << 1);
-		double v = d_sharpened.at<double>(location.y()-minCoord,location.x()-minCoord);
+		double v = d_sampled.at<double>(location.y()-minCoord,location.x()-minCoord);
 		if (v > 0) {
 			whiteScore += v;
 			whiteScoreCount += 1.0;
