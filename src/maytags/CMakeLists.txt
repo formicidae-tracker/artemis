@@ -9,6 +9,7 @@ set(SRC_FILES Detector.cpp
 	          Graymodel.cpp
 	          QuickTagDecoder.cpp
 	          QuadDecoder.cpp
+	          Family36h11.cpp
 	          )
 
 

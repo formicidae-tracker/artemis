@@ -15,6 +15,7 @@ public :
 
 	static Ptr Create(const std::string & name);
 
+	size_t Hamming;
 	size_t NumberOfBits;
 	std::vector<Code> Codes;
 
