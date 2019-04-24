@@ -8,6 +8,10 @@
 
 using namespace maytags;
 
+const Family::Ptr & QuadDecoder::FamilyPtr() {
+	return d_family;
+}
+
 QuadDecoder::QuadDecoder(const Family::Ptr & family)
 	: d_family(family)
 	, d_decoder(family,2) {
@@ -48,7 +52,9 @@ QuadDecoder::QuadDecoder(const Family::Ptr & family)
 	d_kernel.at<double>(0,0) =  0.0; 	d_kernel.at<double>(0,1) = -1.0; d_kernel.at<double>(0,2) =  0.0;
 	d_kernel.at<double>(1,0) = -1.0; 	d_kernel.at<double>(1,1) =  4.0; d_kernel.at<double>(1,2) = -1.0;
 	d_kernel.at<double>(2,0) =  0.0; 	d_kernel.at<double>(2,1) = -1.0; d_kernel.at<double>(2,2) =  0.0;
-
+	d_sampled = d_sampled + 0.25 * d_sharpened;
+	//call it once to avoid a big impact on first execution
+	//cv::filter2D(d_sampled,d_sharpened,-1,d_kernel,cv::Point(-1,-1),0,cv::BORDER_CONSTANT);
 }
 
 
@@ -69,16 +75,39 @@ double ValueAt(const cv::Mat & image,const Eigen::Vector2d & pos) {
 }
 
 
+void Filter2d(const cv::Mat & src, cv::Mat & dst, const cv::Mat & kernel) {
+	int xOffset = (kernel.cols - 1)/2;
+	int yOffset = (kernel.rows - 1)/2;
+	for ( int y = 0; y < src.rows; ++y ) {
+		for ( int x = 0; x < src.cols; ++x) {
+			dst.at<double>(y,x) = 0.0;
+			for ( int ky = 0 ; ky < kernel.rows; ++ky ) {
+				for ( int kx = 0; kx < kernel.cols; ++kx ) {
+					int ix = x + kx - xOffset ;
+					int iy = y + ky - yOffset ;
+
+					if ( ix < 0 || ix >= src.cols || iy < 0 || iy >= src.rows ) {
+						continue;
+					}
+					dst.at<double>(y,x) += src.at<double>(iy,ix) * kernel.at<double>(ky,kx);
+				}
+			}
+		}
+	}
+}
+
 bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, double decodeSharpening, Detection & detection) {
 	Graymodel white,black;
-
+	//if (profiler != NULL) { profiler->Add("decode/init");}
 	for (size_t i = 0; i< NbSamplers; ++i ) {
 
 		for (size_t j = 0; j < d_family->WidthAtBorder; ++j ) {
-			Eigen::Vector2d pos = (d_samplerStart[i] + j * d_samplerDelta[i]) / d_family->WidthAtBorder;
-			pos.array() -= 0.5;
-			pos *= 2.0;
-			quad.Project(pos,pos);
+			Eigen::Vector2d tagPos = (d_samplerStart[i] + j * d_samplerDelta[i]) / d_family->WidthAtBorder;
+			tagPos.array() -= 0.5;
+			tagPos *= 2.0;
+
+			Eigen::Vector2d pos;
+			quad.Project(tagPos,pos);
 
 			int ix = pos.x();
 			int iy = pos.y();
@@ -87,24 +116,26 @@ bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, d
 			}
 			uint8_t v = image.at<uint8_t>(iy,ix);
 
+
 			if (d_isWhite[i]) {
-				white.Add(pos,v);
+				white.Add(tagPos,v);
 			} else {
-				black.Add(pos,v);
+				black.Add(tagPos,v);
 			}
 
 		}
 
 	}
-
+	//if (profiler != NULL) { profiler->Add("decode/model/sample");}
 	white.Solve();
 	black.Solve();
+	//if (profiler != NULL) { profiler->Add("decode/model/solve");}
 
 	if ( ( (white.Interpolate(Eigen::Vector2d::Zero()) - black.Interpolate(Eigen::Vector2d::Zero())) < 0 ) != d_family->ReversedBorder ) {
 		return false;
 	}
 
-	double blackScore(0),whiteScore(0),blackScoreCount(0),whiteScoreCount(0);
+	double blackScore(0),whiteScore(0),blackScoreCount(1.0),whiteScoreCount(1.0);
 	d_sampled.setTo(0.0);
 
 	int minCoord = (d_family->WidthAtBorder - d_family->TotalWidth) / 2;
@@ -125,9 +156,16 @@ bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, d
 		d_sampled.at<double>(location.y()-minCoord,location.x()-minCoord) = v - thresh;
 	}
 
-	cv::filter2D(d_sampled,d_sharpened,-1,d_kernel,cv::Point(-1,-1),decodeSharpening,cv::BORDER_REPLICATE);
+	//if (profiler != NULL) { profiler->Add("decode/sample");}
+	//cv::filter2d is doing weird things, reimplement it here
+	//cv::filter2D(d_sampled,d_sharpened,-1,d_kernel,cv::Point(-1,-1),0,cv::BORDER_CONSTANT);
+	Filter2d(d_sampled,d_sharpened,d_kernel);
 
-	d_sampled = d_sampled + d_sharpened;
+	//if (profiler != NULL) { profiler->Add("decode/sharpen/filter2d");}
+
+	d_sampled = d_sampled + decodeSharpening * d_sharpened;
+
+	//if (profiler != NULL) { profiler->Add("decode/sharpen");}
 
 	Code rcode = 0;
 	for (size_t i =0; i < d_family->NumberOfBits; ++i ) {
@@ -136,19 +174,21 @@ bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, d
 		double v = d_sampled.at<double>(location.y()-minCoord,location.x()-minCoord);
 		if (v > 0) {
 			whiteScore += v;
-			whiteScoreCount += 1.0;
+			whiteScoreCount++;
 			rcode |= 1;
 		} else {
 			blackScore -= v;
-			blackScoreCount += 1.0;
+			blackScoreCount++;
 		}
 	}
+	//if (profiler != NULL) { profiler->Add("decode/decode/sample");}
 
 	QuickTagDecoder::Entry entry(0,0,0);
 	if ( d_decoder.Decode(rcode,entry) == false ) {
 		return false;
 	}
 
+	//if (profiler != NULL) { profiler->Add("decode/decode");}
 
 	detection.ID = entry.ID;
 	detection.Hamming = entry.Hamming;
@@ -167,6 +207,6 @@ bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, d
 		c /= c.z();
 		detection.Corners[i] = c.block<2,1>(0,0);
 	}
-
+	// if (profiler != NULL) { profiler->Add("decode/cleanup");}
 	return true;
 }

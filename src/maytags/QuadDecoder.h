@@ -9,6 +9,7 @@ namespace maytags {
 class QuadDecoder {
 public:
 	QuadDecoder(const Family::Ptr & family);
+	const Family::Ptr & FamilyPtr();
 
 	bool Decode(const cv::Mat & image, const QuadFitter::Quad & quad, double decodeSharpening, Detection & detection);
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW

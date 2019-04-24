@@ -58,15 +58,13 @@ void GradientClusterizer::GradientCluster(const cv::Mat & binaryImage, Component
 		}
 	}
 
-
-
 }
 
 
 void GradientClusterizer::PrintDebug(const cv::Size & size,cv::Mat & image) {
 	ColorLabeller labeller;
 	image = cv::Mat(size,CV_8UC3);
-
+	image.setTo(cv::Vec3b(0,0,0));
 	for(auto const & kv : Clusters ) {
 		cv::Vec3b color  = labeller.Color(kv.first);
 		for (auto const & p : kv.second ) {

@@ -1,4 +1,4 @@
-#include "ComponentConnecterUTest.h"
+#include "End2EndUTest.h"
 
 #include "Thresholder.h"
 #include "ComponentConnecter.h"
@@ -7,6 +7,8 @@
 #include "ImageResource.h"
 
 #include "QuadDecoder.h"
+#include "Profiler.h"
+#include <chrono>
 
 using namespace maytags;
 
@@ -16,7 +18,52 @@ void ExpectEqual(const Eigen::Vector2d & a, const Eigen::Vector2d & b) {
 	}
 }
 
-TEST_F(ComponentConnecterUTest, Image) {
+
+
+TEST_F(End2EndUTest,Benchmark) {
+	auto input = LOAD_IMAGE(src_maytags_data_debug_preprocess_pxm);
+
+	Detector::QuadThresholdConfig config;
+	config.MinimumPixelPerCluster = 5;
+	config.MaximumNumberOfMaxima = 10;
+	config.CriticalCornerAngleRadian = 10 * M_PI / 180.0;
+	config.MaxLineMSE = 10.0;
+	config.MinimumBWDifference = 30;
+	Thresholder th;
+	ComponentConnecter cc;
+	GradientClusterizer gc;
+	QuadFitter qf;
+	Family::Ptr tag36h11;
+	EXPECT_NO_THROW({
+			tag36h11 = Family::Create("36h11");
+		});
+	QuadDecoder qd(tag36h11);
+
+	EXPECT_EQ(36,qd.FamilyPtr()->NumberOfBits);
+
+	Profiler pf;
+	th.Threshold(input.Image(),config.MinimumBWDifference);
+	pf.Add("quad/threshold");
+	cc.ConnectComponent(th.Thresholded);
+	pf.Add("quad/unionfind");
+	gc.GradientCluster(th.Thresholded,cc,25);
+	pf.Add("quad/cluster");
+	qf.FitQuads(input.Image(), config, 10, true, false, gc.Clusters);
+	pf.Add("quad/fit");
+	for ( auto & q : qf.Quads ) {
+		q.ComputeHomography();
+		pf.Add("homography");
+		Detection d;
+		bool decoded = qd.Decode(input.Image(),q,0.25,d);
+		pf.Add("decode/end");
+	}
+
+	pf.Report(std::cerr);
+}
+
+
+
+TEST_F(End2EndUTest, Image) {
 	auto input = LOAD_IMAGE(src_maytags_data_debug_preprocess_pxm);
 	auto threshold = LOAD_IMAGE(src_maytags_data_debug_threshold_pxm);
 	auto expectedSegmentation = LOAD_IMAGE(src_maytags_data_debug_segmentation_pxm);
@@ -101,7 +148,7 @@ TEST_F(ComponentConnecterUTest, Image) {
 	Detection expectedD;
 	expectedD.ID = 28;
 	expectedD.Hamming = 0;
-	expectedD.DecisionMargin = 71.395;
+	expectedD.DecisionMargin = 71.064461;
 	expectedD.Center = Eigen::Vector2d(98.0135,87.2753);
 	size_t i = 0;
 	for ( auto & q : qf.Quads ) {
@@ -117,11 +164,5 @@ TEST_F(ComponentConnecterUTest, Image) {
 		}
 		++i;
 	}
-
-
-
-
-
-
 
 }

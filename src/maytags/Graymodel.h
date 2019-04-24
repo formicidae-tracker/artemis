@@ -12,7 +12,7 @@ public:
 	void Solve();
 	double Interpolate(const Eigen::Vector2d & position);
 
-protected:
+
 	Eigen::Matrix3d d_A;
 	Eigen::Vector3d d_B,d_C;
 
