@@ -6,6 +6,9 @@ set(SRC_FILES Detector.cpp
 	          ComponentConnecter.cpp
 	          GradientClusterizer.cpp
 	          QuadFitter.cpp
+	          Graymodel.cpp
+	          QuickTagDecoder.cpp
+	          QuadDecoder.cpp
 	          )
 
 
@@ -17,6 +20,9 @@ set(HDR_FILES Detector.h
 	          ComponentConnecter.h
 	          GradientClusterizer.h
 	          QuadFitter.h
+	          Graymodel.h
+	          QuickTagDecoder.h
+	          QuadDecoder.h
 	          )
 
 

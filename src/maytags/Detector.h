@@ -9,15 +9,14 @@ namespace maytags {
 
 class Detection {
 public :
+	Eigen::Vector2d Center;
+	Eigen::Vector2d Corners[4];
+	Eigen::Matrix3d H;
+
 	size_t ID;
 	size_t Hamming;
 	double Goodness;
 	double DecisionMargin;
-
-	Eigen::Matrix3d H;
-	Eigen::Vector2d Center;
-	Eigen::Vector2d Corners[4];
-
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 

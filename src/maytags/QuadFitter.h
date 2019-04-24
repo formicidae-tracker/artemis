@@ -20,7 +20,7 @@ public :
 		bool ReversedBorder;
 		void ComputeHomography();
 
-		void Project(const Eigen::Vector2d & p, Eigen::Vector2d & res);
+		void Project(const Eigen::Vector2d & p, Eigen::Vector2d & res) const;
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 		const static Eigen::Vector2d NormalizedCorners[4];
 	};
