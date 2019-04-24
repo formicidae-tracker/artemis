@@ -11,6 +11,28 @@
 
 using namespace maytags;
 
+const Eigen::Vector2d QuadFitter::Quad::NormalizedCorners[4] = {
+	Eigen::Vector2d(-1,-1),
+	Eigen::Vector2d(1,-1),
+	Eigen::Vector2d(1,1),
+	Eigen::Vector2d(-1,1),
+};
+
+
+void QuadFitter::Quad::ComputeHomography() {
+	Eigen::Matrix<double,8,8> A;
+	Eigen::Matrix<double,8,1> B;
+	for(size_t i = 0; i < 4; ++i) {
+		B.block<2,1>(2*i,0) = Corners[i];
+		A.block<2,8>(2*i,0) <<
+			NormalizedCorners[i].x() , 0 , - NormalizedCorners[i].x() * Corners[i].x(), NormalizedCorners[i].y(), 0 , -NormalizedCorners[i].y() * Corners[i].x(), 1 , 0,
+			0  , NormalizedCorners[i].x(), - NormalizedCorners[i].x() * Corners[i].y(), 0 , NormalizedCorners[i].y(), -NormalizedCorners[i].y() * Corners[i].y(), 0 , 1;
+	}
+
+	H(2,2) = 1.0;
+	Eigen::Map< Eigen::Matrix<double,8,1> > x(H.data());
+	x = Eigen::PartialPivLU<Eigen::Matrix<double,8,8> >(A).solve(B);
+}
 
 QuadFitter::QuadFitter() {
 	double sigma = 1.0;
@@ -176,8 +198,6 @@ void QuadFitter::FitQuad(const cv::Mat & image,
 	}
 
 	//TODO : Check angles !!!
-
-
 
 	Quads.push_back(quad);
 

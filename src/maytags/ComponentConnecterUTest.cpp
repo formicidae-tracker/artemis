@@ -72,6 +72,18 @@ TEST_F(ComponentConnecterUTest, Image) {
 		ExpectEqual(expected.Quads[i].Corners[1],qf.Quads[i].Corners[1]);
 		ExpectEqual(expected.Quads[i].Corners[2],qf.Quads[i].Corners[2]);
 		ExpectEqual(expected.Quads[i].Corners[3],qf.Quads[i].Corners[3]);
+
+		qf.Quads[i].ComputeHomography();
+		for(size_t c =0; c < 4; ++c) {
+			Eigen::Vector3d corner(QuadFitter::Quad::NormalizedCorners[c].x(),
+			                       QuadFitter::Quad::NormalizedCorners[c].y(),
+			                       1.0);
+
+			//no aliasing with multiplication
+			corner = qf.Quads[i].H * corner;
+			corner /= corner.z();
+			ExpectEqual(qf.Quads[i].Corners[c],corner.block<2,1>(0,0));
+		}
 	}
 
 	cv::Mat debugQuadFit;
@@ -80,6 +92,9 @@ TEST_F(ComponentConnecterUTest, Image) {
 	expected.PrintDebug(input.Image().size(),expectedQuadFit);
 
 	ImageResource::ExpectEqual(expectedQuadFit,debugQuadFit);
+
+
+
 
 
 }
