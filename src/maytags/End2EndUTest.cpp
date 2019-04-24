@@ -19,7 +19,6 @@ void ExpectEqual(const Eigen::Vector2d & a, const Eigen::Vector2d & b) {
 }
 
 
-
 TEST_F(End2EndUTest,Benchmark) {
 	auto input = LOAD_IMAGE(src_maytags_data_debug_preprocess_pxm);
 
