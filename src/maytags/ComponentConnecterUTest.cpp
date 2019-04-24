@@ -6,6 +6,8 @@
 #include "QuadFitter.h"
 #include "ImageResource.h"
 
+#include "QuadDecoder.h"
+
 using namespace maytags;
 
 void ExpectEqual(const Eigen::Vector2d & a, const Eigen::Vector2d & b) {
@@ -87,6 +89,36 @@ TEST_F(ComponentConnecterUTest, Image) {
 	expected.PrintDebug(input.Image().size(),expectedQuadFit);
 
 	ImageResource::ExpectEqual(expectedQuadFit,debugQuadFit);
+
+	Family::Ptr tag36h11;
+	EXPECT_NO_THROW({
+			tag36h11 = Family::Create("36h11");
+		});
+	QuadDecoder qd(tag36h11);
+
+	ASSERT_EQ(2,qf.Quads.size());
+	bool decodable[2] = {true,false};
+	Detection expectedD;
+	expectedD.ID = 28;
+	expectedD.Hamming = 0;
+	expectedD.DecisionMargin = 71.395;
+	expectedD.Center = Eigen::Vector2d(98.0135,87.2753);
+	size_t i = 0;
+	for ( auto & q : qf.Quads ) {
+		q.ComputeHomography();
+		Detection d;
+		bool decoded = qd.Decode(input.Image(),q,0.25,d);
+		EXPECT_EQ(decodable[i],decoded);
+		if (decoded == true) {
+			EXPECT_EQ(expectedD.ID,d.ID);
+			EXPECT_EQ(expectedD.Hamming,d.Hamming);
+			EXPECT_FLOAT_EQ(expectedD.DecisionMargin, d.DecisionMargin);
+			ExpectEqual(expectedD.Center, d.Center);
+		}
+		++i;
+	}
+
+
 
 
 

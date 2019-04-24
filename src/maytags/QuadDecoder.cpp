@@ -149,23 +149,23 @@ bool QuadDecoder::Decode(const cv::Mat & image, const QuadFitter::Quad & quad, d
 		return false;
 	}
 
-	Detection d;
-	d.ID = entry.ID;
-	d.Hamming = d.Hamming;
-	d.DecisionMargin = std::min(whiteScore/whiteScoreCount,blackScore/blackScoreCount);
+
+	detection.ID = entry.ID;
+	detection.Hamming = entry.Hamming;
+	detection.DecisionMargin = std::min(whiteScore/whiteScoreCount,blackScore/blackScoreCount);
 
 	Eigen::Transform<double,2,Eigen::Affine> rot(Eigen::Rotation2D<double>(entry.Rotation * M_PI / 2.0));
-	d.H = quad.H * rot.matrix();
-	Eigen::Vector3d center = d.H * Eigen::Vector3d::Zero();
+	detection.H = quad.H * rot.matrix();
+	Eigen::Vector3d center = detection.H * Eigen::Vector3d::Zero();
 	center /= center.z();
-	d.Center = center.block<2,1>(0,0);
+	detection.Center = center.block<2,1>(0,0);
 	for(size_t i =0; i < 4; ++i ) {
 		Eigen::Vector3d c;
 		c.block<2,1>(0,0) = QuadFitter::Quad::NormalizedCorners[i];
 		c.z() = 1.0;
-		c = d.H * c;
+		c = detection.H * c;
 		c /= c.z();
-		d.Corners[i] = c.block<2,1>(0,0);
+		detection.Corners[i] = c.block<2,1>(0,0);
 	}
 
 	return true;
