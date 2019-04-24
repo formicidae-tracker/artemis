@@ -44,9 +44,9 @@ public :
 
 		std::vector<Family::Ptr> Families;
 
-		double QuadDecimate;
-		double QuadBlurSigma;
-		bool RefineEdges;
+		// double QuadDecimate;
+		// double QuadBlurSigma;
+		// bool RefineEdges;
 		double DecodeSharpening;
 
 		QuadThresholdConfig QuadConfig;

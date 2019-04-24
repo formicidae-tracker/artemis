@@ -15,10 +15,7 @@ Detector::QuadThresholdConfig::QuadThresholdConfig()
 }
 
 Detector::Config::Config()
-	: QuadDecimate(2.0)
-	, QuadBlurSigma(0.0)
-	, RefineEdges(true)
-	, DecodeSharpening(0.25) {
+	: DecodeSharpening(0.25) {
 }
 
 Detector::Detector(const Config & config)

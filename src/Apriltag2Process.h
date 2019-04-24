@@ -2,7 +2,7 @@
 
 #include "ProcessDefinition.h"
 
-#include <apriltag/apriltag.h>
+#include <maytags/Detector.h>
 
 #include <mutex>
 
@@ -25,8 +25,7 @@ public:
 			, QuadMaxNMaxima(10)
 			, QuadCriticalRadian(0.174533)
 			, QuadMaxLineMSE(10.0)
-			, QuadMinBWDiff(5)
-			, QuadDeglitch(false) {
+			, QuadMinBWDiff(5) {
 		}
 
 
@@ -41,7 +40,6 @@ public:
 		float       QuadCriticalRadian;
 		float       QuadMaxLineMSE;
 		int         QuadMinBWDiff;
-		bool        QuadDeglitch;
 	};
 
 
@@ -99,14 +97,7 @@ private:
 	                  const Config & config);
 
 
-
-	typedef std::unique_ptr<apriltag_family_t, std::function <void (apriltag_family_t *) > > FamilyPtr;
-	typedef std::unique_ptr<apriltag_detector_t,std::function<void (apriltag_detector_t*)> > DetectorPtr;
-	static FamilyPtr OpenFamily(const std::string & name);
-
-
-	std::vector<FamilyPtr>   d_families;
-	std::vector<DetectorPtr> d_detectors;
+	std::vector<std::shared_ptr<maytags::Detector> > d_detectors;
 
 
 	struct Detection {

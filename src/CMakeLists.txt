@@ -1,5 +1,7 @@
 add_subdirectory(maytags)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(hermes)
 
 include(CheckCXXSourceRuns)
