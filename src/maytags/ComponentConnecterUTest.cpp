@@ -75,14 +75,9 @@ TEST_F(ComponentConnecterUTest, Image) {
 
 		qf.Quads[i].ComputeHomography();
 		for(size_t c =0; c < 4; ++c) {
-			Eigen::Vector3d corner(QuadFitter::Quad::NormalizedCorners[c].x(),
-			                       QuadFitter::Quad::NormalizedCorners[c].y(),
-			                       1.0);
-
-			//no aliasing with multiplication
-			corner = qf.Quads[i].H * corner;
-			corner /= corner.z();
-			ExpectEqual(qf.Quads[i].Corners[c],corner.block<2,1>(0,0));
+			Eigen::Vector2d corner;
+			qf.Quads[i].Project(QuadFitter::Quad::NormalizedCorners[c],corner);
+			ExpectEqual(qf.Quads[i].Corners[c],corner);
 		}
 	}
 

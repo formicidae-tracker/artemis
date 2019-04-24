@@ -19,6 +19,14 @@ const Eigen::Vector2d QuadFitter::Quad::NormalizedCorners[4] = {
 };
 
 
+void QuadFitter::Quad::Project(const Eigen::Vector2d & p, Eigen::Vector2d & res) {
+	Eigen::Vector3d homogenous(p.x(),p.y(),1.0);
+	//no aliasing for multiplication with matrices and scalar
+	homogenous = H * homogenous;
+	homogenous /= homogenous.z();
+	res = homogenous.block<2,1>(0,0);
+}
+
 void QuadFitter::Quad::ComputeHomography() {
 	Eigen::Matrix<double,8,8> A;
 	Eigen::Matrix<double,8,1> B;
