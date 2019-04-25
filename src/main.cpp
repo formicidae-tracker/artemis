@@ -22,6 +22,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include <opencv2/imgproc.hpp>
+
 struct Options {
 	bool PrintHelp;
 
@@ -71,7 +73,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("at-quad-critical-radian",opts.AprilTag2.QuadCriticalRadian,"Rejects quad with angle to close to 0 or 180 degrees");
 	parser.AddFlag("at-quad-max-line-mse",opts.AprilTag2.QuadMaxLineMSE,"MSE threshold to reject a fitted quad");
 	parser.AddFlag("at-quad-min-bw-diff",opts.AprilTag2.QuadMinBWDiff,"Difference in pixel value to consider a region black or white");
-	parser.AddFlag("at-quad-deglitch",opts.AprilTag2.QuadDeglitch,"Deglitch only for noisy images");
+	//	parser.AddFlag("at-quad-deglitch",opts.AprilTag2.QuadDeglitch,"Deglitch only for noisy images");
 	parser.AddFlag("host", opts.Host, "Host to send tag detection readout");
 	parser.AddFlag("port", opts.Port, "Port to send tag detection readout",'p');
 	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
@@ -130,6 +132,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 
 void Execute(int argc, char ** argv) {
+	Eigen::initParallel();
+	cv::setNumThreads(0);
 	Options opts;
 	ParseArgs(argc, argv,opts);
 
@@ -147,7 +151,7 @@ void Execute(int argc, char ** argv) {
 	auto coremap = GetCoreMap();
 	if ( coremap.size() == 1 ) {
 		ioCPUs.push_back(coremap[0].CPUs[0]);
-		if (coremap[0].CPUs.size() == 0 ) {
+		if (coremap[0].CPUs.size() == 1 ) {
 			workCPUs.push_back(coremap[0].CPUs[0]);
 		} else {
 			for ( size_t i = 1; i < coremap[0].CPUs.size(); ++i ) {
@@ -176,16 +180,15 @@ void Execute(int argc, char ** argv) {
 
 
 	asio::io_service io;
-	asio::io_service workload;
-	asio::io_service::work work(workload);
+	ProcessQueueExecuter executer(workCPUs);
 
 	//Stops on SIGINT
 	asio::signal_set signals(io,SIGINT);
-	signals.async_wait([&io,&workload](const asio::error_code &,
+	signals.async_wait([&io,&executer](const asio::error_code &,
 	                         int ) {
 		                   LOG(INFO) << "Terminating (SIGINT)";
 		                   io.stop();
-		                   workload.stop();
+		                   executer.Stop();
 	                   });
 
 	Connection::Ptr connection;
@@ -222,8 +225,6 @@ void Execute(int argc, char ** argv) {
 		fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
 	}
 
-	ProcessQueueExecuter executer(workload,workCPUs.size());
-
 
 	fort::FrameReadout error;
 
@@ -236,7 +237,6 @@ void Execute(int argc, char ** argv) {
 				return;
 			}
 		}
-
 		try {
 			executer.Start(pq,f);
 			DLOG(INFO) << "Processing frame " << f->ID();
@@ -262,18 +262,7 @@ void Execute(int argc, char ** argv) {
 	fg->Start();
 	io.post(WaitForFrame);
 
-	std::vector<std::thread> workThreads,ioThreads;
-
-	for(size_t i = 0; i < workCPUs.size(); ++i) {
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		CPU_SET(workCPUs[i],&cpuset);
-		DLOG(INFO) << "Spawning worker on CPU " << workCPUs[i];
-		workThreads.push_back(std::thread([&workload](){
-					workload.run();
-				}));
-		p_call(pthread_setaffinity_np,workThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
-	}
+	std::vector<std::thread> ioThreads;
 
 	for ( size_t i = 0; i < ioCPUs.size(); ++i) {
 		cpu_set_t cpuset;
@@ -286,24 +275,12 @@ void Execute(int argc, char ** argv) {
 		p_call(pthread_setaffinity_np,ioThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
 
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	CPU_SET(ioCPUs[0],&cpuset);
 
-	long int tid = syscall(SYS_gettid);
-
-
-
+	executer.Loop();
 
 	for (auto & t : ioThreads ) {
 		t.join();
 	}
-	fg->Stop();
-
-	for( auto & t : workThreads) {
-		t.detach();
-	}
-
 }
 
 int main(int argc, char ** argv) {

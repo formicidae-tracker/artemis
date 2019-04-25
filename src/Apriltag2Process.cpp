@@ -87,14 +87,31 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 		d_parent->d_results.reserve(256);
 		d_parent->d_results[i].clear();
 		cv::Rect roi = partitions[i];
+		static std::mutex l;
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
 		                                const cv::Mat & upstream,
 		                                fort::FrameReadout & readout,
 		                                cv::Mat & result) {
+			                   DLOG(INFO) << "Starting detector " << i << " size:" << d_parent->d_detectors.size();
 			                   cv::Mat withROI(frame->ToCV(),roi);
-			                   cv::Mat cloned = withROI.clone();
+
+
+			                   cv::Mat cloned;
+			                   {
+				                   l.lock();
+				                   cloned = withROI.clone();
+				                   l.unlock();
+			                   }
 			                   maytags::Detector::ListOfDetection detections;
-			                   d_parent->d_detectors[i]->Detect(cloned,detections);
+
+			                   {
+				                   //l.lock();
+				                   DLOG(INFO) << "Detecting " << i << " " << d_parent->d_detectors[i].get();
+				                   d_parent->d_detectors[i]->Detect(cloned,detections);
+				                   DLOG(INFO) << "Done " << i;
+				                   //l.unlock();
+			                   }
+
 			                   Detection d;
 			                   for( auto const & md : detections ) {
 				                   d.ID = md.ID;
@@ -102,8 +119,11 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 				                   d.Y = md.Center.y() + roi.y;
 				                   //d.Theta = ComputeAngleFromHomography(q);
 				                   d.Theta = ComputeAngleFromCorner(md);
+				                   l.lock();
 				                   d_parent->d_results[i].push_back(d);
+				                   l.unlock();
 			                   }
+
 
 		                   });
 	}
@@ -147,6 +167,7 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 				}
 			}
 			if (d_connection) {
+				DLOG(INFO) << "Sending";
 				Connection::PostMessage(d_connection,readout);
 			}
 

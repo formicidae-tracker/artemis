@@ -2,7 +2,6 @@
 
 #include <map>
 
-
 using namespace maytags;
 
 Implementation::Implementation(const Detector::Config & config)
@@ -30,14 +29,17 @@ Implementation::~Implementation() {
 }
 
 void Implementation::Detect(const cv::Mat & grayscale, Detector::ListOfDetection & detections) {
-	if (grayscale.channels() != CV_8U ) {
+
+	if (grayscale.type() != CV_8U ) {
 		throw std::invalid_argument("Only working with 8 bit monochrome images");
 	}
 
 	detections.clear();
 
 	d_thresholder.Threshold(grayscale, d_config.QuadConfig.MinimumBWDifference);
+
 	d_connecter.ConnectComponent(d_thresholder.Thresholded);
+
 	d_clusterizer.GradientCluster(d_thresholder.Thresholded,d_connecter,d_config.QuadConfig.MinimumPixelPerCluster);
 
 	d_fitter.FitQuads(grayscale,
@@ -82,6 +84,7 @@ void Implementation::Detect(const cv::Mat & grayscale, Detector::ListOfDetection
 		}
 
 	}
+
 
 	detections.reserve(allDetections.size());
 	for ( auto const & d : allDetections ) {
