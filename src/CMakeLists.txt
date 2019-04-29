@@ -2,7 +2,6 @@ add_subdirectory(maytags)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_subdirectory(hermes)
 
 include(CheckCXXSourceRuns)
 
@@ -25,6 +24,10 @@ configure_file(config.h.in artemis-config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}
 	                ${CMAKE_CURRENT_SOURCE_DIR}
 	                )
+
+add_subdirectory(hermes)
+add_subdirectory(common)
+add_subdirectory(orion)
 
 
 set(SRC_FILES utils/Defer.cpp
@@ -99,6 +102,7 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
 	                                 ${APRILTAG3_LIBRARIES}
 	                                 hermes
+	                                 maytags
 	                                 ${OpenCV_LIBS}
 	                                  "-ldl")
 
