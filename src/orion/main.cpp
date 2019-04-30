@@ -1,14 +1,34 @@
 #include <iostream>
 
 #include <common/InterprocessBuffer.h>
-#include <maytags/Detector.h>
+#include <apriltag/apriltag.h>
+#include <apriltag/tag36h11.h>
+
 #include "../utils/PosixCall.h"
 #include <glog/logging.h>
+#include <Eigen/Core>
 
-double ComputeAngleFromCorner(const maytags::Detection & d) {
-	Eigen::Vector2d delta = (d.Corners[0] + d.Corners[2]) / 2.0 - (d.Corners[1] + d.Corners[3]) / 2.0;
+double ComputeAngleFromCorner(apriltag_detection *q) {
+	Eigen::Vector2d c0(q->p[0][0],q->p[0][1]);
+	Eigen::Vector2d c1(q->p[1][0],q->p[1][1]);
+	Eigen::Vector2d c2(q->p[2][0],q->p[2][1]);
+	Eigen::Vector2d c3(q->p[3][0],q->p[3][1]);
+
+	Eigen::Vector2d delta = (c1 + c2) / 2.0 - (c0 + c3) / 2.0;
 
 	return atan2(delta.y(),delta.x());
+}
+
+typedef std::shared_ptr<apriltag_family_t> FamilyPtr;
+
+FamilyPtr CreateFamily(DetectionConfig::FamilyType t) {
+	static std::vector<std::function<FamilyPtr()> > creators = {
+		[]() { return FamilyPtr(tag36h11_create(),tag36h11_destroy); },
+	};
+	if ( (size_t)t >= creators.size() ) {
+		throw std::out_of_range("Unknown FamilyType");
+	}
+	return creators[(size_t)t]();
 }
 
 
@@ -22,32 +42,45 @@ void Execute(int argc, char **argv) {
 
 	InterprocessBuffer ipBuffer(manager,std::atoi(argv[1]));
 
-	maytags::Detector::Config config;
-	config.DecodeSharpening = 0.25;
-	config.QuadConfig.MinimumBWDifference = ipBuffer.Config().QuadMinBWDiff;
-	config.QuadConfig.MaxLineMSE = ipBuffer.Config().QuadMaxLineMSE;
-	config.QuadConfig.CriticalCornerAngleRadian = ipBuffer.Config().QuadCriticalRadian;
-	config.QuadConfig.CosCriticalRadian = std::cos(ipBuffer.Config().QuadCriticalRadian);
-	config.QuadConfig.MaximumNumberOfMaxima = ipBuffer.Config().QuadMaxNMaxima;
-	config.QuadConfig.MinimumPixelPerCluster = ipBuffer.Config().QuadMinClusterPixel;
-	config.Families.push_back(maytags::Family::Create(DetectionConfig::FamilyName(ipBuffer.Config().Family)));
+	auto family = CreateFamily(ipBuffer.Config().Family);
+	std::shared_ptr<apriltag_detector_t> detector(apriltag_detector_create(),apriltag_detector_destroy);
 
-	maytags::Detector detector(config);
+	detector->nthreads = 1;
+	detector->quad_decimate = 1;
+	detector->quad_sigma = 0.0;
+	detector->decode_sharpening = 0.25;
+	detector->qtp.min_white_black_diff = ipBuffer.Config().QuadMinBWDiff;
+	detector->qtp.max_line_fit_mse = ipBuffer.Config().QuadMaxLineMSE;
+	detector->qtp.deglitch = 0;
+
+	detector->qtp.critical_rad = ipBuffer.Config().QuadCriticalRadian;
+	detector->qtp.cos_critical_rad = std::cos(ipBuffer.Config().QuadCriticalRadian);
+	detector->qtp.max_nmaxima = ipBuffer.Config().QuadMaxNMaxima;
+	detector->qtp.min_cluster_pixels = ipBuffer.Config().QuadMinClusterPixel;
+	apriltag_detector_add_family(detector.get(),family.get());
+
+
 	LOG(INFO) << "Entering infinite loop";
 	for(;;) {
 		manager->WaitForNewJob();
+		image_u8_t img = {
+			.width = ipBuffer.Image().cols,
+			.height = ipBuffer.Image().rows,
+			.stride = (int32_t) ipBuffer.Image().step[0],
+			.buf = ipBuffer.Image().data
+		};
 
-		maytags::Detector::ListOfDetection detections;
-		detector.Detect(ipBuffer.Image(),detections);
-
-		size_t size = std::min(detections.size(),DETECTION_SIZE);
+		auto detections = apriltag_detector_detect(detector.get(),&img);
+		apriltag_detection_t * q;
+		size_t size = std::min((size_t)zarray_size(detections),DETECTION_SIZE);
 		ipBuffer.DetectionsSize() = size;
 		for (size_t i = 0; i < size; ++i) {
+			zarray_get(detections,i,&q);
 			InterprocessBuffer::Detection * d = ipBuffer.Detections() + i;
-			d->ID    = detections[i].ID;
-			d->X     = detections[i].Center.x();
-			d->Y     = detections[i].Center.y();
-			d->Theta = ComputeAngleFromCorner(detections[i]);
+			d->ID    = q->id;
+			d->X     = q->c[0];
+			d->Y     = q->c[1];
+			d->Theta = ComputeAngleFromCorner(q);
 		}
 		ipBuffer.TimestampOut() = ipBuffer.TimestampIn();
 

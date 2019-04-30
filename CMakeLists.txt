@@ -11,6 +11,20 @@ set(CMAKE_CXX_STANDARD 11)
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(EnableMakeCheck)
 
+include(ExternalProject)
+ExternalProject_Add(APRILTAG3
+	GIT_REPOSITORY https://github.com/AprilRobotics/apriltags.git
+	GIT_TAG v3.0.0
+	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile
+	CONFIGURE_COMMAND echo done
+	INSTALL_COMMAND PREFIX=${PROJECT_BINARY_DIR}/APRILTAG3-prefix make install
+	BUILD_IN_SOURCE 1
+	)
+
+set(APRILTAG3_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/include)
+set(APRILTAG3_LIBRARIES ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/lib/${CMAKE_SHARED_LIBRARY_PREFIX}apriltag${CMAKE_SHARED_LIBRARY_SUFFIX}
+                        Threads::Threads
+                        )
 find_package(EGrabber)
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
@@ -18,7 +32,6 @@ find_package(Protobuf 3.5.0 REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Asio 1.10.8 REQUIRED)
 find_package(Eigen3 REQUIRED)
-
 
 
 add_definitions("-D_GNU_SOURCE")
