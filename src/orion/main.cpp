@@ -35,14 +35,8 @@ void Execute(int argc, char **argv) {
 	maytags::Detector detector(config);
 	LOG(INFO) << "Entering infinite loop";
 	for(;;) {
-		uint8_t ts;
-		int readen = read(STDIN_FILENO,&ts,sizeof(uint8_t));
-		if ( readen < 1 ) {
-			throw ARTEMIS_SYSTEM_ERROR(read,errno);
-		}
-		if (readen == 0) {
-			continue;
-		}
+		manager->WaitForNewJob();
+
 		maytags::Detector::ListOfDetection detections;
 		detector.Detect(ipBuffer.Image(),detections);
 
@@ -55,11 +49,9 @@ void Execute(int argc, char **argv) {
 			d->Y     = detections[i].Center.y();
 			d->Theta = ComputeAngleFromCorner(detections[i]);
 		}
+		ipBuffer.TimestampOut() = ipBuffer.TimestampIn();
 
-		int written = write(STDOUT_FILENO,&ts,sizeof(uint8_t));
-		if ( written < 1) {
-			throw ARTEMIS_SYSTEM_ERROR(read,errno);
-		}
+		manager->PostJobFinished();
 	}
 }
 

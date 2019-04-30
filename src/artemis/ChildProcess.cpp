@@ -20,8 +20,7 @@ ChildProcess::ChildProcess(CPUID cpuid,const std::string & command, const std::s
 	if (res == 0 ) {
 		d_childPID = 0;
 		try {
-			p_call(sched_setaffinity,0,sizeof(mask),&mask);
-
+			//			p_call(sched_setaffinity,0,sizeof(mask),&mask);
 			p_call(execlp,command.c_str(),command.c_str(),args.c_str(),(char*)NULL);
 		} catch (const std::exception & e ) {
 			LOG(ERROR) << "Could not start process: " << e.what();

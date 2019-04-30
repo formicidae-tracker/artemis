@@ -30,7 +30,7 @@ Implementation::~Implementation() {
 }
 
 void Implementation::Detect(const cv::Mat & grayscale, Detector::ListOfDetection & detections) {
-	if (grayscale.channels() != CV_8U ) {
+	if (grayscale.type() != CV_8U ) {
 		throw std::invalid_argument("Only working with 8 bit monochrome images");
 	}
 
