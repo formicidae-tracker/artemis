@@ -3,9 +3,19 @@
 #include <string>
 #include <cmath>
 
+
+
+
+
 struct DetectionConfig {
+	enum class FamilyType {
+		TAG36H11 = 0,
+	};
+	static std::string FamilyName(FamilyType t);
+	static FamilyType FamilyTypeFromName(const std::string & name);
+
 	DetectionConfig()
-		: Family("36h11")
+		: Family(FamilyType::TAG36H11)
 		, QuadDecimate(1.0)
 		, QuadSigma(0.0)
 		, RefineEdges(false)
@@ -17,7 +27,7 @@ struct DetectionConfig {
 	}
 
 
-	std::string Family;
+	FamilyType  Family;
 	float       QuadDecimate;
 	float       QuadSigma;
 	bool        RefineEdges;

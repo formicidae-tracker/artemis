@@ -61,5 +61,5 @@ private:
 
 	Frame::Ptr                      d_frame;
 	Frame::Ptr                      d_next;
-
+	size_t                          d_respawn;
 };

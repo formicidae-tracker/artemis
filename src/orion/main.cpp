@@ -13,7 +13,8 @@ double ComputeAngleFromCorner(const maytags::Detection & d) {
 
 
 void Execute(int argc, char **argv) {
-	if ( argc != 1 ) {
+	LOG(INFO) << "Orion started with ID '" << argv[1] << "'" ;
+	if ( argc != 2 ) {
 		throw std::invalid_argument("Missing shared memory segment");
 	}
 
@@ -29,10 +30,10 @@ void Execute(int argc, char **argv) {
 	config.QuadConfig.CosCriticalRadian = std::cos(ipBuffer.Config().QuadCriticalRadian);
 	config.QuadConfig.MaximumNumberOfMaxima = ipBuffer.Config().QuadMaxNMaxima;
 	config.QuadConfig.MinimumPixelPerCluster = ipBuffer.Config().QuadMinClusterPixel;
-	config.Families.push_back(maytags::Family::Create(ipBuffer.Config().Family));
+	config.Families.push_back(maytags::Family::Create(DetectionConfig::FamilyName(ipBuffer.Config().Family)));
 
 	maytags::Detector detector(config);
-
+	LOG(INFO) << "Entering infinite loop";
 	for(;;) {
 		uint8_t ts;
 		int readen = read(STDIN_FILENO,&ts,sizeof(uint8_t));
@@ -62,13 +63,20 @@ void Execute(int argc, char **argv) {
 	}
 }
 
+void write_failure(const char* data, int size) {
+	LOG(ERROR) << std::string(data,size);
+}
+
 int main(int argc, char ** argv) {
 	::google::InitGoogleLogging(argv[0]);
+	::google::InstallFailureSignalHandler();
+	::google::InstallFailureWriter(write_failure);
 	try {
 		Execute(argc,argv);
 	} catch (const std::exception & e) {
 		LOG(ERROR) << "Unhandled error: " << e.what();
 		return 1;
 	}
+	LOG(INFO) << "finished";
 	return 0;
 }

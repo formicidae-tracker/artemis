@@ -12,7 +12,7 @@
 #endif
 
 
-#define ARTEMIS_SYSTEM_ERROR(fnct,err) std::system_error(err,ARTEMIS_SYSTEM_CATEGORY(),std::string("On call of ") + #fnct + "()");
+#define ARTEMIS_SYSTEM_ERROR(fnct,err) std::system_error(err,ARTEMIS_SYSTEM_CATEGORY(),std::string("On call of ") + #fnct + "()")
 
 
 #define p_call(fnct,...) do {	  \

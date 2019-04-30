@@ -51,7 +51,7 @@ struct Options {
 void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	options::FlagParser parser(options::FlagParser::Default,"low-level vision detection for the FORmicidae Tracker");
 
-	//	DetectionConfig c;
+	std::string family = "36h11";
 	opts.VideoOutputHeight = 1080;
 	opts.FrameStride = 1;
 	opts.frameIDString = "";
@@ -60,7 +60,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.NewAntROISize = 500;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
-	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
+	parser.AddFlag("at-family",family,"The apriltag2 family to use");
 	parser.AddFlag("new-ant-roi-size", opts.NewAntROISize, "Size of the image to save when a new ant is found");
 	parser.AddFlag("at-quad-decimate",opts.AprilTag2.QuadDecimate,"Decimate original image for faster computation but worse pose estimation. Should be 1.0 (no decimation), 1.5, 2, 3 or 4");
 	parser.AddFlag("at-quad-sigma",opts.AprilTag2.QuadSigma,"Apply a gaussian filter for quad detection, noisy image likes a slight filter like 0.8");
@@ -88,6 +88,9 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 
 	parser.Parse(argc,argv);
+
+	opts.AprilTag2.Family = DetectionConfig::FamilyTypeFromName(family);
+
 	if (opts.PrintHelp == true) {
 		parser.PrintUsage(std::cerr);
 		exit(0);

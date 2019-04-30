@@ -2,6 +2,8 @@
 
 #include <mutex>
 
+#include <glog/logging.h>
+
 #define ARTEMIS_SHM_PREFIX "artemis"
 #define ARTEMIS_SHM_MANAGER "artemis.Manager"
 
@@ -105,6 +107,8 @@ InterprocessBuffer::InterprocessBuffer(const InterprocessManager::Ptr & manager,
 	d_sharedMemory->truncate(NeededSize(roi.width,roi.height));
 	d_mapping = std::unique_ptr<mapped_region> ( new mapped_region(*d_sharedMemory,read_write));
 
+	LOG(INFO) << "Created '" << region << "' of size " << d_mapping->get_size() << " needed " << NeededSize(roi.width,roi.height);
+
 	d_header               = reinterpret_cast<Header*>(d_mapping->get_address());
 	d_header->TimestampIn  = -1;
 	d_header->TimestampOut = -1;
@@ -130,13 +134,16 @@ InterprocessBuffer::InterprocessBuffer(const InterprocessManager::Ptr & manager,
 	std::string region = Name(ID);
 	d_sharedMemory = std::unique_ptr<shared_memory_object>(new shared_memory_object(open_only,region.c_str(),read_write));
 	d_mapping = std::unique_ptr<mapped_region> ( new mapped_region(*d_sharedMemory,read_write));
+	LOG(INFO) << "Got memory " << d_mapping->get_address() << " size: " <<d_mapping->get_size();
+
 	if (d_mapping->get_size() < sizeof(Header) ) {
 		throw std::runtime_error("Invalid Shared Memory size");
 	}
-	d_header = reinterpret_cast<Header*>(d_mapping->get_address());
+	d_header = static_cast<Header*>(d_mapping->get_address());
 	if ( d_mapping->get_size() < NeededSize(d_header->Width,d_header->Height) ) {
 		throw std::runtime_error("Insufficient Shared Memory size");
 	}
+	LOG(INFO) << d_header->Width << "x" << d_header->Height;
 	d_detections = (Detection*)(d_header + 1);
 	d_image = cv::Mat(d_header->Height,d_header->Width,CV_8U,d_detections + DETECTION_SIZE);
 }

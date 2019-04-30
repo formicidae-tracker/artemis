@@ -34,6 +34,7 @@ std::string ProcessQueueExecuter::FindOrionPath() {
 			struct stat s;
 			p_call(stat,path.c_str(),&s);
 			if (s.st_mode & S_IEXEC ) {
+				LOG(INFO) << "Found orion: " << path;
 				return path;
 			}
 		} catch (const std::system_error & e) {
@@ -56,7 +57,8 @@ ProcessQueueExecuter::ProcessQueueExecuter(const cv::Size & size,
 	, d_preTagQueue(preTagQueue)
 	, d_postTagQueue(postTagQueue)
 	, d_quit(false)
-	, d_connection(connection) {
+	, d_connection(connection)
+	, d_respawn(0) {
 
 	PartitionRectangle(cv::Rect(cv::Point(0,0),size),cpus.size(),d_partition);
 
@@ -202,6 +204,9 @@ void ProcessQueueExecuter::RestartBrokenChilds() {
 			continue;
 		}
 		LOG(ERROR) << "Child process " << i << " exited with code " << d_children[i]->Status() << " respawning";
+		if ( ++d_respawn > 50 ) {
+			throw std::runtime_error("Too many children respawn");
+		}
 		auto cpu = d_children[i]->CPU();
 		std::ostringstream os;
 		os << i ;
