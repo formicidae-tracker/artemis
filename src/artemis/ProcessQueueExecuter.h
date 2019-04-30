@@ -40,9 +40,11 @@ public:
 
 	void RestartBrokenChilds();
 
+	static std::string FindOrionPath();
 
 private:
 	void ReconciliateTag();
+	std::string                     d_orion;
 	Partition                       d_partition;
 	PreTagQueue                     d_preTagQueue;
 	PostTagQueue                    d_postTagQueue;

@@ -172,18 +172,12 @@ void Execute(int argc, char ** argv) {
 	}
 
 
-
-
-
 	asio::io_service io;
-
 
 	Connection::Ptr connection;
 	if (!opts.Host.empty()) {
 		connection = Connection::Create(io,opts.Host,opts.Port);
 	}
-
-
 
 	//creates queues
 	PreTagQueue  preTag;

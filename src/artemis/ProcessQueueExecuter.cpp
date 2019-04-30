@@ -2,6 +2,49 @@
 
 #include <glog/logging.h>
 
+#include <unistd.h>
+
+#include "utils/StringManipulation.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include "utils/PosixCall.h"
+
+std::string ProcessQueueExecuter::FindOrionPath() {
+	char buffer[1024];
+	int size = readlink("/proc/self/exe",buffer,1024);
+	if ( size == -1 ) {
+		throw ARTEMIS_SYSTEM_ERROR(readlink, errno);
+	}
+
+	if (size < 1024 ) {
+		buffer[size] = 0;
+	} else {
+		throw std::runtime_error("Path too long");
+	}
+
+	std::string artemisPath(buffer,size);
+	std::string basepath = base::TrimSuffix(artemisPath,"/artemis");
+
+	//first test if in same directory
+	std::vector<std::string> guesses = { "/orion","/../orion/orion" } ;
+
+	for(auto const & g : guesses ) {
+		std::string path = basepath + g;
+		try {
+			struct stat s;
+			p_call(stat,path.c_str(),&s);
+			if (s.st_mode & S_IEXEC ) {
+				return path;
+			}
+		} catch (const std::system_error & e) {
+			DLOG(INFO) << "stat(" << path << "): " << e.what();
+			continue;
+		}
+	}
+
+	throw std::runtime_error("Could not find path to orion executable");
+}
+
 
 ProcessQueueExecuter::ProcessQueueExecuter(const cv::Size & size,
                                            const DetectionConfig & config,
@@ -9,14 +52,13 @@ ProcessQueueExecuter::ProcessQueueExecuter(const cv::Size & size,
 	                                       const PreTagQueue & preTagQueue,
                                            const PostTagQueue & postTagQueue,
                                            const Connection::Ptr & connection)
-	: d_preTagQueue(preTagQueue)
+	: d_orion(FindOrionPath())
+	, d_preTagQueue(preTagQueue)
 	, d_postTagQueue(postTagQueue)
 	, d_quit(false)
 	, d_connection(connection) {
 
 	PartitionRectangle(cv::Rect(cv::Point(0,0),size),cpus.size(),d_partition);
-
-
 
 	d_manager = std::make_shared<InterprocessManager>(true);
 
@@ -25,7 +67,7 @@ ProcessQueueExecuter::ProcessQueueExecuter(const cv::Size & size,
 		d_buffers.push_back(std::unique_ptr<InterprocessBuffer>( new InterprocessBuffer(d_manager,d_buffers.size(),p,config)));
 		std::ostringstream os;
 		os << d_children.size();
-		d_children.push_back(std::unique_ptr<ChildProcess>( new ChildProcess(cpu,"orion",os.str())));
+		d_children.push_back(std::unique_ptr<ChildProcess>( new ChildProcess(cpu,d_orion,os.str())));
 	}
 
 }
@@ -163,7 +205,7 @@ void ProcessQueueExecuter::RestartBrokenChilds() {
 		auto cpu = d_children[i]->CPU();
 		std::ostringstream os;
 		os << i ;
-		d_children[i] = std::unique_ptr<ChildProcess>(new ChildProcess(cpu,"orion",os.str()));
+		d_children[i] = std::unique_ptr<ChildProcess>(new ChildProcess(cpu,d_orion,os.str()));
 		respawned = true;
 	}
 
