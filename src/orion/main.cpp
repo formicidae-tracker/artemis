@@ -61,19 +61,26 @@ void Execute(int argc, char **argv) {
 
 
 	LOG(INFO) << "Entering infinite loop";
+	uint64_t lastTS = std::numeric_limits<uint64_t>::max();
 	for(;;) {
-		manager->WaitForNewJob();
+		uint64_t ts = manager->WaitForNewJob(lastTS);
+		if (ts != *(ipBuffer.TimestampIn()) ) {
+			LOG(ERROR) << "Skipping frame: expected ts: " << ts << " got: " << ipBuffer.TimestampIn();
+			lastTS = ts;
+			continue;
+		}
 		image_u8_t img = {
 			.width = ipBuffer.Image().cols,
 			.height = ipBuffer.Image().rows,
 			.stride = (int32_t) ipBuffer.Image().step[0],
 			.buf = ipBuffer.Image().data
 		};
-
+		DLOG(INFO) << "Detecting image " << ipBuffer.TimestampIn();
 		auto detections = apriltag_detector_detect(detector.get(),&img);
 		apriltag_detection_t * q;
+		DLOG(INFO) << zarray_size(detections)  << " detected";
 		size_t size = std::min((size_t)zarray_size(detections),DETECTION_SIZE);
-		ipBuffer.DetectionsSize() = size;
+		*(ipBuffer.DetectionsSize()) = size;
 		for (size_t i = 0; i < size; ++i) {
 			zarray_get(detections,i,&q);
 			InterprocessBuffer::Detection * d = ipBuffer.Detections() + i;
@@ -82,7 +89,9 @@ void Execute(int argc, char **argv) {
 			d->Y     = q->c[1];
 			d->Theta = ComputeAngleFromCorner(q);
 		}
-		ipBuffer.TimestampOut() = ipBuffer.TimestampIn();
+		zarray_destroy(detections);
+		*(ipBuffer.TimestampOut()) = ts;
+		lastTS = ts;
 
 		manager->PostJobFinished();
 	}

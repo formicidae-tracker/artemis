@@ -266,14 +266,9 @@ void Execute(int argc, char ** argv) {
 	std::vector<std::thread> ioThreads;
 
 	for ( size_t i = 0; i < ioCPUs.size(); ++i) {
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		CPU_SET(ioCPUs[i],&cpuset);
-		DLOG(INFO) << "Spawning io on CPU " << ioCPUs[i];
 		ioThreads.push_back(std::thread([&io]() {
 					io.run();
 				}));
-		p_call(pthread_setaffinity_np,ioThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
 
 	executer.Loop();

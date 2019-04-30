@@ -22,8 +22,8 @@ public:
 	~InterprocessManager();
 
 	void WaitAllFinished();
-	void WaitForNewJob();
-	void PostNewJob();
+	uint64_t WaitForNewJob(uint64_t oldTimestamp);
+	void PostNewJob(uint64_t timestamp);
 	void PostJobFinished();
 
 
@@ -35,7 +35,7 @@ private:
 
 		boost::interprocess::interprocess_mutex      d_mutex;
 		boost::interprocess::interprocess_condition  d_newJob;
-		bool                                         d_hasNewJob;
+		uint64_t                                     d_timestamp;
 		int                                          d_jobs;
 		boost::interprocess::interprocess_condition  d_ended;
 	};
@@ -63,10 +63,10 @@ public:
 
 
 	Detection * Detections();
-	size_t &    DetectionsSize();
+	size_t *    DetectionsSize();
 	cv::Mat &   Image();
-	uint64_t &  TimestampIn();
-	uint64_t &  TimestampOut();
+	uint64_t *  TimestampIn();
+	uint64_t *  TimestampOut();
 
 	const DetectionConfig & Config() const;
 private:

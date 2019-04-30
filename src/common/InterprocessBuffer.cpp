@@ -10,7 +10,7 @@
 using namespace boost::interprocess;
 
 InterprocessManager::Shared::Shared()
-	: d_hasNewJob(false)
+	: d_timestamp(std::numeric_limits<uint64_t>::max())
 	, d_jobs(-1) {
 }
 
@@ -44,30 +44,31 @@ void InterprocessManager::WaitAllFinished() {
 			if (d_shared->d_jobs != 0 ) {
 				return false;
 			}
-			d_shared->d_hasNewJob =  false;
 			d_shared->d_jobs = -1;
 			return true;
 		});
 }
 
-void InterprocessManager::WaitForNewJob() {
+uint64_t InterprocessManager::WaitForNewJob(uint64_t oldTimestamp) {
 	std::unique_lock<interprocess_mutex> lock(d_shared->d_mutex);
-
-	d_shared->d_newJob.wait(lock,[this]()->bool{
-			if (d_shared->d_hasNewJob == false) {
+	uint64_t res;
+	d_shared->d_newJob.wait(lock,[this,oldTimestamp,&res]()->bool{
+			if (d_shared->d_timestamp == oldTimestamp) {
 				return false;
 			}
 			if (d_shared->d_jobs < 0 ) {
 				d_shared->d_jobs = 0;
 			}
 			d_shared->d_jobs += 1;
+			res = d_shared->d_timestamp;
 			return true;
 		});
+	return res;
 }
 
-void InterprocessManager::PostNewJob() {
+void InterprocessManager::PostNewJob(uint64_t newJob) {
 	std::lock_guard<interprocess_mutex> lock(d_shared->d_mutex);
-	d_shared->d_hasNewJob = true;
+	d_shared->d_timestamp = newJob;
 	d_shared->d_newJob.notify_all();
 }
 
@@ -76,7 +77,9 @@ void InterprocessManager::PostJobFinished() {
 	if ( d_shared->d_jobs > 0 ) {
 		d_shared->d_jobs -= 1;
 	}
-	d_shared->d_ended.notify_all();
+	if ( d_shared->d_jobs == 0 ) {
+		d_shared->d_ended.notify_all();
+	}
 }
 
 InterprocessManager::~InterprocessManager() {
@@ -110,8 +113,8 @@ InterprocessBuffer::InterprocessBuffer(const InterprocessManager::Ptr & manager,
 	LOG(INFO) << "Created '" << region << "' of size " << d_mapping->get_size() << " needed " << NeededSize(roi.width,roi.height);
 
 	d_header               = reinterpret_cast<Header*>(d_mapping->get_address());
-	d_header->TimestampIn  = -1;
-	d_header->TimestampOut = -1;
+	d_header->TimestampIn  = std::numeric_limits<uint64_t>::max();
+	d_header->TimestampOut = std::numeric_limits<uint64_t>::max();
 	d_header->Width        = roi.width;
 	d_header->Height       = roi.height;
 	d_header->XOffset      = roi.x;
@@ -121,6 +124,9 @@ InterprocessBuffer::InterprocessBuffer(const InterprocessManager::Ptr & manager,
 
 	d_detections = (Detection*)(d_header + 1);
 	d_image = cv::Mat(roi.height,roi.width,CV_8U,d_detections + DETECTION_SIZE);
+	LOG(INFO) << "Header: " << d_header << " size: " << (size_t)((uint8_t*)d_detections-(uint8_t*)d_header);
+	LOG(INFO) << "Detection: " << d_detections << " size: " << (size_t)(d_image.datastart - (uint8_t*)d_detections);
+	LOG(INFO) << "Image: " << d_image.datastart << " size: " << (size_t)(d_image.dataend - d_image.datastart);
 }
 
 InterprocessBuffer::~InterprocessBuffer() {
@@ -152,20 +158,20 @@ InterprocessBuffer::Detection * InterprocessBuffer::Detections() {
 	return d_detections;
 }
 
-size_t & InterprocessBuffer::DetectionsSize() {
-	return d_header->Size;
+size_t * InterprocessBuffer::DetectionsSize() {
+	return &(d_header->Size);
 }
 
 cv::Mat & InterprocessBuffer::Image() {
 	return d_image;
 }
 
-uint64_t & InterprocessBuffer::TimestampIn() {
-	return d_header->TimestampIn;
+uint64_t * InterprocessBuffer::TimestampIn() {
+	return &(d_header->TimestampIn);
 }
 
-uint64_t &  InterprocessBuffer::TimestampOut() {
-	return d_header->TimestampOut;
+uint64_t *  InterprocessBuffer::TimestampOut() {
+	return &(d_header->TimestampOut);
 }
 
 const DetectionConfig & InterprocessBuffer::Config() const {

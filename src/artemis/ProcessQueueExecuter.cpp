@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include "utils/PosixCall.h"
 
+#define MAX_RESPAWN 0
+
 std::string ProcessQueueExecuter::FindOrionPath() {
 	char buffer[1024];
 	int size = readlink("/proc/self/exe",buffer,1024);
@@ -120,10 +122,11 @@ void ProcessQueueExecuter::Loop() {
 		size_t i = 0;
 		for(auto const & roi : d_partition ) {
 			cv::Mat(d_frame->ToCV(),roi).copyTo(d_buffers[i]->Image());
-			d_buffers[i]->TimestampIn() = d_frame->Timestamp();
+			*(d_buffers[i]->TimestampIn()) = d_frame->Timestamp();
+			++i;
 		}
 
-		d_manager->PostNewJob();
+		d_manager->PostNewJob(d_frame->Timestamp());
 
 		//starts to
 		cv::Mat current = d_frame->ToCV();
@@ -144,11 +147,11 @@ void ProcessQueueExecuter::Loop() {
 		time->set_seconds(d_frame->Time().tv_sec);
 		time->set_nanos(d_frame->Time().tv_usec*1000);
 		for(auto & buffer : d_buffers ) {
-			if ( buffer->TimestampOut() != d_frame->Timestamp() ) {
+			if ( *(buffer->TimestampOut()) != d_frame->Timestamp() ) {
 				LOG(ERROR) << "Skipping worker result: timestamp mismatch, got:" << buffer->TimestampOut() << " expected: " << d_frame->Timestamp();
 				continue;
 			}
-			for ( size_t i = 0; i < buffer->DetectionsSize(); ++i ) {
+			for ( size_t i = 0; i < *(buffer->DetectionsSize()); ++i ) {
 				auto const & d = buffer->Detections()[i];
 				if ( IDs.count(d.ID) != 0 ) {
 					continue;
@@ -204,7 +207,7 @@ void ProcessQueueExecuter::RestartBrokenChilds() {
 			continue;
 		}
 		LOG(ERROR) << "Child process " << i << " exited with code " << d_children[i]->Status() << " respawning";
-		if ( ++d_respawn > 50 ) {
+		if ( ++d_respawn > MAX_RESPAWN ) {
 			throw std::runtime_error("Too many children respawn");
 		}
 		auto cpu = d_children[i]->CPU();
