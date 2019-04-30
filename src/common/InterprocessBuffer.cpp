@@ -9,7 +9,7 @@ using namespace boost::interprocess;
 
 InterprocessManager::Shared::Shared()
 	: d_hasNewJob(false)
-	, d_jobs(0) {
+	, d_jobs(-1) {
 }
 
 InterprocessManager::InterprocessManager(bool isMain) {
@@ -43,6 +43,7 @@ void InterprocessManager::WaitAllFinished() {
 				return false;
 			}
 			d_shared->d_hasNewJob =  false;
+			d_shared->d_jobs = -1;
 			return true;
 		});
 }
@@ -53,6 +54,9 @@ void InterprocessManager::WaitForNewJob() {
 	d_shared->d_newJob.wait(lock,[this]()->bool{
 			if (d_shared->d_hasNewJob == false) {
 				return false;
+			}
+			if (d_shared->d_jobs < 0 ) {
+				d_shared->d_jobs = 0;
 			}
 			d_shared->d_jobs += 1;
 			return true;

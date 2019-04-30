@@ -36,7 +36,7 @@ private:
 		boost::interprocess::interprocess_mutex      d_mutex;
 		boost::interprocess::interprocess_condition  d_newJob;
 		bool                                         d_hasNewJob;
-		size_t                                       d_jobs;
+		int                                          d_jobs;
 		boost::interprocess::interprocess_condition  d_ended;
 	};
 
