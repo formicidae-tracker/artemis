@@ -3,6 +3,7 @@
 #include <common/InterprocessBuffer.h>
 #include <maytags/Detector.h>
 #include "../utils/PosixCall.h"
+#include <glog/logging.h>
 
 double ComputeAngleFromCorner(const maytags::Detection & d) {
 	Eigen::Vector2d delta = (d.Corners[0] + d.Corners[2]) / 2.0 - (d.Corners[1] + d.Corners[3]) / 2.0;
@@ -62,10 +63,11 @@ void Execute(int argc, char **argv) {
 }
 
 int main(int argc, char ** argv) {
+	::google::InitGoogleLogging(argv[0]);
 	try {
 		Execute(argc,argv);
 	} catch (const std::exception & e) {
-		std::cerr << "Unhandled error: " << e.what() << std::endl;
+		LOG(ERROR) << "Unhandled error: " << e.what();
 		return 1;
 	}
 	return 0;

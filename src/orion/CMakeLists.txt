@@ -5,4 +5,4 @@ set(HDR_FILES )
 
 add_executable(orion ${SRC_FILES} ${HDR_FILES})
 
-target_link_libraries(orion maytags common)
+target_link_libraries(orion maytags common ${GLOG_LIBRARIES})
