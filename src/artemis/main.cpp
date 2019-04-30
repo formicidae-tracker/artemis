@@ -2,7 +2,6 @@
 
 #include <thread>
 
-#include "Apriltag2Process.h"
 #include "ResizeProcess.h"
 #include "OutputProcess.h"
 #include "AntCataloguerProcess.h"
@@ -11,6 +10,8 @@
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
 #include <EGrabber.h>
+#include <common/DetectionConfig.h>
+
 
 #include "utils/PosixCall.h"
 #include "utils/CPUMap.h"
@@ -25,7 +26,7 @@
 struct Options {
 	bool PrintHelp;
 
-	AprilTag2Detector::Config AprilTag2;
+	DetectionConfig AprilTag2;
 	CameraConfiguration       Camera;
 
 
@@ -50,7 +51,7 @@ struct Options {
 void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	options::FlagParser parser(options::FlagParser::Default,"low-level vision detection for the FORmicidae Tracker");
 
-	AprilTag2Detector::Config c;
+	//	DetectionConfig c;
 	opts.VideoOutputHeight = 1080;
 	opts.FrameStride = 1;
 	opts.frameIDString = "";
@@ -175,17 +176,7 @@ void Execute(int argc, char ** argv) {
 
 
 	asio::io_service io;
-	asio::io_service workload;
-	asio::io_service::work work(workload);
 
-	//Stops on SIGINT
-	asio::signal_set signals(io,SIGINT);
-	signals.async_wait([&io,&workload](const asio::error_code &,
-	                         int ) {
-		                   LOG(INFO) << "Terminating (SIGINT)";
-		                   io.stop();
-		                   workload.stop();
-	                   });
 
 	Connection::Ptr connection;
 	if (!opts.Host.empty()) {
@@ -195,21 +186,24 @@ void Execute(int argc, char ** argv) {
 
 
 	//creates queues
-	ProcessQueue pq = AprilTag2Detector::Create(workCPUs.size(),
-	                                            opts.AprilTag2,
-	                                            connection);
+	PreTagQueue  preTag;
+	PostTagQueue postTag;
+
 
 	if ( !opts.NewAntOuputDir.empty() ) {
-		pq.push_back(std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.NewAntROISize));
-
+		auto acp = std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.NewAntROISize);
+		postTag.push_back([acp](const Frame::Ptr & frame,const cv::Mat & upstream,const fort::FrameReadout & readout,cv::Mat & result){ (*acp)(frame,upstream,readout,result); });
 	}
 	//queues when outputting data
 	if (opts.VideoOutputToStdout) {
-		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
+		auto rp = std::make_shared<ResizeProcess>(opts.VideoOutputHeight);
+		preTag.push_back([rp](const Frame::Ptr & frame,const cv::Mat & upstream,cv::Mat & result){ (*rp)(frame,upstream,result);});
 		if (opts.DrawDetection ) {
-			pq.push_back(std::make_shared<DrawDetectionProcess>());
+			auto ddp = std::make_shared<DrawDetectionProcess>();
+			postTag.push_back([ddp](const Frame::Ptr & frame,const cv::Mat & upstream,const fort::FrameReadout & readout,cv::Mat & result){ (*ddp)(frame,upstream,readout,result); });
 		}
-		pq.push_back(std::make_shared<OutputProcess>(io));
+		auto op = std::make_shared<OutputProcess>(io);
+		postTag.push_back([op](const Frame::Ptr & frame,const cv::Mat & upstream,const fort::FrameReadout & readout,cv::Mat & result){ (*op)(frame,upstream,readout,result); });
 	}
 
 	std::shared_ptr<FrameGrabber> fg;
@@ -221,12 +215,23 @@ void Execute(int argc, char ** argv) {
 		fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
 	}
 
-	ProcessQueueExecuter executer(workload,workCPUs.size());
+	ProcessQueueExecuter executer(fg->FrameSize(),opts.AprilTag2,workCPUs,preTag,postTag,connection);
+
+
+
+	//Stops on SIGINT
+	asio::signal_set signals(io,SIGINT);
+	signals.async_wait([&io,&executer](const asio::error_code &,
+	                         int ) {
+		                   LOG(INFO) << "Terminating (SIGINT)";
+		                   io.stop();
+		                   executer.Stop();
+	                   });
 
 
 	fort::FrameReadout error;
 
-	std::function<void()> WaitForFrame = [&WaitForFrame,&io,&executer,&pq,&fg,&opts,&error,connection](){
+	std::function<void()> WaitForFrame = [&WaitForFrame,&io,&executer,&fg,&opts,&error,connection](){
 		Frame::Ptr f = fg->NextFrame();
 		if ( opts.FrameStride > 1 ) {
 			uint64_t IDInStride = f->ID() % opts.FrameStride;
@@ -237,11 +242,11 @@ void Execute(int argc, char ** argv) {
 		}
 
 		try {
-			executer.Start(pq,f);
+			executer.Push(f);
 			DLOG(INFO) << "Processing frame " << f->ID();
 		} catch ( const ProcessQueueExecuter::Overflow & e ) {
 			LOG(WARNING) << "Process overflow : skipping frame " << f->ID() <<  " state: " << executer.State();
-
+			executer.RestartBrokenChilds();
 			if (connection) {
 				error.Clear();
 				error.set_timestamp(f->Timestamp());
@@ -261,18 +266,7 @@ void Execute(int argc, char ** argv) {
 	fg->Start();
 	io.post(WaitForFrame);
 
-	std::vector<std::thread> workThreads,ioThreads;
-
-	for(size_t i = 0; i < workCPUs.size(); ++i) {
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		CPU_SET(workCPUs[i],&cpuset);
-		DLOG(INFO) << "Spawning worker on CPU " << workCPUs[i];
-		workThreads.push_back(std::thread([&workload](){
-					workload.run();
-				}));
-		p_call(pthread_setaffinity_np,workThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
-	}
+	std::vector<std::thread> ioThreads;
 
 	for ( size_t i = 0; i < ioCPUs.size(); ++i) {
 		cpu_set_t cpuset;
@@ -285,24 +279,14 @@ void Execute(int argc, char ** argv) {
 		p_call(pthread_setaffinity_np,ioThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
 
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	CPU_SET(ioCPUs[0],&cpuset);
-
-	long int tid = syscall(SYS_gettid);
-
-
-
+	executer.Loop();
 
 	for (auto & t : ioThreads ) {
 		t.join();
 	}
+
+
 	fg->Stop();
-
-	for( auto & t : workThreads) {
-		t.detach();
-	}
-
 }
 
 int main(int argc, char ** argv) {

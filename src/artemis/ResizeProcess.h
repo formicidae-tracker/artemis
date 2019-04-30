@@ -4,13 +4,15 @@
 
 #include <opencv2/core.hpp>
 
-class ResizeProcess : public ProcessDefinition {
+
+
+class ResizeProcess {
 public:
 	ResizeProcess(size_t height);
 
 	virtual ~ResizeProcess();
 
-	virtual std::vector<ProcessFunction> Prepare(size_t nbProcess, const cv::Size & size);
+	void operator()(const Frame::Ptr & frame, const cv::Mat & upstream, cv::Mat & result);
 
 private:
 	Frame::Ptr d_currentFrame;

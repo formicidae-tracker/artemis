@@ -10,12 +10,16 @@
 
 
 
-class OutputProcess : public ProcessDefinition {
+class OutputProcess {
 public:
 	OutputProcess(asio::io_service & service);
 	virtual ~OutputProcess();
 
-	std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
+
+	void operator()(const Frame::Ptr & frame,
+	                const cv::Mat & upstream,
+	                const fort::FrameReadout & readout,
+	                cv::Mat & result);
 private:
 
 	asio::io_service & d_service;

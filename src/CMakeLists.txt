@@ -1,3 +1,4 @@
+
 add_subdirectory(maytags)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -27,91 +28,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 
 add_subdirectory(hermes)
 add_subdirectory(common)
+add_subdirectory(utils)
 add_subdirectory(orion)
-
-
-set(SRC_FILES utils/Defer.cpp
-	          FrameGrabber.cpp
-	          ProcessDefinition.cpp
-	          ResizeProcess.cpp
-	          Apriltag2Process.cpp
-	          RingBuffer.cpp
-	          ProcessQueueExecuter.cpp
-	          utils/PosixCall.cpp
-	          utils/FlagParser.cpp
-	          utils/StringManipulation.cpp
-	          OutputProcess.cpp
-	          Connection.cpp
-	          AntCataloguerProcess.cpp
-	          DrawDetectionProcess.cpp
-	          utils/CPUMap.cpp
-	          utils/Partitions.cpp
-	          StubFrameGrabber.cpp
-	          )
-
-
-
-
-set(HDR_FILES utils/Defer.h
-	          utils/PosixCall.h
-	          FrameGrabber.h
-	          ProcessDefinition.h
-	          ResizeProcess.h
-	          Apriltag2Process.h
-	          RingBuffer.h
-	          ProcessQueueExecuter.h
-	          utils/PosixCall.h
-	          utils/FlagParser.h
-	          utils/StringManipulation.h
-	          OutputProcess.h
-	          Connection.h
-	          AntCataloguerProcess.h
-	          DrawDetectionProcess.h
-	          utils/CPUMap.h
-	          utils/Partitions.h
-	          StubFrameGrabber.h
-	          )
-
-
-set(UTEST_SRC_FILES main-check.cpp
-	                utils/DeferUTest.cpp
-	                RingBufferUTest.cpp
-	                utils/FlagParserUTest.cpp
-	                utils/StringManipulationUTest.cpp
-	                ConnectionUTest.cpp
-	                ProcessQueueExecuterUTest.cpp
-	                utils/PartitionsUTest.cpp
-	                )
-
-set(UTEST_HDR_FILES utils/DeferUTest.h
-	                RingBufferUTest.h
-	                utils/FlagParserUTest.h
-	                utils/StringManipulationUTest.h
-	                ConnectionUTest.h
-	                ProcessQueueExecuterUTest.h
-	                utils/PartitionsUTest.h
-	                )
-
-if(EGrabber_FOUND)
-	list(APPEND SRC_FILES EuresysFrameGrabber.cpp)
-	list(APPEND HDR_FILES EuresysFrameGrabber.h)
-endif(EGrabber_FOUND)
-
-add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
-target_link_libraries(artemis-common ${GLOG_LIBRARIES}
-	                                 ${EGRABBER_LIBRARIES}
-	                                 ${APRILTAG3_LIBRARIES}
-	                                 hermes
-	                                 maytags
-	                                 ${OpenCV_LIBS}
-	                                  "-ldl")
-
-add_executable(artemis main.cpp)
-
-target_link_libraries(artemis artemis-common)
-
-
-add_check_test(NAME artemis
-	           FILES ${UTEST_SRC_FILES} ${UTEST_HDR_FILES}
-	           INCLUDE_DIRS ${GMOCK_INCLUDE_DIRS}
-	           LIBRARIES ${GMOCK_LIBRARIES} artemis-common)
+add_subdirectory(artemis)

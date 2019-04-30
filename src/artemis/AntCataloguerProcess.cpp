@@ -24,19 +24,12 @@ AntCataloguerProcess::AntCataloguerProcess(asio::io_service & service,
 
 AntCataloguerProcess::~AntCataloguerProcess() {};
 
-std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, const cv::Size &) {
-	std::vector<ProcessFunction> res;
-	res.reserve(maxProcess);
 
-	for (size_t i = 0; i < maxProcess; ++i) {
-		res.push_back([this,i,maxProcess](const Frame::Ptr & frame,
-		                                  const cv::Mat & upstream,
-		                                  fort::FrameReadout & readout,
-		                                  cv::Mat & result) {
-			              CheckForNewAnts(frame,readout,i,maxProcess);
-		              });
-	};
-	return res;
+void AntCataloguerProcess::operator() (const Frame::Ptr & frame,
+                                       const cv::Mat & upstream,
+                                       const fort::FrameReadout & readout,
+                                       cv::Mat & result) {
+	CheckForNewAnts(frame,readout);
 }
 
 

@@ -6,18 +6,14 @@
 
 #include <glog/logging.h>
 
-std::vector<ProcessFunction> DrawDetectionProcess::Prepare(size_t maxProcess, const cv::Size &) {
-	std::vector<ProcessFunction> res;
-	for( size_t i = 0 ; i< maxProcess; ++i) {
-		res.push_back([i,maxProcess](const Frame::Ptr & frame,
-		                             const cv::Mat &,
-		                             fort::FrameReadout & readout,
-		                             cv::Mat & result) {
-			              double ratio = double(result.rows) / double(frame->ToCV().rows);
-			              DrawAnts(i,maxProcess,readout,result,ratio);
-		              });
-	}
-	return res;
+
+void DrawDetectionProcess::operator() (const Frame::Ptr & frame,
+                                       const cv::Mat & upstream,
+                                       const fort::FrameReadout & readout,
+                                       cv::Mat & result) {
+	result = upstream;
+	double ratio = double(result.rows) / double(frame->ToCV().rows);
+	DrawAnts(0,1,readout,result,ratio);
 }
 
 void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::FrameReadout & readout,cv::Mat & result, double ratio) {
@@ -25,6 +21,7 @@ void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::Fra
 		DrawAnt(readout.ants(i),result,50,ratio);
 	}
 }
+
 void DrawDetectionProcess::DrawAnt(const fort::Ant & a, cv::Mat & result, int size,double ratio) {
 	LOG(INFO) << "Drawing ant "<< a.id();
 	double h = sqrt(3)/2 * size;

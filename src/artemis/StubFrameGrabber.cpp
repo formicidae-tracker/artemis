@@ -67,3 +67,8 @@ Frame::Ptr StubFrameGrabber::NextFrame() {
 	d_ID += 1;
 	return res;
 }
+
+
+cv::Size  StubFrameGrabber::FrameSize() {
+	return d_image.size();
+}

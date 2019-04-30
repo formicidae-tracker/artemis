@@ -6,6 +6,8 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
                                          const CameraConfiguration & cameraConfig)
 	: Euresys::EGrabber<Euresys::CallbackOnDemand>(gentl) {
 
+	d_size = cv::Size(getInteger<Euresys::RemoteModule>("Width"),getInteger<Euresys::RemoteModule>("Height"));
+
 	using namespace Euresys;
 
 	DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
@@ -96,4 +98,9 @@ const cv::Mat & EuresysFrame::ToCV() {
 
 void * EuresysFrame::Data() {
 	return getInfo<void*>(GenTL::BUFFER_INFO_BASE);
+}
+
+
+cv::Size EuresysFrameGrabber::FrameSize() {
+	return d_size;
 }

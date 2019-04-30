@@ -30,6 +30,8 @@ public :
 
 	virtual ~StubFrameGrabber();
 
+	virtual cv::Size  FrameSize();
+
 	virtual void Start();
 	virtual void Stop();
 	virtual Frame::Ptr NextFrame();

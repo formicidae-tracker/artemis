@@ -4,9 +4,8 @@
 
 #include <sys/time.h>
 
-namespace cv{
-class Mat;
-}
+#include <opencv2/core.hpp>
+
 
 class Frame {
 public:
@@ -30,6 +29,8 @@ private:
 class FrameGrabber {
 public :
 	virtual ~FrameGrabber();
+
+	virtual cv::Size  FrameSize() = 0;
 
 	virtual void Start() = 0;
 	virtual void Stop() = 0;

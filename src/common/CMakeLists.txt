@@ -6,4 +6,4 @@ set(HDR_FILES InterprocessBuffer.h
 
 add_library(common STATIC ${SRC_FILES} ${HDR_FILES})
 
-target_link_libraries(common -lrt)
+target_link_libraries(common -lrt Threads::Threads)

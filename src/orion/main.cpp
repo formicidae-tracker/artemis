@@ -16,7 +16,9 @@ void Execute(int argc, char **argv) {
 		throw std::invalid_argument("Missing shared memory segment");
 	}
 
-	InterprocessBuffer ipBuffer(argv[1]);
+	InterprocessManager::Ptr manager = std::make_shared<InterprocessManager>();
+
+	InterprocessBuffer ipBuffer(manager,std::atoi(argv[1]));
 
 	maytags::Detector::Config config;
 	config.DecodeSharpening = 0.25;
@@ -42,7 +44,7 @@ void Execute(int argc, char **argv) {
 		maytags::Detector::ListOfDetection detections;
 		detector.Detect(ipBuffer.Image(),detections);
 
-		size_t size = std::min(detections.size(),InterprocessBuffer::DetectionSize);
+		size_t size = std::min(detections.size(),DETECTION_SIZE);
 		ipBuffer.DetectionsSize() = size;
 		for (size_t i = 0; i < size; ++i) {
 			InterprocessBuffer::Detection * d = ipBuffer.Detections() + i;

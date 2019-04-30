@@ -48,6 +48,7 @@ public :
 
 	virtual ~EuresysFrameGrabber();
 
+	virtual cv::Size  FrameSize();
 
 	virtual void Start();
 	virtual void Stop();
@@ -58,4 +59,5 @@ private:
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
 	Frame::Ptr         d_frame;
+	cv::Size            d_size;
 };
