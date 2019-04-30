@@ -122,7 +122,7 @@ void ProcessQueueExecuter::Loop() {
 		size_t i = 0;
 		for(auto const & roi : d_partition ) {
 			cv::Mat(d_frame->ToCV(),roi).copyTo(d_buffers[i]->Image());
-			*(d_buffers[i]->TimestampIn()) = d_frame->Timestamp();
+			d_buffers[i]->TimestampIn() = d_frame->Timestamp();
 			++i;
 		}
 
@@ -146,20 +146,25 @@ void ProcessQueueExecuter::Loop() {
 		auto time = m.mutable_time();
 		time->set_seconds(d_frame->Time().tv_sec);
 		time->set_nanos(d_frame->Time().tv_usec*1000);
+		int idx = -1;
 		for(auto & buffer : d_buffers ) {
-			if ( *(buffer->TimestampOut()) != d_frame->Timestamp() ) {
+			++idx;
+			size_t xOffset = d_partition[idx].x;
+			size_t yOffset = d_partition[idx].y;
+			if ( buffer->TimestampOut() != d_frame->Timestamp() ) {
 				LOG(ERROR) << "Skipping worker result: timestamp mismatch, got:" << buffer->TimestampOut() << " expected: " << d_frame->Timestamp();
 				continue;
 			}
-			for ( size_t i = 0; i < *(buffer->DetectionsSize()); ++i ) {
+
+			for ( size_t i = 0; i < buffer->DetectionsSize(); ++i ) {
 				auto const & d = buffer->Detections()[i];
 				if ( IDs.count(d.ID) != 0 ) {
 					continue;
 				}
 				auto a = m.add_ants();
 				a->set_id(d.ID);
-				a->set_x(d.X);
-				a->set_y(d.Y);
+				a->set_x(d.X + xOffset);
+				a->set_y(d.Y + yOffset);
 				a->set_theta(d.Theta);
 			}
 		}

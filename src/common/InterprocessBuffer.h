@@ -63,10 +63,11 @@ public:
 
 
 	Detection * Detections();
-	size_t *    DetectionsSize();
+	size_t &    DetectionsSize();
 	cv::Mat &   Image();
-	uint64_t *  TimestampIn();
-	uint64_t *  TimestampOut();
+	uint64_t &  TimestampIn();
+	uint64_t &  TimestampOut();
+
 
 	const DetectionConfig & Config() const;
 private:
@@ -77,8 +78,6 @@ private:
 		uint64_t TimestampOut;
 		uint64_t Width;
 		uint64_t Height;
-		uint64_t XOffset;
-		uint64_t YOffset;
 		uint64_t Size;
 		DetectionConfig Config;
 	};

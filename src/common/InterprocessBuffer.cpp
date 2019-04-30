@@ -117,8 +117,6 @@ InterprocessBuffer::InterprocessBuffer(const InterprocessManager::Ptr & manager,
 	d_header->TimestampOut = std::numeric_limits<uint64_t>::max();
 	d_header->Width        = roi.width;
 	d_header->Height       = roi.height;
-	d_header->XOffset      = roi.x;
-	d_header->YOffset      = roi.y;
 	d_header->Size         = 0;
 	d_header->Config       = config;
 
@@ -158,20 +156,20 @@ InterprocessBuffer::Detection * InterprocessBuffer::Detections() {
 	return d_detections;
 }
 
-size_t * InterprocessBuffer::DetectionsSize() {
-	return &(d_header->Size);
+size_t & InterprocessBuffer::DetectionsSize() {
+	return d_header->Size;
 }
 
 cv::Mat & InterprocessBuffer::Image() {
 	return d_image;
 }
 
-uint64_t * InterprocessBuffer::TimestampIn() {
-	return &(d_header->TimestampIn);
+uint64_t & InterprocessBuffer::TimestampIn() {
+	return d_header->TimestampIn;
 }
 
-uint64_t *  InterprocessBuffer::TimestampOut() {
-	return &(d_header->TimestampOut);
+uint64_t &  InterprocessBuffer::TimestampOut() {
+	return d_header->TimestampOut;
 }
 
 const DetectionConfig & InterprocessBuffer::Config() const {
