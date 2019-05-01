@@ -102,6 +102,7 @@ void write_failure(const char* data, int size) {
 }
 
 int main(int argc, char ** argv) {
+	FLAGS_logtostderr = false;
 	::google::InitGoogleLogging(argv[0]);
 	::google::InstallFailureSignalHandler();
 	::google::InstallFailureWriter(write_failure);

@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include "utils/PosixCall.h"
 
-#define MAX_RESPAWN 0
+#define MAX_RESPAWN 100000
 
 std::string ProcessQueueExecuter::FindOrionPath() {
 	char buffer[1024];
@@ -63,7 +63,7 @@ ProcessQueueExecuter::ProcessQueueExecuter(const cv::Size & size,
 	, d_respawn(0) {
 
 	PartitionRectangle(cv::Rect(cv::Point(0,0),size),cpus.size(),d_partition);
-
+	AddMargin(size,75,d_partition);
 	d_manager = std::make_shared<InterprocessManager>(true);
 
 	for( auto const & cpu : cpus) {

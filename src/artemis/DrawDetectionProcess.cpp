@@ -23,7 +23,7 @@ void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::Fra
 }
 
 void DrawDetectionProcess::DrawAnt(const fort::Ant & a, cv::Mat & result, int size,double ratio) {
-	LOG(INFO) << "Drawing ant "<< a.id();
+	DLOG(INFO) << "Drawing ant "<< a.id();
 	double h = sqrt(3)/2 * size;
 	Eigen::Vector2d top(0,-2*h/3.0),left(-size/2.0,h/3.0),right(size/2.0,h/3.0),center(a.x()*ratio,a.y()*ratio);
 
