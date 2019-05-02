@@ -8,10 +8,24 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 
 	using namespace Euresys;
 
-	DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
-	setFloat<RemoteModule>("AcquisitionFrameRate",cameraConfig.FPS);
+	DLOG(INFO) << "LineSelector: IOUT11";
+	setString<InterfaceModule>("LineSelector","IOUT11");
+	DLOG(INFO) << "LineInverter: True";
+	setString<InterfaceModule>("LineInverter","True");
+	DLOG(INFO) << "LineSource: Device0Strobe";
+	setString<InterfaceModule>("LineSource","Device0Strobe");
+
 	DLOG(INFO) << "CameraControlMethod: RC";
 	setString<DeviceModule>("CameraControlMethod","RC");
+
+	//This is a big hack allowing to have the camera controlled by the
+	//framegrabber. We set it to pulse mode and double the frequency.
+	setString<DeviceModule>("ExposureReadoutOverlap","True");
+	DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
+	setInteger<DeviceModule>("CycleMinimumPeriod",1e6/(2*cameraConfig.FPS));
+	setString<DeviceModule>("CxpLinkConfiguration","CXP6_X4");
+	setString<DeviceModule>("CxpTriggerMessageFormat","Toggle");
+
 	setInteger<DeviceModule>("ExposureTime",6000);
 	DLOG(INFO) << "StrobeDuration: " << cameraConfig.StrobeDuration;
 	setInteger<DeviceModule>("StrobeDuration",cameraConfig.StrobeDuration);
@@ -19,17 +33,8 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 	DLOG(INFO) << "StrobeDelay: " << cameraConfig.StrobeDuration;
 	setInteger<DeviceModule>("StrobeDelay",cameraConfig.StrobeDelay);
 
-	size_t Period = 1.0e6/cameraConfig.FPS;
-	DLOG(INFO) << "CycleMinimunPeriod: " << Period;
-	setInteger<DeviceModule>("CycleMinimumPeriod",Period);
+	setString<RemoteModule>("ExposureMode","Edge_Triggerred_Programmable");
 
-
-	DLOG(INFO) << "LineSelector: IOUT11";
-	setString<InterfaceModule>("LineSelector","IOUT11");
-	DLOG(INFO) << "LineInverter: True";
-	setString<InterfaceModule>("LineInverter","True");
-	DLOG(INFO) << "LineSource: Device0Strobe";
-	setString<InterfaceModule>("LineSource","Device0Strobe");
 
 	DLOG(INFO) << "Enable Event";
 	enableEvent<NewBufferData>();
