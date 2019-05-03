@@ -20,8 +20,8 @@ find_package(Eigen3 REQUIRED)
 
 include(ExternalProject)
 ExternalProject_Add(APRILTAG3
-	GIT_REPOSITORY https://github.com/formicidae-tracker/apriltags.git
-	GIT_TAG origin/dev/nopthread
+	GIT_REPOSITORY https://github.com/AprilRobotics/apriltags.git
+	GIT_TAG v3.0.0
 	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile && sed -i.bak s/-O3/-O0\ -g/ Makefile
 	CONFIGURE_COMMAND echo done
 	INSTALL_COMMAND PREFIX=${PROJECT_BINARY_DIR}/APRILTAG3-prefix make install

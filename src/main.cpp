@@ -12,6 +12,8 @@
 #include "EuresysFrameGrabber.h"
 #include <EGrabber.h>
 
+#include <Eigen/Core>
+
 #include "utils/PosixCall.h"
 #include "utils/CPUMap.h"
 #include <asio.hpp>
@@ -130,6 +132,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 
 void Execute(int argc, char ** argv) {
+	Eigen::initParallel();
+	cv::setNumThreads(1);
 	Options opts;
 	ParseArgs(argc, argv,opts);
 
@@ -170,9 +174,6 @@ void Execute(int argc, char ** argv) {
 			}
 		}
 	}
-
-
-
 
 
 	asio::io_service io;
@@ -272,7 +273,7 @@ void Execute(int argc, char ** argv) {
 		workThreads.push_back(std::thread([&workload](){
 					workload.run();
 				}));
-		p_call(pthread_setaffinity_np,workThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
+		//p_call(pthread_setaffinity_np,workThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
 
 	for ( size_t i = 0; i < ioCPUs.size(); ++i) {
@@ -283,7 +284,7 @@ void Execute(int argc, char ** argv) {
 		ioThreads.push_back(std::thread([&io]() {
 					io.run();
 				}));
-		p_call(pthread_setaffinity_np,ioThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
+		//p_call(pthread_setaffinity_np,ioThreads.back().native_handle(),sizeof(cpu_set_t),&cpuset);
 	}
 
 	cpu_set_t cpuset;
@@ -291,8 +292,6 @@ void Execute(int argc, char ** argv) {
 	CPU_SET(ioCPUs[0],&cpuset);
 
 	long int tid = syscall(SYS_gettid);
-
-
 
 
 	for (auto & t : ioThreads ) {
