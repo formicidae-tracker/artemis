@@ -33,10 +33,10 @@ std::vector<ProcessFunction> OutputProcess::Prepare(size_t maxProcess, const cv:
 				}
 				d_done = false;
 			}
-			result = upstream.clone();
+			cv::Mat out = upstream.clone();
 			asio::async_write(d_stream,
-			                  asio::const_buffers_1(result.datastart,result.dataend-result.datastart),
-			                  [this](const asio::error_code & ec,
+			                  asio::const_buffers_1(out.datastart,out.dataend-out.datastart),
+			                  [this,out](const asio::error_code & ec,
 			                         std::size_t) {
 				                  if (ec) {
 					                  LOG(ERROR) << "Could not output data: " << ec;
