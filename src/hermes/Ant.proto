@@ -1,6 +1,7 @@
 syntax = "proto3";
 
-//option optimize_for = LITE_RUNTIME;
+option optimize_for = LITE_RUNTIME;
+option go_package = "github.com/formicidae-tracker/leto";
 
 package fort;
 

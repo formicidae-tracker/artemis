@@ -18,7 +18,7 @@ public:
 	typedef std::shared_ptr<Connection> Ptr;
 	~Connection();
 	static Ptr Create(asio::io_service & service, const std::string & host,uint16_t port,std::chrono::high_resolution_clock::duration reconnectTime = std::chrono::milliseconds(5000));
-	static void PostMessage(const Ptr & connection, const google::protobuf::Message & m);
+	static void PostMessage(const Ptr & connection, const google::protobuf::MessageLite & m);
 
 private :
 	Connection(asio::io_service & service, const std::string & host,uint16_t port, std::chrono::high_resolution_clock::duration reconnectTime);

@@ -54,7 +54,7 @@ Connection::Connection(asio::io_service & service, const std::string & host,uint
 Connection::~Connection() {
 }
 
-void Connection::PostMessage(const Ptr & self,const google::protobuf::Message & message) {
+void Connection::PostMessage(const Ptr & self,const google::protobuf::MessageLite & message) {
 	std::lock_guard<std::mutex> lock(self->d_sendingMutex);
 	if ( self->d_producer->Full() ) {
 		LOG(WARNING) << "serialization: discarding data: FIFO full";
