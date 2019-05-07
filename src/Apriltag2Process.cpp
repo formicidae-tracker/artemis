@@ -1,6 +1,7 @@
 #include "Apriltag2Process.h"
 
 #include <apriltag/tag16h5.h>
+#include <apriltag/tag36artoolkit.h>
 #include <apriltag/tag25h9.h>
 #include <apriltag/tag36h11.h>
 #include <apriltag/tagCircle21h7.h>
@@ -72,6 +73,7 @@ AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & n
 		{"16h5",{.c = tag16h5_create, .d=tag16h5_destroy}},
 		{"25h9",{.c =tag25h9_create, .d=tag25h9_destroy}},
 		{"36h11",{.c =tag36h11_create, .d=tag36h11_destroy}},
+		{"36artoolkit",{.c =tag36artoolkit_create, .d=tag36artoolkit_destroy}},
 		{"Circle21h7",{.c =tagCircle21h7_create, .d=tagCircle21h7_destroy}},
 		{"Circle49h12",{.c =tagCircle49h12_create, .d=tagCircle49h12_destroy}},
 		{"Custom48h12",{.c =tagCustom48h12_create, .d=tagCustom48h12_destroy}},
