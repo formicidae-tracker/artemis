@@ -4,7 +4,7 @@
 
 #include "ProcessDefinition.h"
 
-#include "hermes/FrameReadout.pb.h"
+#include <fort-hermes/FrameReadout.pb.h>
 
 #include <asio/io_service.hpp>
 
@@ -35,13 +35,13 @@ private:
 	          const Frame::Ptr & frame);
 
 
-	asio::io_service &     d_service;
-	const size_t           d_maxWorkers;
-	std::mutex             d_mutex;
-	size_t                 d_nbActiveWorkers;
-	ProcessQueue::iterator d_current,d_end,d_nextBegin,d_nextEnd;
-	fort::FrameReadout     d_message;
-	Frame::Ptr             d_frame,d_next;
+	asio::io_service &         d_service;
+	const size_t               d_maxWorkers;
+	std::mutex                 d_mutex;
+	size_t                     d_nbActiveWorkers;
+	ProcessQueue::iterator     d_current,d_end,d_nextBegin,d_nextEnd;
+	fort::hermes::FrameReadout d_message;
+	Frame::Ptr                 d_frame,d_next;
 
 
 

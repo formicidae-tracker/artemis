@@ -21,7 +21,7 @@ public:
 
 private :
 	void CheckForNewAnts( const Frame::Ptr & ptr,
-	                      const fort::FrameReadout & readout,
+	                      const fort::hermes::FrameReadout & readout,
 	                      size_t start=0,
 	                      size_t stride=1);
 

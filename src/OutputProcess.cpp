@@ -24,7 +24,7 @@ OutputProcess::OutputProcess(asio::io_service & service)
 OutputProcess::~OutputProcess() {}
 
 std::vector<ProcessFunction> OutputProcess::Prepare(size_t maxProcess, const cv::Size &) {
-	return {[this](const Frame::Ptr &, const cv::Mat & upstream, fort::FrameReadout & readout, cv::Mat & result) {
+	return {[this](const Frame::Ptr &, const cv::Mat & upstream, fort::hermes::FrameReadout & readout, cv::Mat & result) {
 			{
 				std::lock_guard<std::mutex> lock(d_mutex);
 				if (d_done == false) {

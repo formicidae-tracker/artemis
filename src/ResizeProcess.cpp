@@ -21,9 +21,9 @@ std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::
 
 	return {
 		[this](const Frame::Ptr & frame,
-		             const cv::Mat & upstream,
-		             fort::FrameReadout & readout,
-		             cv::Mat & result) {
+		       const cv::Mat & upstream,
+		       fort::hermes::FrameReadout & readout,
+		       cv::Mat & result) {
 			if ( upstream.size() == cv::Size(0,0) ) {
 				cv::resize(frame->ToCV(),d_resized,d_resized.size());
 			} else {

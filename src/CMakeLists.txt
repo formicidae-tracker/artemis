@@ -1,5 +1,3 @@
-add_subdirectory(hermes)
-
 include(CheckCXXSourceRuns)
 
 Check_CXX_Source_Runs(
@@ -90,11 +88,13 @@ if(EGrabber_FOUND)
 	list(APPEND HDR_FILES EuresysFrameGrabber.h)
 endif(EGrabber_FOUND)
 
+
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
 	                                 ${APRILTAG3_LIBRARIES}
-	                                 hermes
+	                                 ${FORT_HERMES_CPP_LIBRARIES}
+	                                 ${PROTOBUF_LIBRARIES}
 	                                 ${OpenCV_LIBS}
 	                                  "-ldl")
 

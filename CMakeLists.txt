@@ -14,7 +14,8 @@ include(EnableMakeCheck)
 find_package(EGrabber)
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
-find_package(Protobuf 3.5.0 REQUIRED)
+find_package(FortHermesCpp 0.1.1 REQUIRED)
+find_package(Protobuf 3.3.0 REQUIRED)
 find_package(Asio 1.10.8 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -41,6 +42,7 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${OPENCV_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
+	                ${FORT_HERMES_CPP_INCLUDE_DIRS}
 	                )
 
 

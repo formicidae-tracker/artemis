@@ -31,7 +31,7 @@ std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, co
 	for (size_t i = 0; i < maxProcess; ++i) {
 		res.push_back([this,i,maxProcess](const Frame::Ptr & frame,
 		                                  const cv::Mat & upstream,
-		                                  fort::FrameReadout & readout,
+		                                  fort::hermes::FrameReadout & readout,
 		                                  cv::Mat & result) {
 			              CheckForNewAnts(frame,readout,i,maxProcess);
 		              });
@@ -41,7 +41,7 @@ std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, co
 
 
 void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
-                                            const fort::FrameReadout & readout,
+                                            const fort::hermes::FrameReadout & readout,
                                             size_t start,
                                             size_t stride) {
 	auto FID = frame->ID();

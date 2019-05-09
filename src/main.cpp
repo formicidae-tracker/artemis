@@ -226,7 +226,7 @@ void Execute(int argc, char ** argv) {
 	ProcessQueueExecuter executer(workload,workCPUs.size());
 
 
-	fort::FrameReadout error;
+	fort::hermes::FrameReadout error;
 
 	std::function<void()> WaitForFrame = [&WaitForFrame,&io,&executer,&pq,&fg,&opts,&error,connection](){
 		Frame::Ptr f = fg->NextFrame();
@@ -251,7 +251,7 @@ void Execute(int argc, char ** argv) {
 				auto time = error.mutable_time();
 				time->set_seconds(f->Time().tv_sec);
 				time->set_nanos(f->Time().tv_usec*1000);
-				error.set_error(fort::FrameReadout::PROCESS_OVERFLOW);
+				error.set_error(fort::hermes::FrameReadout::PROCESS_OVERFLOW);
 
 				Connection::PostMessage(connection,error);
 			}

@@ -142,7 +142,7 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 		cv::Rect roi = partitions[i];
 		toReturn.push_back([this,i,roi](const Frame::Ptr & frame,
 		                                const cv::Mat & upstream,
-		                                fort::FrameReadout & readout,
+		                                fort::hermes::FrameReadout & readout,
 		                                cv::Mat & result) {
 			                   cv::Mat withROI(frame->ToCV(),roi);
 			                   cv::Mat cloned = withROI.clone();
@@ -200,7 +200,7 @@ AprilTag2Detector::TagMerging::~TagMerging() {}
 std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxProcess, const cv::Size & size) {
 	return { [this](const Frame::Ptr & frame,
 	                const cv::Mat & upstream,
-	                fort::FrameReadout & readout,
+	                fort::hermes::FrameReadout & readout,
 	                cv::Mat & result) {
 			std::set<int32_t> results;
 

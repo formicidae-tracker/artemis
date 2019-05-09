@@ -11,7 +11,7 @@ std::vector<ProcessFunction> DrawDetectionProcess::Prepare(size_t maxProcess, co
 	for( size_t i = 0 ; i< maxProcess; ++i) {
 		res.push_back([i,maxProcess](const Frame::Ptr & frame,
 		                             const cv::Mat &,
-		                             fort::FrameReadout & readout,
+		                             fort::hermes::FrameReadout & readout,
 		                             cv::Mat & result) {
 			              double ratio = double(result.rows) / double(frame->ToCV().rows);
 			              DrawAnts(i,maxProcess,readout,result,ratio);
@@ -20,12 +20,12 @@ std::vector<ProcessFunction> DrawDetectionProcess::Prepare(size_t maxProcess, co
 	return res;
 }
 
-void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::FrameReadout & readout,cv::Mat & result, double ratio) {
+void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::hermes::FrameReadout & readout,cv::Mat & result, double ratio) {
 	for (size_t i = start; i < readout.ants_size(); i += stride ) {
 		DrawAnt(readout.ants(i),result,50,ratio);
 	}
 }
-void DrawDetectionProcess::DrawAnt(const fort::Ant & a, cv::Mat & result, int size,double ratio) {
+void DrawDetectionProcess::DrawAnt(const fort::hermes::Ant & a, cv::Mat & result, int size,double ratio) {
 	DLOG(INFO) << "Drawing ant "<< a.id();
 	double h = sqrt(3)/2 * size;
 	Eigen::Vector2d top(0,-2*h/3.0),left(-size/2.0,h/3.0),right(size/2.0,h/3.0),center(a.x()*ratio,a.y()*ratio);
