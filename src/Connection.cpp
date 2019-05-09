@@ -32,13 +32,19 @@ void Connection::Connect(const Ptr & self) {
 	}
 }
 
-Connection::Ptr Connection::Create(asio::io_service & service, const std::string & host,uint16_t port,std::chrono::high_resolution_clock::duration reconnectTime) {
+Connection::Ptr Connection::Create(asio::io_service & service,
+                                   const std::string & host,
+                                   uint16_t port,
+                                   std::chrono::high_resolution_clock::duration reconnectTime) {
 	std::shared_ptr<Connection> res(new Connection(service,host,port,reconnectTime));
 	Connect(res);
 	return res;
 }
 
-Connection::Connection(asio::io_service & service, const std::string & host,uint16_t port,std::chrono::high_resolution_clock::duration reconnectTime)
+Connection::Connection(asio::io_service & service,
+                       const std::string & host,
+                       uint16_t port,
+                       std::chrono::high_resolution_clock::duration reconnectTime)
 	: d_service(service)
 	, d_strand(service)
 	, d_host(host)

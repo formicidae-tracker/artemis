@@ -32,6 +32,7 @@ struct Options {
 
 
 	std::string Host;
+	std::string UUID;
 	uint16_t    Port;
 	bool        DrawDetection;
 	bool        VideoOutputToStdout;
@@ -76,6 +77,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("at-quad-deglitch",opts.AprilTag2.QuadDeglitch,"Deglitch only for noisy images");
 	parser.AddFlag("host", opts.Host, "Host to send tag detection readout");
 	parser.AddFlag("port", opts.Port, "Port to send tag detection readout",'p');
+	parser.AddFlag("uuid",opts.UUID,"The UUID to mark data sent over network");
 	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
 	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
 	parser.AddFlag("new-ant-output-dir",opts.NewAntOuputDir,"Path where to save new detected ant pictures");
@@ -199,7 +201,8 @@ void Execute(int argc, char ** argv) {
 	//creates queues
 	ProcessQueue pq = AprilTag2Detector::Create(workCPUs.size(),
 	                                            opts.AprilTag2,
-	                                            connection);
+	                                            connection,
+	                                            opts.UUID);
 
 	if ( !opts.NewAntOuputDir.empty() ) {
 		pq.push_back(std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.NewAntROISize));
@@ -252,7 +255,7 @@ void Execute(int argc, char ** argv) {
 				time->set_seconds(f->Time().tv_sec);
 				time->set_nanos(f->Time().tv_usec*1000);
 				error.set_error(fort::hermes::FrameReadout::PROCESS_OVERFLOW);
-
+				error.set_producer_uuid(opts.UUID);
 				Connection::PostMessage(connection,error);
 			}
 		}

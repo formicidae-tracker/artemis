@@ -190,9 +190,14 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 
 
 AprilTag2Detector::TagMerging::TagMerging(const AprilTag2Detector::Ptr & parent,
-                                          const Connection::Ptr & connection)
+                                          const Connection::Ptr & connection,
+                                          const std::string & uuid)
 	: d_parent(parent)
-	, d_connection(connection) {
+	, d_connection(connection)
+	, d_uuid(uuid) {
+	if (d_connection && d_uuid.empty() ) {
+		throw std::invalid_argument("Sending data over network requires an UUID");
+	}
 }
 
 AprilTag2Detector::TagMerging::~TagMerging() {}
@@ -210,7 +215,7 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 			auto time = readout.mutable_time();
 			time->set_seconds(frame->Time().tv_sec);
 			time->set_nanos(frame->Time().tv_usec * 1000);
-
+			readout.set_producer_uuid(d_uuid);
 			for(auto const & detections : d_parent->d_results ) {
 				for( auto const & d : detections ) {
 					if (results.count((int32_t)d.ID) != 0 ) {
@@ -240,10 +245,11 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 
 ProcessQueue AprilTag2Detector::Create(size_t maxWorkers,
                                        const Config & config,
-                                       const Connection::Ptr & connection) {
+                                       const Connection::Ptr & connection,
+                                       const std::string & uuid) {
 	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(maxWorkers,config));
 	return {
 		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),
-		std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection)),
+			std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection,uuid)),
 	};
 }

@@ -71,7 +71,8 @@ public:
 		virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
 	private:
 		TagMerging(const AprilTag2Detector::Ptr & parent,
-		           const Connection::Ptr & connection);
+		           const Connection::Ptr & connection,
+		           const std::string & uuid);
 
 		TagMerging(const TagMerging & ) = delete;
 		TagMerging & operator=(const TagMerging &) = delete;
@@ -79,13 +80,16 @@ public:
 
 		AprilTag2Detector::Ptr d_parent;
 		Connection::Ptr        d_connection;
+		std::string            d_uuid;
+
 		friend class AprilTag2Detector;
 	};
 
 
 	static ProcessQueue Create(size_t maxWorker,
 	                           const Config & config,
-	                           const Connection::Ptr & address);
+	                           const Connection::Ptr & address,
+	                           const std::string & uuid);
 
 	~AprilTag2Detector();
 
