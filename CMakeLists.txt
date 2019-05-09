@@ -19,19 +19,9 @@ find_package(Protobuf 3.3.0 REQUIRED)
 find_package(Asio 1.10.8 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-include(ExternalProject)
-ExternalProject_Add(APRILTAG3
-	GIT_REPOSITORY https://github.com/formicidae-tracker/apriltags.git
-	GIT_TAG dev/artoolkit
-	PATCH_COMMAND sed -i.bak /@ldconfig/d Makefile
-	CONFIGURE_COMMAND echo done
-	INSTALL_COMMAND PREFIX=${PROJECT_BINARY_DIR}/APRILTAG3-prefix make install
-	BUILD_IN_SOURCE 1
-	)
-set(APRILTAG3_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/include)
-set(APRILTAG3_LIBRARIES ${PROJECT_BINARY_DIR}/APRILTAG3-prefix/lib/${CMAKE_SHARED_LIBRARY_PREFIX}apriltag${CMAKE_SHARED_LIBRARY_SUFFIX}
-                        Threads::Threads
-                        )
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(APRILTAG3 apriltag>=3.0.0)
+
 add_definitions("-D_GNU_SOURCE" "-DNDEBUG")
 
 add_definitions(${EIGEN3_DEFINITIONS})
