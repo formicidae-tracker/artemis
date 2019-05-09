@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 11)
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(EnableMakeCheck)
 
-find_package(EGrabber)
+find_package(EGrabber REQUIRED)
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core imgcodecs highgui imgproc)
 find_package(FortHermesCpp 0.1.1 REQUIRED)
