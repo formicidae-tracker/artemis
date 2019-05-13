@@ -8,7 +8,7 @@
 #include <apriltag/tagCustom48h12.h>
 #include <apriltag/tagStandard41h12.h>
 #include <apriltag/tagStandard52h13.h>
-
+#include "tag36ARTag.h"
 
 #include <cmath>
 
@@ -72,6 +72,7 @@ AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & n
 		{"16h5",{.c = tag16h5_create, .d=tag16h5_destroy}},
 		{"25h9",{.c =tag25h9_create, .d=tag25h9_destroy}},
 		{"36h11",{.c =tag36h11_create, .d=tag36h11_destroy}},
+		{"36ARTag",{.c =tag36ARTag_create, .d=tag36ARTag_destroy}},
 		{"Circle21h7",{.c =tagCircle21h7_create, .d=tagCircle21h7_destroy}},
 		{"Circle49h12",{.c =tagCircle49h12_create, .d=tagCircle49h12_destroy}},
 		{"Custom48h12",{.c =tagCustom48h12_create, .d=tagCustom48h12_destroy}},
