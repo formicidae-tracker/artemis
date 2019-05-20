@@ -85,5 +85,7 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 			                  }
 			                  close(stream->native_handle());
 		                  });
+		//only process one single ant per frame.
+		return;
 	}
 }
