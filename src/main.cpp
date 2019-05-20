@@ -37,6 +37,7 @@ struct Options {
 	bool        DrawDetection;
 	bool        VideoOutputToStdout;
 	size_t      VideoOutputHeight;
+	bool        VideoOutputAddHeader;
 
 	std::string NewAntOuputDir;
 	size_t      NewAntROISize;
@@ -59,6 +60,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.frameIDString = "";
 	opts.Port = 3002;
 	opts.DrawDetection = false;
+	opts.VideoOutputAddHeader = false;
 	opts.NewAntROISize = 500;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 
@@ -78,6 +80,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("uuid",opts.UUID,"The UUID to mark data sent over network");
 	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
 	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
+	parser.AddFlag("video-output-add-header", opts.VideoOutputAddHeader, "Adds binary header to stdout output");
 	parser.AddFlag("new-ant-output-dir",opts.NewAntOuputDir,"Path where to save new detected ant pictures");
 	parser.AddFlag("frame-stride",opts.FrameStride,"Frame sequence length");
 	parser.AddFlag("frame-ids",opts.frameIDString,"Frame ID to consider in the frame sequence, if empty consider all");
@@ -212,7 +215,7 @@ void Execute(int argc, char ** argv) {
 		if (opts.DrawDetection ) {
 			pq.push_back(std::make_shared<DrawDetectionProcess>());
 		}
-		pq.push_back(std::make_shared<OutputProcess>(io));
+		pq.push_back(std::make_shared<OutputProcess>(io,opts.VideoOutputAddHeader));
 	}
 
 	std::shared_ptr<FrameGrabber> fg;
