@@ -34,8 +34,6 @@ public:
 		float       QuadDecimate;
 		float       QuadSigma;
 		bool        RefineEdges;
-		bool        NoRefineDecode;
-		bool        RefinePose;
 		int         QuadMinClusterPixel;
 		int         QuadMaxNMaxima;
 		float       QuadCriticalRadian;
