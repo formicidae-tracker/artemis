@@ -5,7 +5,7 @@
 #include "FrameGrabber.h"
 
 #include <fort-hermes/FrameReadout.pb.h>
-#include <opencv2/core.hpp>
+#include <opencv2/core/core.hpp>
 
 
 typedef std::function<void(const Frame::Ptr & frame,

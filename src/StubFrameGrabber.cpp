@@ -2,7 +2,7 @@
 
 #include <thread>
 
-#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 StubFrame::StubFrame(const cv::Mat & mat, uint64_t timestamp, uint64_t ID)
 	: d_mat(mat.clone())

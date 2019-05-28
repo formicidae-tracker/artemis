@@ -4,7 +4,7 @@
 
 #include <EGrabber.h>
 
-#include <opencv2/core.hpp>
+#include <opencv2/core/core.hpp>
 
 struct CameraConfiguration {
 	CameraConfiguration()

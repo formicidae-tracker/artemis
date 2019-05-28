@@ -2,7 +2,7 @@
 
 #include "ProcessDefinition.h"
 
-#include <opencv2/core.hpp>
+#include <opencv2/core/core.hpp>
 
 class ResizeProcess : public ProcessDefinition {
 public:

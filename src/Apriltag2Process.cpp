@@ -20,9 +20,7 @@
 
 
 #include <glog/logging.h>
-#include <opencv2/imgcodecs.hpp>
-
-
+#include <opencv2/highgui/highgui.hpp>
 #include "utils/PosixCall.h"
 #include "utils/Partitions.h"
 
