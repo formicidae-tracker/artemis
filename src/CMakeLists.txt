@@ -109,3 +109,5 @@ add_check_test(NAME artemis
 	           FILES ${UTEST_SRC_FILES} ${UTEST_HDR_FILES}
 	           INCLUDE_DIRS ${GMOCK_INCLUDE_DIRS}
 	           LIBRARIES ${GMOCK_LIBRARIES} artemis-common)
+
+install(TARGETS artemis DESTINATION bin)
