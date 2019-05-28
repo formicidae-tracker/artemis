@@ -24,8 +24,11 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include "artemis-config.h"
+
 struct Options {
 	bool PrintHelp;
+	bool PrintVersion;
 
 	AprilTag2Detector::Config AprilTag2;
 	CameraConfiguration       Camera;
@@ -62,7 +65,9 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.DrawDetection = false;
 	opts.VideoOutputAddHeader = false;
 	opts.NewAntROISize = 500;
+	opts.PrintVersion = false;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
+	parser.AddFlag("version",opts.PrintVersion,"Print version");
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
 	parser.AddFlag("new-ant-roi-size", opts.NewAntROISize, "Size of the image to save when a new ant is found");
@@ -97,6 +102,11 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 		parser.PrintUsage(std::cerr);
 		exit(0);
 	}
+	if (opts.PrintVersion == true ) {
+		std::cout << "artemis v" << ARTEMIS_VERSION << std::endl;
+		exit(0);
+	}
+
 	if (opts.FrameStride == 0 ) {
 		opts.FrameStride = 1;
 	}
