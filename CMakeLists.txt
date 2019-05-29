@@ -13,7 +13,7 @@ include(EnableMakeCheck)
 
 find_package(EGrabber REQUIRED)
 find_package(GLog REQUIRED)
-find_package(OpenCV REQUIRED core highgui imgproc)
+find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(FortHermesCpp 0.1.1 REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
 find_package(Asio 1.10.8 REQUIRED)
