@@ -67,10 +67,10 @@ void Connection::PostMessage(const Ptr & self,const google::protobuf::MessageLit
 		return;
 	}
 
-	asio::streambuf & buf = self->d_producer->Tail();
-	buf.consume(buf.max_size());
-	std::ostream output(&buf);
-	google::protobuf::util::SerializeDelimitedToOstream(message, &output);
+	std::ostringstream & oss = self->d_producer->Tail();
+	oss.str("");
+	oss.clear();
+	google::protobuf::util::SerializeDelimitedToOstream(message, &oss);
 
 	self->d_producer->Push();
 	self->d_strand.post([self]{
@@ -89,9 +89,10 @@ void Connection::PostMessage(const Ptr & self,const google::protobuf::MessageLit
 
 void Connection::ScheduleSend(const Ptr & self) {
 	self->d_sending = true;
+	auto toSend = std::make_shared<std::string>(self->d_consumer->Head().str());
 	asio::async_write(*self->d_socket,
-	                  self->d_consumer->Head().data(),
-	                  self->d_strand.wrap([self](const asio::error_code & ec,
+	                  asio::const_buffers_1(&((*toSend)[0]),toSend->size()),
+	                  self->d_strand.wrap([self,toSend](const asio::error_code & ec,
 	                                             std::size_t){
 		                                      self->d_consumer->Pop();
 		                                      if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {

@@ -41,7 +41,7 @@ private :
 	std::shared_ptr<asio::ip::tcp::socket> d_socket;
 	asio::strand                           d_strand;
 
-	typedef RingBuffer<asio::streambuf,16> BufferPool;
+	typedef RingBuffer<std::ostringstream,16> BufferPool;
 	BufferPool::Consumer::Ptr d_consumer;
 	BufferPool::Producer::Ptr d_producer;
 	bool                      d_sending;
