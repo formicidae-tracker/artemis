@@ -62,11 +62,11 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 		std::vector<uint8_t> pngData;
 		cv::imencode(".png",cv::Mat(frame->ToCV(),roi),pngData);
 
-		std::ostringstream oss(d_savePath);
-		oss << "/ant_" << ID << "_frame_" << FID << ".png";
+		std::ostringstream oss;
+		oss << d_savePath << "/ant_" << ID << "_frame_" << FID << ".png";
 		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY,0644);
 		if (fd == -1) {
-			LOG(ERROR) << "Could not save ant " << ID << ": " << (ARTEMIS_SYSTEM_ERROR(open,errno).what());
+			LOG(ERROR) << "Could not save ant " << ID << " in '" << oss.str() << "': " << ARTEMIS_SYSTEM_ERROR(open,errno).what();
 			std::lock_guard<std::mutex> lock(d_mutex);
 			d_known.erase(ID);
 			return;
@@ -76,7 +76,7 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 		while ( writen < pngData.size() ) {
 			int res = write(fd,&(pngData[writen]),pngData.size() - writen);
 			if ( res == -1 ) {
-				LOG(ERROR) << "Could not save ant " << ID << ": " << ARTEMIS_SYSTEM_ERROR(write,errno).what();
+				LOG(ERROR) << "Could not save ant " << ID << " in '" << oss.str() << "': " << ARTEMIS_SYSTEM_ERROR(write,errno).what();
 				break;
 			}
 			writen += res;
