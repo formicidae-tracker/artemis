@@ -11,8 +11,7 @@
 
 class AntCataloguerProcess : public ProcessDefinition {
 public:
-	AntCataloguerProcess(asio::io_service & service,
-	                     const std::string & savepath,
+	AntCataloguerProcess(const std::string & savepath,
 	                     size_t newAntROISize);
 	virtual ~AntCataloguerProcess();
 
@@ -25,7 +24,6 @@ private :
 	                      size_t start=0,
 	                      size_t stride=1);
 
-	asio::io_service & d_service;
 	std::mutex         d_mutex;
 	std::string        d_savePath;
 	std::set<int32_t>  d_known;

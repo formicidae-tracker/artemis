@@ -9,11 +9,9 @@
 #include <asio/posix/stream_descriptor.hpp>
 #include <asio/write.hpp>
 
-AntCataloguerProcess::AntCataloguerProcess(asio::io_service & service,
-                                           const std::string & savePath,
+AntCataloguerProcess::AntCataloguerProcess(const std::string & savePath,
                                            size_t newAntROISize)
-	: d_service(service)
-	, d_savePath(savePath)
+	: d_savePath(savePath)
 	, d_newAntROISize(newAntROISize) {
 
 	if ( d_savePath.empty() ) {
@@ -61,31 +59,33 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 		             cv::Size(d_newAntROISize,
 		                      d_newAntROISize));
 
-		auto pngData =  std::make_shared<std::vector<uint8_t> >();
-		cv::imencode("png",cv::Mat(frame->ToCV(),roi),*pngData);
+		std::vector<uint8_t> pngData;
+		cv::imencode(".png",cv::Mat(frame->ToCV(),roi),pngData);
 
 		std::ostringstream oss(d_savePath);
 		oss << "/ant_" << ID << "_frame_" << FID << ".png";
-		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY| O_NONBLOCK,0644);
+		int fd = open(oss.str().c_str(), O_CREAT|O_WRONLY,0644);
 		if (fd == -1) {
-			LOG(ERROR) << "Could not save ant " << ID << ": " << std::error_code(errno,ARTEMIS_SYSTEM_CATEGORY());
+			LOG(ERROR) << "Could not save ant " << ID << ": " << (ARTEMIS_SYSTEM_ERROR(open,errno).what());
 			std::lock_guard<std::mutex> lock(d_mutex);
 			d_known.erase(ID);
 			return;
 		}
-		auto stream = std::make_shared<asio::posix::stream_descriptor>(d_service,fd);
-		asio::async_write(*stream,
-		                  asio::const_buffers_1(&((*pngData)[0]),pngData->size()),
-		                  [this,pngData,stream,ID](const asio::error_code & ec,
-		                                           std::size_t ) {
-			                  if (ec) {
-				                  LOG(ERROR) << "Could not save ant " << ID << ": " << ec;
-				                  std::lock_guard<std::mutex> lock(d_mutex);
-				                  d_known.erase(ID);
-			                  }
-			                  close(stream->native_handle());
-		                  });
-		//only process one single ant per frame.
+
+		size_t writen = 0;
+		while ( writen < pngData.size() ) {
+			int res = write(fd,&(pngData[writen]),pngData.size() - writen);
+			if ( res == -1 ) {
+				LOG(ERROR) << "Could not save ant " << ID << ": " << ARTEMIS_SYSTEM_ERROR(write,errno).what();
+				break;
+			}
+			writen += res;
+		}
+		close(fd);
+		if ( writen < pngData.size() ) {
+			std::lock_guard<std::mutex> lock(d_mutex);
+			d_known.erase(ID);
+		}
 		return;
 	}
 }

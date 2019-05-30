@@ -216,7 +216,7 @@ void Execute(int argc, char ** argv) {
 	                                            opts.UUID);
 
 	if ( !opts.NewAntOuputDir.empty() ) {
-		pq.push_back(std::make_shared<AntCataloguerProcess>(io,opts.NewAntOuputDir,opts.NewAntROISize));
+		pq.push_back(std::make_shared<AntCataloguerProcess>(opts.NewAntOuputDir,opts.NewAntROISize));
 
 	}
 	//queues when outputting data
