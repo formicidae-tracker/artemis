@@ -5,6 +5,8 @@
 #include <EGrabber.h>
 
 #include <opencv2/core/core.hpp>
+#include <mutex>
+
 
 struct CameraConfiguration {
 	CameraConfiguration()
@@ -58,6 +60,7 @@ private:
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
+	std::mutex         d_mutex;
 	Frame::Ptr         d_frame;
 	uint64_t           d_lastFrame;
 	uint64_t           d_toAdd;

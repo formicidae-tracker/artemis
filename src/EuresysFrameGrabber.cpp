@@ -68,6 +68,7 @@ Frame::Ptr EuresysFrameGrabber::NextFrame() {
 }
 
 void EuresysFrameGrabber::onNewBufferEvent(const Euresys::NewBufferData &data) {
+	std::unique_lock<std::mutex> lock(d_mutex);
 	d_frame = std::make_shared<EuresysFrame>(*this,data,d_lastFrame,d_toAdd);
 }
 
