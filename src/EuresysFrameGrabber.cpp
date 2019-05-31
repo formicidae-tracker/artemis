@@ -4,7 +4,9 @@
 
 EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
                                          const CameraConfiguration & cameraConfig)
-	: Euresys::EGrabber<Euresys::CallbackOnDemand>(gentl) {
+	: Euresys::EGrabber<Euresys::CallbackOnDemand>(gentl)
+	, d_lastFrame(0)
+	, d_toAdd(0) {
 
 	using namespace Euresys;
 
@@ -66,16 +68,21 @@ Frame::Ptr EuresysFrameGrabber::NextFrame() {
 }
 
 void EuresysFrameGrabber::onNewBufferEvent(const Euresys::NewBufferData &data) {
-	d_frame = std::make_shared<EuresysFrame>(*this,data);
+	d_frame = std::make_shared<EuresysFrame>(*this,data,d_lastFrame,d_toAdd);
 }
 
-EuresysFrame::EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData & data)
+EuresysFrame::EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData & data, uint64_t & lastFrame, uint64_t & toAdd )
 	: Euresys::ScopedBuffer(grabber,data)
 	, d_width(getInfo<size_t>(GenTL::BUFFER_INFO_WIDTH))
 	, d_height(getInfo<size_t>(GenTL::BUFFER_INFO_HEIGHT))
 	, d_timestamp(getInfo<uint64_t>(GenTL::BUFFER_INFO_TIMESTAMP))
 	, d_ID(getInfo<uint64_t>(GenTL::BUFFER_INFO_FRAMEID))
 	, d_mat(d_height,d_width,CV_8U,getInfo<void*>(GenTL::BUFFER_INFO_BASE)) {
+	if ( d_ID == 0 && lastFrame != 0 ) {
+		toAdd += lastFrame + 1;
+	}
+	lastFrame = d_ID;
+	d_ID += toAdd;
 }
 
 EuresysFrame::~EuresysFrame() {}

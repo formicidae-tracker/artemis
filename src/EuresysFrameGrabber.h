@@ -22,7 +22,7 @@ struct CameraConfiguration {
 
 class EuresysFrame : public Frame,public Euresys::ScopedBuffer {
 public :
-	EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData &);
+	EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData &, uint64_t & lastFrame, uint64_t & toAdd);
 	virtual ~EuresysFrame();
 
 
@@ -36,6 +36,7 @@ private :
 	size_t d_width,d_height;
 	uint64_t d_timestamp,d_ID;
 	cv::Mat d_mat;
+	friend class EuresysFrameGrabbero;
 };
 
 
@@ -58,4 +59,6 @@ private:
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
 	Frame::Ptr         d_frame;
+	uint64_t           d_lastFrame;
+	uint64_t           d_toAdd;
 };
