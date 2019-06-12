@@ -213,6 +213,12 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 			time->set_seconds(frame->Time().tv_sec);
 			time->set_nanos(frame->Time().tv_usec * 1000);
 			readout.set_producer_uuid(d_uuid);
+			int quads = 0;
+			for (auto const & detector : d_parent->d_detectors) {
+				quads += detector->nquads;
+			}
+			readout.set_quads(quads);
+
 			for(auto const & detections : d_parent->d_results ) {
 				for( auto const & d : detections ) {
 					if (results.count((int32_t)d.ID) != 0 ) {
