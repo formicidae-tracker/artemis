@@ -38,6 +38,8 @@ struct Options {
 	std::string UUID;
 	uint16_t    Port;
 	bool        DrawDetection;
+	bool        DrawStatistics;
+	bool        DisplayOutput;
 	bool        VideoOutputToStdout;
 	size_t      VideoOutputHeight;
 	bool        VideoOutputAddHeader;
@@ -64,6 +66,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.frameIDString = "";
 	opts.Port = 3002;
 	opts.DrawDetection = false;
+	opts.DisplayOutput = false;
+	opts.DrawStatistics = false;
 	opts.VideoOutputAddHeader = false;
 	opts.NewAntROISize = 500;
 	opts.AntRenewPeriodHours = 2;
@@ -87,6 +91,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("video-to-stdout", opts.VideoOutputToStdout, "Sends video output to stdout");
 	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
 	parser.AddFlag("video-output-add-header", opts.VideoOutputAddHeader, "Adds binary header to stdout output");
+
 	parser.AddFlag("new-ant-output-dir",opts.NewAntOuputDir,"Path where to save new detected ant pictures");
 	parser.AddFlag("new-ant-roi-size", opts.NewAntROISize, "Size of the image to save when a new ant is found");
 	parser.AddFlag("ant-renew-period-hour", opts.AntRenewPeriodHours, "Renew ant cataloguing every X hours");
@@ -99,7 +104,21 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("camera-strobe-delay-us",opts.Camera.StrobeDelay,"Camera Strobe Delay in us, negative value allowed");
 	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
 	parser.AddFlag("draw-detection",opts.DrawDetection,"Draw detection on the output if activated");
+	parser.AddFlag("display-output", opts.DisplayOutput, "Display locally the detection. Implies --draw-detection and --draw-statistic",'d');
+	parser.AddFlag("draw-statistics", opts.DrawStatistics, "Draw statistics on the output frames");
+
+
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
+
+	if ( opts.DisplayOutput ) {
+		if ( opts.VideoOutputToStdout ) {
+			throw std::invalid_argument("Display output (-d/--display-output) and output to stdout (--video-to-stdout) are strictly exclusive options");
+		}
+		opts.DrawDetection = true;
+		opts.DrawStatistics = true;
+
+	}
+
 
 
 	parser.Parse(argc,argv);
