@@ -44,6 +44,7 @@ struct Options {
 
 	std::string NewAntOuputDir;
 	size_t      NewAntROISize;
+	double      AntRenewPeriodHours;
 
 	std::string frameIDString;
 	size_t      FrameStride;
@@ -65,12 +66,12 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.DrawDetection = false;
 	opts.VideoOutputAddHeader = false;
 	opts.NewAntROISize = 500;
+	opts.AntRenewPeriodHours = 2;
 	opts.PrintVersion = false;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 	parser.AddFlag("version",opts.PrintVersion,"Print version");
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
-	parser.AddFlag("new-ant-roi-size", opts.NewAntROISize, "Size of the image to save when a new ant is found");
 	parser.AddFlag("at-quad-decimate",opts.AprilTag2.QuadDecimate,"Decimate original image for faster computation but worse pose estimation. Should be 1.0 (no decimation), 1.5, 2, 3 or 4");
 	parser.AddFlag("at-quad-sigma",opts.AprilTag2.QuadSigma,"Apply a gaussian filter for quad detection, noisy image likes a slight filter like 0.8");
 	parser.AddFlag("at-refine-edges",opts.AprilTag2.RefineEdges,"Refines the edge of the quad, especially needed if decimation is used, inexpensive");
@@ -87,6 +88,10 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("video-output-height", opts.VideoOutputHeight, "Video Output height (width computed to maintain aspect ratio");
 	parser.AddFlag("video-output-add-header", opts.VideoOutputAddHeader, "Adds binary header to stdout output");
 	parser.AddFlag("new-ant-output-dir",opts.NewAntOuputDir,"Path where to save new detected ant pictures");
+	parser.AddFlag("new-ant-roi-size", opts.NewAntROISize, "Size of the image to save when a new ant is found");
+	parser.AddFlag("ant-renew-period-hour", opts.AntRenewPeriodHours, "Renew ant cataloguing every X hours");
+
+
 	parser.AddFlag("frame-stride",opts.FrameStride,"Frame sequence length");
 	parser.AddFlag("frame-ids",opts.frameIDString,"Frame ID to consider in the frame sequence, if empty consider all");
 	parser.AddFlag("camera-fps",opts.Camera.FPS,"Camera FPS to use");
@@ -113,6 +118,14 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	if (opts.FrameStride > 100 ) {
 		throw std::invalid_argument("Frame stride to big, max is 100");
 	}
+
+
+	if (opts.AntRenewPeriodHours < 0.5 ) {
+		throw std::invalid_argument("Ant renew period is too small, min 0.5 hour");
+	}
+
+
+
 
 	if ( opts.frameIDString.empty() ) {
 		for(size_t i = 0; i < opts.FrameStride; ++i ) {
@@ -216,7 +229,7 @@ void Execute(int argc, char ** argv) {
 	                                            opts.UUID);
 
 	if ( !opts.NewAntOuputDir.empty() ) {
-		pq.push_back(std::make_shared<AntCataloguerProcess>(opts.NewAntOuputDir,opts.NewAntROISize));
+		pq.push_back(std::make_shared<AntCataloguerProcess>(opts.NewAntOuputDir,opts.NewAntROISize,std::chrono::seconds((long)(opts.AntRenewPeriodHours*3600))));
 
 	}
 	//queues when outputting data

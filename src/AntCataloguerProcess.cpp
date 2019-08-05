@@ -10,9 +10,11 @@
 #include <asio/write.hpp>
 
 AntCataloguerProcess::AntCataloguerProcess(const std::string & savePath,
-                                           size_t newAntROISize)
+                                           size_t newAntROISize,
+                                           std::chrono::seconds antRenewPeriod)
 	: d_savePath(savePath)
-	, d_newAntROISize(newAntROISize) {
+	, d_newAntROISize(newAntROISize)
+	, d_antRenewPeriod(antRenewPeriod) {
 
 	if ( d_savePath.empty() ) {
 		throw std::invalid_argument("I need a path");
@@ -32,12 +34,14 @@ std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, co
 		   << size.width << "x" << size.height << ")";
 		throw std::runtime_error(os.str());
 	}
+	TimePoint now = std::chrono::system_clock::now();
+
 	for (size_t i = 0; i < maxProcess; ++i) {
-		res.push_back([this,i,maxProcess](const Frame::Ptr & frame,
-		                                  const cv::Mat & upstream,
-		                                  fort::hermes::FrameReadout & readout,
-		                                  cv::Mat & result) {
-			              CheckForNewAnts(frame,readout,i,maxProcess);
+		res.push_back([this,i,maxProcess,now](const Frame::Ptr & frame,
+		                                      const cv::Mat & upstream,
+		                                      fort::hermes::FrameReadout & readout,
+		                                      cv::Mat & result) {
+			              CheckForNewAnts(frame,readout,now,i,maxProcess);
 		              });
 	};
 	return res;
@@ -65,6 +69,7 @@ cv::Rect AntCataloguerProcess::GetROIForAnt(int x, int y, const cv::Size & frame
 
 void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
                                             const fort::hermes::FrameReadout & readout,
+                                            const TimePoint & now,
                                             size_t start,
                                             size_t stride) {
 	auto FID = frame->ID();
@@ -73,10 +78,12 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 		int32_t ID = a.id();
 		{
 			std::lock_guard<std::mutex> lock(d_mutex);
-			if ( d_known.count(ID) != 0 ) {
+			LastSeenByID::const_iterator fi = d_known.find(ID);
+
+			if ( fi != d_known.end() && (now - fi->second) < d_antRenewPeriod ) {
 				continue;
 			} else {
-				d_known.insert(ID);
+				d_known[ID] = now ;
 			}
 		}
 
