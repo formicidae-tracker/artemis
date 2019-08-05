@@ -24,6 +24,9 @@ private :
 	                      size_t start=0,
 	                      size_t stride=1);
 
+	cv::Rect GetROIForAnt(int x, int y, const cv::Size & frameSize);
+	size_t BoundDimension(int xy, size_t max);
+
 	std::mutex         d_mutex;
 	std::string        d_savePath;
 	std::set<int32_t>  d_known;

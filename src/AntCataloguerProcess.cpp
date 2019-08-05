@@ -22,10 +22,16 @@ AntCataloguerProcess::AntCataloguerProcess(const std::string & savePath,
 
 AntCataloguerProcess::~AntCataloguerProcess() {};
 
-std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, const cv::Size &) {
+std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, const cv::Size & size) {
 	std::vector<ProcessFunction> res;
 	res.reserve(maxProcess);
-
+	if (size.width < d_newAntROISize || size.height < d_newAntROISize) {
+		std::ostringstream os;
+		os << "New Ant ROI Size (" << d_newAntROISize
+		   << ")  is too large for the camera resolution ("
+		   << size.width << "x" << size.height << ")";
+		throw std::runtime_error(os.str());
+	}
 	for (size_t i = 0; i < maxProcess; ++i) {
 		res.push_back([this,i,maxProcess](const Frame::Ptr & frame,
 		                                  const cv::Mat & upstream,
@@ -35,6 +41,25 @@ std::vector<ProcessFunction> AntCataloguerProcess::Prepare(size_t maxProcess, co
 		              });
 	};
 	return res;
+}
+
+
+size_t AntCataloguerProcess::BoundDimension(int xy, size_t max) {
+	if (xy + d_newAntROISize > max ) {
+		xy = max - d_newAntROISize;
+	}
+	if (xy < 0 ) {
+		xy = 0;
+	}
+	return xy;
+}
+
+
+cv::Rect AntCataloguerProcess::GetROIForAnt(int x, int y, const cv::Size & frameSize) {
+	return cv::Rect(cv::Point2d(BoundDimension(x - d_newAntROISize/2,frameSize.width),
+	                            BoundDimension(y - d_newAntROISize/2,frameSize.height)),
+	                cv::Size(d_newAntROISize,
+	                         d_newAntROISize));
 }
 
 
@@ -54,13 +79,10 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
 				d_known.insert(ID);
 			}
 		}
-		cv::Rect roi(cv::Point2d(((size_t)a.x())-d_newAntROISize/2,
-		                         ((size_t)a.y())-d_newAntROISize/2),
-		             cv::Size(d_newAntROISize,
-		                      d_newAntROISize));
+
 
 		std::vector<uint8_t> pngData;
-		cv::imencode(".png",cv::Mat(frame->ToCV(),roi),pngData);
+		cv::imencode(".png",cv::Mat(frame->ToCV(),GetROIForAnt(a.x(),a.y(),frame->ToCV().size())),pngData);
 
 		std::ostringstream oss;
 		oss << d_savePath << "/ant_" << ID << "_frame_" << FID << ".png";
