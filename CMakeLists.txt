@@ -16,7 +16,7 @@ find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(FortHermesCpp 0.1.8 REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
-find_package(Asio 1.10.8 REQUIRED)
+find_package(Asio EXACT 1.10.8 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 find_package(PkgConfig REQUIRED)

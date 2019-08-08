@@ -38,6 +38,7 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/CPUMap.cpp
 	          utils/Partitions.cpp
 	          StubFrameGrabber.cpp
+	          FrameDisplayer.cpp
 	          tag36ARTag.c
 	          tag36h10.c
 	          )
@@ -63,6 +64,7 @@ set(HDR_FILES utils/Defer.h
 	          utils/CPUMap.h
 	          utils/Partitions.h
 	          StubFrameGrabber.h
+	          FrameDisplayer.h
 	          tag36ARTag.h
 	          tag36h10.h
 	          )

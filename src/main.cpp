@@ -7,6 +7,7 @@
 #include "OutputProcess.h"
 #include "AntCataloguerProcess.h"
 #include "DrawDetectionProcess.h"
+#include "FrameDisplayer.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
@@ -110,6 +111,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
 
+	parser.Parse(argc,argv);
+
 	if ( opts.DisplayOutput ) {
 		if ( opts.VideoOutputToStdout ) {
 			throw std::invalid_argument("Display output (-d/--display-output) and output to stdout (--video-to-stdout) are strictly exclusive options");
@@ -119,9 +122,6 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 	}
 
-
-
-	parser.Parse(argc,argv);
 	if (opts.PrintHelp == true) {
 		parser.PrintUsage(std::cerr);
 		exit(0);
@@ -139,8 +139,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	}
 
 
-	if (opts.AntRenewPeriodHours < 0.5 ) {
-		throw std::invalid_argument("Ant renew period is too small, min 0.5 hour");
+	if (opts.AntRenewPeriodHours < 0.25 ) {
+		throw std::invalid_argument("Ant renew period is too small, min 0.25 hour");
 	}
 
 
@@ -252,13 +252,22 @@ void Execute(int argc, char ** argv) {
 
 	}
 	//queues when outputting data
-	if (opts.VideoOutputToStdout) {
+	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
-		if (opts.DrawDetection ) {
-			pq.push_back(std::make_shared<DrawDetectionProcess>());
+		if ( opts.DrawDetection ) {
+			pq.push_back(std::make_shared<DrawDetectionProcess>(opts.DrawStatistics));
 		}
+
+	}
+
+	if ( opts.VideoOutputToStdout ) {
 		pq.push_back(std::make_shared<OutputProcess>(io,opts.VideoOutputAddHeader));
 	}
+
+	if ( opts.DisplayOutput ) {
+		pq.push_back(std::make_shared<FrameDisplayer>());
+	}
+
 
 	std::shared_ptr<FrameGrabber> fg;
 	std::shared_ptr<Euresys::EGenTL> gentl;
