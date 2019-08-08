@@ -3,8 +3,6 @@
 #include  "ProcessDefinition.h"
 
 
-#include <asio/io_service.hpp>
-
 #include <string>
 #include <mutex>
 #include <map>
@@ -18,7 +16,6 @@ public:
 	virtual ~AntCataloguerProcess();
 
 	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
-
 
 private :
 	typedef std::chrono::time_point<std::chrono::system_clock> TimePoint;

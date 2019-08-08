@@ -9,6 +9,7 @@
 #include <apriltag/tagStandard41h12.h>
 #include <apriltag/tagStandard52h13.h>
 #include "tag36ARTag.h"
+#include "tag36h10.h"
 
 #include <cmath>
 
@@ -69,6 +70,7 @@ AprilTag2Detector::FamilyPtr AprilTag2Detector::OpenFamily(const std::string & n
 	static std::map<std::string,FamilyInterface > familyFactory = {
 		{"16h5",{.c = tag16h5_create, .d=tag16h5_destroy}},
 		{"25h9",{.c =tag25h9_create, .d=tag25h9_destroy}},
+		{"36h10",{.c =tag36h10_create, .d=tag36h10_destroy}},
 		{"36h11",{.c =tag36h11_create, .d=tag36h11_destroy}},
 		{"36ARTag",{.c =tag36ARTag_create, .d=tag36ARTag_destroy}},
 		{"Circle21h7",{.c =tagCircle21h7_create, .d=tagCircle21h7_destroy}},
