@@ -4,6 +4,7 @@
 
 #include <iomanip>
 
+#include "artemis-config.h"
 
 LegacyFrameNumberer::LegacyFrameNumberer(){
 	LoadFontData();
@@ -26,7 +27,7 @@ LegacyFrameNumberer::fontchar LegacyFrameNumberer::fontdata[256];
 
 
 void LegacyFrameNumberer::LoadFontData() {
-	static std::string fontpath = "/usr/local/share/artemis/vga.fon";
+	static std::string fontpath = ARTEMIS_INSTALL_PREFIX "/share/artemis/vga.fon";
 	FILE* f = fopen(fontpath.c_str(),"rb");
 	if (!f) {
 		throw std::system_error(errno, ARTEMIS_SYSTEM_CATEGORY(),"fopen('"+fontpath+"'):");
