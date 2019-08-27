@@ -34,6 +34,8 @@ set(SRC_FILES utils/Defer.cpp
 	          OutputProcess.cpp
 	          Connection.cpp
 	          AntCataloguerProcess.cpp
+	          LegacyAntCataloguerProcess.cpp
+	          LegacyFrameNumberer.cpp
 	          DrawDetectionProcess.cpp
 	          utils/CPUMap.cpp
 	          utils/Partitions.cpp
@@ -60,6 +62,8 @@ set(HDR_FILES utils/Defer.h
 	          OutputProcess.h
 	          Connection.h
 	          AntCataloguerProcess.h
+	          LegacyAntCataloguerProcess.h
+	          LegacyFrameNumberer.h
 	          DrawDetectionProcess.h
 	          utils/CPUMap.h
 	          utils/Partitions.h

@@ -6,8 +6,10 @@
 #include "ResizeProcess.h"
 #include "OutputProcess.h"
 #include "AntCataloguerProcess.h"
+#include "LegacyAntCataloguerProcess.h"
 #include "DrawDetectionProcess.h"
 #include "FrameDisplayer.h"
+#include "LegacyFrameNumberer.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
@@ -42,6 +44,8 @@ struct Options {
 	bool        DrawStatistics;
 	bool        DisplayOutput;
 	bool        VideoOutputToStdout;
+	bool        LegacyMode;
+
 	size_t      VideoOutputHeight;
 	bool        VideoOutputAddHeader;
 
@@ -73,6 +77,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.NewAntROISize = 500;
 	opts.AntRenewPeriodHours = 2;
 	opts.PrintVersion = false;
+	opts.LegacyMode = false;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 	parser.AddFlag("version",opts.PrintVersion,"Print version");
 
@@ -111,6 +116,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
 
+	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants and frame numbers");
+
 	parser.Parse(argc,argv);
 
 	if ( opts.DisplayOutput ) {
@@ -121,6 +128,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 		opts.DrawStatistics = true;
 
 	}
+
 
 	if (opts.PrintHelp == true) {
 		parser.PrintUsage(std::cerr);
@@ -248,16 +256,20 @@ void Execute(int argc, char ** argv) {
 	                                            opts.UUID);
 
 	if ( !opts.NewAntOuputDir.empty() ) {
-		pq.push_back(std::make_shared<AntCataloguerProcess>(opts.NewAntOuputDir,opts.NewAntROISize,std::chrono::seconds((long)(opts.AntRenewPeriodHours*3600))));
-
+		if ( opts.LegacyMode == false ) {
+			pq.push_back(std::make_shared<AntCataloguerProcess>(opts.NewAntOuputDir,opts.NewAntROISize,std::chrono::seconds((long)(opts.AntRenewPeriodHours*3600))));
+		} else {
+			pq.push_back(std::make_shared<LegacyAntCataloguerProcess>(opts.NewAntOuputDir,std::chrono::seconds((long)(opts.AntRenewPeriodHours*3600))));
+		}
 	}
 	//queues when outputting data
 	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
-		if ( opts.DrawDetection ) {
+		if ( opts.DrawDetection == true && opts.LegacyMode == false) {
 			pq.push_back(std::make_shared<DrawDetectionProcess>(opts.DrawStatistics));
+		} else if ( opts.LegacyMode == true ) {
+			pq.push_back(std::make_shared<LegacyFrameNumberer>());
 		}
-
 	}
 
 	if ( opts.VideoOutputToStdout ) {

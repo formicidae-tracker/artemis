@@ -60,3 +60,6 @@ enable_make_check()
 
 
 add_subdirectory(src)
+
+
+install(FILES share/vga.fon DESTINATION share/artemis/)
