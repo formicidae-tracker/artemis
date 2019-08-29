@@ -275,7 +275,9 @@ void Execute(int argc, char ** argv) {
 
 	//queues when outputting data
 	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
-		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
+		bool forceIntergerSclaing = opts.LegacyMode;
+
+		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight,forceIntergerSclaing));
 		pq.push_back(std::make_shared<OverlayWriter>(opts.DrawStatistics));
 		if  (! watermark.empty() ) {
 			pq.push_back(std::make_shared<WatermarkingProcess>(watermark));

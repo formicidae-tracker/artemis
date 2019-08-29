@@ -4,9 +4,10 @@
 
 #include <glog/logging.h>
 
-ResizeProcess::ResizeProcess(size_t height)
+ResizeProcess::ResizeProcess(size_t height, bool forceIntergerScaling)
 	: d_height(height)
-	, d_initialized(false) {
+	, d_initialized(false)
+	, d_forceIntegerScaling(forceIntergerScaling) {
 }
 
 ResizeProcess::~ResizeProcess() {}
@@ -14,6 +15,10 @@ ResizeProcess::~ResizeProcess() {}
 
 std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::Size & size) {
 	if (d_initialized == false) {
+		if (d_forceIntegerScaling == true ) {
+			d_height = std::round(size.height / std::round(size.height/d_height));
+		}
+
 		size_t width = (size.width * d_height) / size.height ;
 		d_resized = cv::Mat(d_height,width,CV_8U);
 		d_initialized = true;

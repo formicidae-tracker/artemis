@@ -6,7 +6,7 @@
 
 class ResizeProcess : public ProcessDefinition {
 public:
-	ResizeProcess(size_t height);
+	ResizeProcess(size_t height, bool forceIntegerScaling);
 
 	virtual ~ResizeProcess();
 
@@ -17,4 +17,5 @@ private:
 	cv::Mat d_resized;
 	size_t d_height;
 	bool d_initialized;
+	bool d_forceIntegerScaling;
 };
