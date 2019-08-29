@@ -121,7 +121,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
 
 	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants cataloguing");
-	parser.AddFlag("test-mode",opts.LegacyMode,"Test mode");
+	parser.AddFlag("test-mode",opts.LegacyMode,"Test mode, adds an overlay detection drawing and statistics");
 
 	parser.Parse(argc,argv);
 
