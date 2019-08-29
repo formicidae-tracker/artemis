@@ -60,6 +60,8 @@ struct Options {
 
 
 	std::string StubImagePath;
+
+	bool        TestMode;
 };
 
 
@@ -79,6 +81,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.AntRenewPeriodHours = 2;
 	opts.PrintVersion = false;
 	opts.LegacyMode = false;
+	opts.TestMode = false;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
 	parser.AddFlag("version",opts.PrintVersion,"Print version");
 
@@ -118,6 +121,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
 
 	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants cataloguing");
+	parser.AddFlag("test-mode",opts.LegacyMode,"Test mode");
 
 	parser.Parse(argc,argv);
 
@@ -135,6 +139,12 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	}
 	if (opts.FrameStride > 100 ) {
 		throw std::invalid_argument("Frame stride to big, max is 100");
+	}
+
+	if (opts.TestMode == true ) {
+		opts.DrawDetection = true;
+		opts.DrawStatistics = true;
+		opts.DisplayOutput = true;
 	}
 
 	if (opts.AntRenewPeriodHours < 0.25 ) {
@@ -253,13 +263,14 @@ void Execute(int argc, char ** argv) {
 
 	bool desactivateQuitFromWindow = false;
 	std::string watermark = "";
-	if ( !opts.UUID.empty() || !opts.Host.empty() ) {
+	if ( opts.TestMode == false ) {
 		//we are in production mode we simply desactivate quitting from UI.
 		LOG(INFO) << "We are producing data, the UI are not authorized to quit application";
 		desactivateQuitFromWindow = true;
 	} else {
 		LOG(WARNING) << "Test mode: no data will be saved";
 		watermark = "TEST MODE";
+		desactivateQuitFromWindow = true;
 	}
 
 	//queues when outputting data
@@ -270,8 +281,6 @@ void Execute(int argc, char ** argv) {
 			pq.push_back(std::make_shared<WatermarkingProcess>(watermark));
 		}
 	}
-
-
 
 	if ( opts.VideoOutputToStdout ) {
 		pq.push_back(std::make_shared<OutputProcess>(io,opts.VideoOutputAddHeader));
