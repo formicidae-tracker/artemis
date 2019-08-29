@@ -26,15 +26,17 @@ std::vector<ProcessFunction> LegacyAntCataloguerProcess::Prepare(size_t maxProce
 	res.reserve(1);
 	TimePoint now = std::chrono::system_clock::now();
 
+
+	bool forceOutput = false;
 	if ((now - d_beginPeriod) >= d_antRenewPeriod) {
 		d_beginPeriod = now;
-		d_known.clear();
+		forceOutput = true;
 	}
 
-	res.push_back([this](const Frame::Ptr & frame,
-	                     const cv::Mat & upstream,
-	                     fort::hermes::FrameReadout & readout,
-	                     cv::Mat & result) {
+	res.push_back([this,forceOutput](const Frame::Ptr & frame,
+	                                 const cv::Mat & upstream,
+	                                 fort::hermes::FrameReadout & readout,
+	                                 cv::Mat & result) {
 		              bool hasNew = false;
 		              auto FID = frame->ID();
 		              for (size_t i = 0; i < readout.ants_size(); i += 1) {
@@ -45,7 +47,7 @@ std::vector<ProcessFunction> LegacyAntCataloguerProcess::Prepare(size_t maxProce
 				              break;
 			              }
 		              }
-		              if ( hasNew == false ) {
+		              if ( hasNew == false && forceOutput == false) {
 			              return;
 		              }
 
