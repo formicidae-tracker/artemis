@@ -6,7 +6,10 @@
 
 #include "artemis-config.h"
 
-OverlayWriter::OverlayWriter(){
+#include <google/protobuf/util/time_util.h>
+
+OverlayWriter::OverlayWriter(bool drawStatistic)
+	: d_drawStatistics(drawStatistic) {
 	LoadFontData();
 }
 
@@ -20,6 +23,10 @@ std::vector<ProcessFunction> OverlayWriter::Prepare(size_t maxProcess, const cv:
 	                            fort::hermes::FrameReadout & readout,
 	                            cv::Mat & result) {
 		        DrawFrameNumber(readout, result);
+		        DrawDate(readout, result);
+		        if ( d_drawStatistics == true ) {
+			        DrawStatistics(readout,result);
+		        }
 	        }};
 }
 
@@ -39,20 +46,20 @@ void OverlayWriter::LoadFontData() {
 void OverlayWriter::DrawText(cv::Mat & img, const std::string & text, size_t x, size_t y) {
 	static cv::Vec3b fg(255,255,255);
 	static cv::Vec3b bg(0,0,0);
-	for ( size_t iy = 0;  iy < 16; ++iy ) {
+	for ( size_t iy = 0;  iy < GLYPH_HEIGHT; ++iy ) {
 		size_t yy = y+iy;
 		size_t ic = 0;
 		for ( auto c : text ) {
 			uint8_t xdata = fontdata[c][iy];
-			for ( size_t ix = 0; ix < 8; ++ix) {
-				size_t xx = x + 9 * ic + ix;
+			for ( size_t ix = 0; ix < GLYPH_WIDTH; ++ix) {
+				size_t xx = x + TOTAL_GLYPH_WIDTH * ic + ix;
 				if ((xdata & (1 << (7-ix))) != 0) {
 					img.at<cv::Vec3b>(yy,xx) = fg;
 				} else {
 					img.at<cv::Vec3b>(yy,xx) = bg;
 				}
 			}
-			size_t xx = x + 9 * ic + 8;
+			size_t xx = x + TOTAL_GLYPH_WIDTH * ic + GLYPH_WIDTH;
 			if ( c >= 0xC0 && c <= 0xDF ) {
 				if ( xdata & 1 ) {
 					img.at<cv::Vec3b>(yy,xx) = fg;
@@ -67,9 +74,25 @@ void OverlayWriter::DrawText(cv::Mat & img, const std::string & text, size_t x, 
 	}
 }
 
-
 void OverlayWriter::DrawFrameNumber(const fort::hermes::FrameReadout & readout,cv::Mat & result) {
 	std::ostringstream os;
 	os << "Frame "  << std::setw(8) << std::setfill('0') << readout.frameid();
 	DrawText(result,os.str(),0,0);
+}
+
+void OverlayWriter::DrawDate(const fort::hermes::FrameReadout & readout,cv::Mat & result) {
+	std::ostringstream os;
+	auto time = google::protobuf::util::TimeUtil::TimestampToTimeT(readout.time());
+	os << std::put_time(std::localtime(&time),"%c %Z");
+	size_t length = os.str().size();
+	DrawText(result, os.str(), result.cols-TOTAL_GLYPH_WIDTH*length, 0);
+}
+
+void OverlayWriter::DrawStatistics(const fort::hermes::FrameReadout & readout,cv::Mat & result) {
+	std::ostringstream os;
+	os << "Detected Tags: " << readout.ants_size();
+	DrawText(result, os.str(), 0, GLYPH_HEIGHT);
+	os.clear();
+	os << "Detected Quads: " << readout.quads();
+	DrawText(result, os.str(), 0, 2*GLYPH_HEIGHT);
 }

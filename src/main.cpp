@@ -8,6 +8,7 @@
 #include "AntCataloguerProcess.h"
 #include "LegacyAntCataloguerProcess.h"
 #include "DrawDetectionProcess.h"
+#include "WatermarkingProcess.h"
 #include "FrameDisplayer.h"
 #include "OverlayWriter.h"
 #include "utils/FlagParser.h"
@@ -116,19 +117,9 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
 
-	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants and frame numbers");
+	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants cataloguing");
 
 	parser.Parse(argc,argv);
-
-	if ( opts.DisplayOutput ) {
-		if ( opts.VideoOutputToStdout ) {
-			throw std::invalid_argument("Display output (-d/--display-output) and output to stdout (--video-to-stdout) are strictly exclusive options");
-		}
-		opts.DrawDetection = true;
-		opts.DrawStatistics = true;
-
-	}
-
 
 	if (opts.PrintHelp == true) {
 		parser.PrintUsage(std::cerr);
@@ -146,12 +137,9 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 		throw std::invalid_argument("Frame stride to big, max is 100");
 	}
 
-
 	if (opts.AntRenewPeriodHours < 0.25 ) {
 		throw std::invalid_argument("Ant renew period is too small, min 0.25 hour");
 	}
-
-
 
 
 	if ( opts.frameIDString.empty() ) {
@@ -262,22 +250,39 @@ void Execute(int argc, char ** argv) {
 			pq.push_back(std::make_shared<LegacyAntCataloguerProcess>(opts.NewAntOuputDir,std::chrono::seconds((long)(opts.AntRenewPeriodHours*3600))));
 		}
 	}
+
+	bool desactivateQuitFromWindow = false;
+	std::string watermark = "";
+	if ( !opts.UUID.empty() || !opts.Host.empty() ) {
+		//we are in production mode we simply desactivate quitting from UI.
+		LOG(INFO) << "We are producing data, the UI are not authorized to quit application";
+		desactivateQuitFromWindow = true;
+	} else {
+		LOG(WARNING) << "Test mode: no data will be saved";
+		watermark = "TEST MODE";
+	}
+
 	//queues when outputting data
 	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight));
-		if ( opts.DrawDetection == true && opts.LegacyMode == false) {
-			pq.push_back(std::make_shared<DrawDetectionProcess>(opts.DrawStatistics));
-		} else if ( opts.LegacyMode == true ) {
-			pq.push_back(std::make_shared<OverlayWriter>());
+		pq.push_back(std::make_shared<OverlayWriter>(opts.DrawStatistics));
+		if  (! watermark.empty() ) {
+			pq.push_back(std::make_shared<WatermarkingProcess>(watermark));
 		}
 	}
+
+
 
 	if ( opts.VideoOutputToStdout ) {
 		pq.push_back(std::make_shared<OutputProcess>(io,opts.VideoOutputAddHeader));
 	}
 
+	if ( opts.DrawDetection == true) {
+		pq.push_back(std::make_shared<DrawDetectionProcess>());
+	}
+
 	if ( opts.DisplayOutput ) {
-		pq.push_back(std::make_shared<FrameDisplayer>());
+		pq.push_back(std::make_shared<FrameDisplayer>(desactivateQuitFromWindow));
 	}
 
 

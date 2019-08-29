@@ -36,6 +36,7 @@ set(SRC_FILES utils/Defer.cpp
 	          AntCataloguerProcess.cpp
 	          LegacyAntCataloguerProcess.cpp
 	          OverlayWriter.cpp
+	          WatermarkingProcess.cpp
 	          DrawDetectionProcess.cpp
 	          utils/CPUMap.cpp
 	          utils/Partitions.cpp
@@ -64,6 +65,7 @@ set(HDR_FILES utils/Defer.h
 	          AntCataloguerProcess.h
 	          LegacyAntCataloguerProcess.h
 	          OverlayWriter.h
+	          WatermarkingProcess.h
 	          DrawDetectionProcess.h
 	          utils/CPUMap.h
 	          utils/Partitions.h

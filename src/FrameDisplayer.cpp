@@ -14,8 +14,9 @@ double clamp(double v, double l, double h) {
 	return std::min(std::max(v,l),h);
 }
 
-FrameDisplayer::FrameDisplayer()
-	: d_initialized(false) {
+FrameDisplayer::FrameDisplayer(bool desactivateQuit)
+	: d_initialized(false)
+	, d_inhibQuit(desactivateQuit){
 	cv::namedWindow("artemis output",cv::WINDOW_NORMAL | CV_WINDOW_KEEPRATIO | CV_GUI_EXPANDED);
 	cv::setMouseCallback("artemis output", &StaticOnMouseCallback, reinterpret_cast<void*>(this));
 }
@@ -69,16 +70,6 @@ std::map<int,std::string> MouseEvent = {
 
 void FrameDisplayer::OnMouseCallback(int event, int x, int y, int flags) {
 
-	LOG(INFO) << "event:" << MouseEvent[event]
-	          << " x: " << x
-	          << " y: " << y
-	          << " flags: " << flags
-	          << "X: " << d_x
-	          << "Y: " << d_y
-	          << "Zoom: " << d_zoom
-	          << "MouseLastX: " << d_mouseLastX
-	          << "MouseLastY: " << d_mouseLastY;
-
 
 	if ( (event == cv::EVENT_MOUSEWHEEL) || (event == cv::EVENT_MOUSEHWHEEL) ) {
 		if (flags < 0 ) {
@@ -128,7 +119,7 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 
 			int8_t key = cv::waitKey(1);
 			if (key != -1) {
-				LOG(INFO) << "key press: " << key << " dec: " << (int) key;
+				DLOG(INFO) << "key press: " << key << " dec: " << (int) key;
 			}
 
 			if ( key == 'z' ) {
@@ -149,7 +140,9 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 
 			//quit when we press quit
 			if ( key == 'q' ||  key == 27) {
-				std::raise(SIGINT);
+				if ( d_inhibQuit == false ) {
+					std::raise(SIGINT);
+				}
 			}
 		}
 	};

@@ -5,7 +5,7 @@
 class FrameDisplayer : public ProcessDefinition {
 public:
 
-   	FrameDisplayer();
+   	FrameDisplayer(bool desactivateQuit);
 	virtual ~FrameDisplayer();
 
 	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
@@ -30,4 +30,5 @@ private:
 	int                            d_x,d_y;
 	int                            d_mouseLastX,d_mouseLastY;
 	double                         d_zoom;
+	bool                           d_inhibQuit;
 };
