@@ -92,6 +92,7 @@ void OverlayWriter::DrawStatistics(const fort::hermes::FrameReadout & readout,cv
 	std::ostringstream os;
 	os << "Detected Tags: " << readout.ants_size();
 	DrawText(result, os.str(), 0, GLYPH_HEIGHT);
+	os.str("");
 	os.clear();
 	os << "Detected Quads: " << readout.quads();
 	DrawText(result, os.str(), 0, 2*GLYPH_HEIGHT);
