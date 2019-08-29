@@ -9,7 +9,7 @@
 #include "LegacyAntCataloguerProcess.h"
 #include "DrawDetectionProcess.h"
 #include "FrameDisplayer.h"
-#include "LegacyFrameNumberer.h"
+#include "OverlayWriter.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
 #include "EuresysFrameGrabber.h"
@@ -268,7 +268,7 @@ void Execute(int argc, char ** argv) {
 		if ( opts.DrawDetection == true && opts.LegacyMode == false) {
 			pq.push_back(std::make_shared<DrawDetectionProcess>(opts.DrawStatistics));
 		} else if ( opts.LegacyMode == true ) {
-			pq.push_back(std::make_shared<LegacyFrameNumberer>());
+			pq.push_back(std::make_shared<OverlayWriter>());
 		}
 	}
 

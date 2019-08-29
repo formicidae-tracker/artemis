@@ -3,10 +3,10 @@
 #include "ProcessDefinition.h"
 
 
-class LegacyFrameNumberer : public ProcessDefinition {
+class OverlayWriter : public ProcessDefinition {
 public :
-	LegacyFrameNumberer();
-	virtual ~LegacyFrameNumberer();
+	OverlayWriter();
+	virtual ~OverlayWriter();
 
 	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
 private :

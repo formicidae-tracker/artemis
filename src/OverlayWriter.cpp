@@ -1,4 +1,4 @@
-#include "LegacyFrameNumberer.h"
+#include "OverlayWriter.h"
 
 #include "utils/PosixCall.h"
 
@@ -6,15 +6,15 @@
 
 #include "artemis-config.h"
 
-LegacyFrameNumberer::LegacyFrameNumberer(){
+OverlayWriter::OverlayWriter(){
 	LoadFontData();
 }
 
-LegacyFrameNumberer::~LegacyFrameNumberer() {
+OverlayWriter::~OverlayWriter() {
 }
 
 
-std::vector<ProcessFunction> LegacyFrameNumberer::Prepare(size_t maxProcess, const cv::Size &) {
+std::vector<ProcessFunction> OverlayWriter::Prepare(size_t maxProcess, const cv::Size &) {
 	return {[this](const Frame::Ptr & frame,
 	                            const cv::Mat &,
 	                            fort::hermes::FrameReadout & readout,
@@ -23,10 +23,10 @@ std::vector<ProcessFunction> LegacyFrameNumberer::Prepare(size_t maxProcess, con
 	        }};
 }
 
-LegacyFrameNumberer::fontchar LegacyFrameNumberer::fontdata[256];
+OverlayWriter::fontchar OverlayWriter::fontdata[256];
 
 
-void LegacyFrameNumberer::LoadFontData() {
+void OverlayWriter::LoadFontData() {
 	static std::string fontpath = ARTEMIS_INSTALL_PREFIX "/share/artemis/vga.fon";
 	FILE* f = fopen(fontpath.c_str(),"rb");
 	if (!f) {
@@ -36,7 +36,7 @@ void LegacyFrameNumberer::LoadFontData() {
 	fclose(f);
 }
 
-void LegacyFrameNumberer::DrawText(cv::Mat & img, const std::string & text, size_t x, size_t y) {
+void OverlayWriter::DrawText(cv::Mat & img, const std::string & text, size_t x, size_t y) {
 	static cv::Vec3b fg(255,255,255);
 	static cv::Vec3b bg(0,0,0);
 	for ( size_t iy = 0;  iy < 16; ++iy ) {
@@ -68,7 +68,7 @@ void LegacyFrameNumberer::DrawText(cv::Mat & img, const std::string & text, size
 }
 
 
-void LegacyFrameNumberer::DrawFrameNumber(const fort::hermes::FrameReadout & readout,cv::Mat & result) {
+void OverlayWriter::DrawFrameNumber(const fort::hermes::FrameReadout & readout,cv::Mat & result) {
 	std::ostringstream os;
 	os << "Frame "  << std::setw(8) << std::setfill('0') << readout.frameid();
 	DrawText(result,os.str(),0,0);
