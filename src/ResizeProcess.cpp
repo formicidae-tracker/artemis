@@ -17,9 +17,15 @@ std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::
 	if (d_initialized == false) {
 		if (d_forceIntegerScaling == true ) {
 			d_height = std::round(size.height / std::round(size.height/d_height));
+			if ( d_height % 2 == 1 ) {
+				--d_height;
+			}
 		}
 
 		size_t width = (size.width * d_height) / size.height ;
+		if ( width %2 == 1 ) {
+			--width;
+		}
 		d_resized = cv::Mat(d_height,width,CV_8U);
 		d_initialized = true;
 	}
