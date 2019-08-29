@@ -31,17 +31,17 @@ void Connection::Connect(const Ptr & self) {
 		self->d_strand.post([self](){ScheduleReconnect(self);});
 	}
 
-	try {
-		fort::hermes::Header h;
-		h.set_type(fort::hermes::Header_Type_Network);
-		auto v = h.mutable_version();
-		v->set_vmajor(0);
-		v->set_vminor(2);
-		PostMessage(self,h);
-	} catch ( const std::exception & e) {
-		LOG(ERROR) << "Coould not send header to '" << self->d_host << ":" << self->d_port << "': " << e.what();
-		self->d_strand.post([self](){ScheduleReconnect(self);});
-	}
+	// try {
+	// 	fort::hermes::Header h;
+	// 	h.set_type(fort::hermes::Header_Type_Network);
+	// 	auto v = h.mutable_version();
+	// 	v->set_vmajor(0);
+	// 	v->set_vminor(2);
+	// 	PostMessage(self,h);
+	// } catch ( const std::exception & e) {
+	// 	LOG(ERROR) << "Coould not send header to '" << self->d_host << ":" << self->d_port << "': " << e.what();
+	// 	self->d_strand.post([self](){ScheduleReconnect(self);});
+	// }
 
 }
 
