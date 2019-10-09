@@ -210,7 +210,7 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 
 			readout.set_timestamp(frame->Timestamp());
 			readout.set_frameid(frame->ID());
-			readout.clear_ants();
+			readout.clear_tags();
 			auto time = readout.mutable_time();
 			time->set_seconds(frame->Time().tv_sec);
 			time->set_nanos(frame->Time().tv_usec * 1000);
@@ -229,7 +229,7 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 						continue;
 					}
 					results.insert(d.ID);
-					auto a = readout.add_ants();
+					auto a = readout.add_tags();
 					a->set_id(d.ID);
 					a->set_x(d.X);
 					a->set_y(d.Y);

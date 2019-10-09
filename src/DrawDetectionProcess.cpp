@@ -31,11 +31,11 @@ std::vector<ProcessFunction> DrawDetectionProcess::Prepare(size_t maxProcess, co
 
 
 void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::hermes::FrameReadout & readout,cv::Mat & result, double ratio) {
-	for (size_t i = start; i < readout.ants_size(); i += stride ) {
-		DrawAnt(readout.ants(i),result,50,ratio);
+	for (size_t i = start; i < readout.tags_size(); i += stride ) {
+		DrawAnt(readout.tags(i),result,50,ratio);
 	}
 }
-void DrawDetectionProcess::DrawAnt(const fort::hermes::Ant & a, cv::Mat & result, int size,double ratio) {
+void DrawDetectionProcess::DrawAnt(const fort::hermes::Tag & a, cv::Mat & result, int size,double ratio) {
 	double h = sqrt(3)/2 * size;
 	Eigen::Vector2d top(0,-2*h/3.0),left(-size/2.0,h/3.0),right(size/2.0,h/3.0),center(a.x()*ratio,a.y()*ratio);
 

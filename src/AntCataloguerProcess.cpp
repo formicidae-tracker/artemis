@@ -73,8 +73,8 @@ void AntCataloguerProcess::CheckForNewAnts( const Frame::Ptr & frame,
                                             size_t start,
                                             size_t stride) {
 	auto FID = frame->ID();
-	for (size_t i = start; i < readout.ants_size(); i += stride) {
-		auto a = readout.ants(i);
+	for (size_t i = start; i < readout.tags_size(); i += stride) {
+		auto a = readout.tags(i);
 		int32_t ID = a.id();
 		{
 			std::lock_guard<std::mutex> lock(d_mutex);

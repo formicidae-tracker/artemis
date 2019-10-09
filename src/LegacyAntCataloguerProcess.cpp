@@ -39,8 +39,8 @@ std::vector<ProcessFunction> LegacyAntCataloguerProcess::Prepare(size_t maxProce
 	                                 cv::Mat & result) {
 		              bool hasNew = false;
 		              auto FID = frame->ID();
-		              for (size_t i = 0; i < readout.ants_size(); i += 1) {
-			              auto a = readout.ants(i);
+		              for (size_t i = 0; i < readout.tags_size(); i += 1) {
+			              auto a = readout.tags(i);
 			              int32_t ID = a.id();
 			              if (d_known.count(ID) == 0 ) {
 				              hasNew = true;
@@ -76,8 +76,8 @@ std::vector<ProcessFunction> LegacyAntCataloguerProcess::Prepare(size_t maxProce
 			              return;
 		              }
 
-		              for (size_t i = 0; i < readout.ants_size(); i += 1) {
-			              auto a = readout.ants(i);
+		              for (size_t i = 0; i < readout.tags_size(); i += 1) {
+			              auto a = readout.tags(i);
 			              int32_t ID = a.id();
 			              d_known.insert(ID);
 		              }

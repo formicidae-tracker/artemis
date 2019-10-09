@@ -12,6 +12,6 @@ public :
 private :
 
 	static void DrawAnts(size_t start, size_t stride, const fort::hermes::FrameReadout & readout,cv::Mat & result,double ratio);
-	static void DrawAnt(const fort::hermes::Ant & a, cv::Mat & result, int size, double ratio);
+	static void DrawAnt(const fort::hermes::Tag & a, cv::Mat & result, int size, double ratio);
 
 };

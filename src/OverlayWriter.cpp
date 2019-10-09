@@ -90,7 +90,7 @@ void OverlayWriter::DrawDate(const fort::hermes::FrameReadout & readout,cv::Mat 
 
 void OverlayWriter::DrawStatistics(const fort::hermes::FrameReadout & readout,cv::Mat & result) {
 	std::ostringstream os;
-	os << "Detected Tags: " << readout.ants_size();
+	os << "Detected Tags: " << readout.tags_size();
 	DrawText(result, os.str(), 0, GLYPH_HEIGHT);
 	os.str("");
 	os.clear();
