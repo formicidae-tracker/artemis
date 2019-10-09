@@ -60,6 +60,7 @@ struct Options {
 
 
 	std::string StubImagePath;
+	std::string LogDir;
 
 	bool        TestMode;
 };
@@ -122,6 +123,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants cataloguing");
 	parser.AddFlag("test-mode",opts.TestMode,"Test mode, adds an overlay detection drawing and statistics");
+
+	parser.AddFlag("log-output-dir",opts.LogDir,"Directory to put current logs in");
 
 	parser.Parse(argc,argv);
 
@@ -188,10 +191,11 @@ void Execute(int argc, char ** argv) {
 	Options opts;
 	ParseArgs(argc, argv,opts);
 
-	FLAGS_stderrthreshold = 0;
-	if ( opts.VideoOutputToStdout ) {
-		FLAGS_stderrthreshold = 4;
+	if (opts.LogDir.empty() == false ) {
+		FLAGS_log_dir = opts.LogDir.c_str();
 	}
+
+	FLAGS_stderrthreshold = 0;
 	::google::InitGoogleLogging(argv[0]);
 	::google::InstallFailureSignalHandler();
 
