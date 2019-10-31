@@ -42,8 +42,6 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/Partitions.cpp
 	          StubFrameGrabber.cpp
 	          FrameDisplayer.cpp
-	          tag36ARTag.c
-	          tag36h10.c
 	          )
 
 
@@ -71,8 +69,6 @@ set(HDR_FILES utils/Defer.h
 	          utils/Partitions.h
 	          StubFrameGrabber.h
 	          FrameDisplayer.h
-	          tag36ARTag.h
-	          tag36h10.h
 	          )
 
 
@@ -104,7 +100,7 @@ endif(EGrabber_FOUND)
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
-	                                 ${APRILTAG3_LIBRARIES}
+	                                 fort-tags
 	                                 ${FORT_HERMES_CPP_LIBRARIES}
 	                                 ${PROTOBUF_LIBRARIES}
 	                                 ${OpenCV_LIBS}

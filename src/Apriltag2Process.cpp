@@ -8,8 +8,8 @@
 #include <apriltag/tagCustom48h12.h>
 #include <apriltag/tagStandard41h12.h>
 #include <apriltag/tagStandard52h13.h>
-#include "tag36ARTag.h"
-#include "tag36h10.h"
+#include <fort-tags/tag36ARTag.h>
+#include <fort-tags/tag36h10.h>
 
 #include <cmath>
 
