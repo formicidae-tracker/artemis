@@ -27,10 +27,10 @@ endif(NOT googletest_POPULATED)
 
 
 FetchContent_GetProperties(fort-tags)
-if(NOT apriltag_POPULATED)
+if(NOT fort-tags_POPULATED)
 	FetchContent_Populate(fort-tags)
 	add_subdirectory(${fort-tags_SOURCE_DIR} ${fort-tags_BINARY_DIR})
-endif(NOT apriltag_POPULATED)
+endif(NOT fort-tags_POPULATED)
 
 
 
@@ -56,7 +56,7 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
 	                ${FORT_HERMES_CPP_INCLUDE_DIRS}
-	                ${fort-tags_SOURCE_DIR}/src
+	                ${fort-tags_SOURCE_DIR}/include
 	                )
 
 
