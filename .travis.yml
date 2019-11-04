@@ -31,7 +31,7 @@ before_install:
 script:
   - mkdir -p build
   - cd build
-  - cmake  ..
+  - cmake  -DFORCE_STUB_FRAMEGRABBER_ONLY=On -DEURESYS_FRAMEGRABBER_SUPPORT=Off ..
   - make all check
 
 cache:
