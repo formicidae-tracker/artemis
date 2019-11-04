@@ -2,6 +2,8 @@
 
 #include <thread>
 
+#include <artemis-config.h>
+
 #include "Apriltag2Process.h"
 #include "ResizeProcess.h"
 #include "OutputProcess.h"
@@ -13,8 +15,12 @@
 #include "OverlayWriter.h"
 #include "utils/FlagParser.h"
 #include "utils/StringManipulation.h"
+#include "CameraConfiguration.h"
+
+#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
 #include "EuresysFrameGrabber.h"
 #include <EGrabber.h>
+#endif // FORCE_STUB_FRAMEGRABBER_ONLY
 
 #include <Eigen/Core>
 
@@ -118,8 +124,12 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("display-output", opts.DisplayOutput, "Display locally the detection. Implies --draw-detection and --draw-statistic",'d');
 	parser.AddFlag("draw-statistics", opts.DrawStatistics, "Draw statistics on the output frames");
 
-
+#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
 	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber");
+#else
+	parser.AddFlag("stub-image-path", opts.StubImagePath, "Use a stub image instead of an actual framegrabber",
+	               options::FlagParser::NO_SHORT,true);
+#endif // FORCE_STUB_FRAMEGRABBER_ONLY
 
 	parser.AddFlag("legacy-mode",opts.LegacyMode,"Uses a legacy mode data output for ants cataloguing");
 	parser.AddFlag("test-mode",opts.TestMode,"Test mode, adds an overlay detection drawing and statistics");
@@ -302,6 +312,7 @@ void Execute(int argc, char ** argv) {
 
 
 	std::shared_ptr<FrameGrabber> fg;
+#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
 	std::shared_ptr<Euresys::EGenTL> gentl;
 	if (opts.StubImagePath.empty() ) {
 		gentl = std::make_shared<Euresys::EGenTL>();
@@ -309,6 +320,9 @@ void Execute(int argc, char ** argv) {
 	} else {
 		fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
 	}
+#else
+	fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
+#endif
 
 	ProcessQueueExecuter executer(workload,workCPUs.size());
 

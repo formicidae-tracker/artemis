@@ -42,6 +42,7 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/Partitions.cpp
 	          StubFrameGrabber.cpp
 	          FrameDisplayer.cpp
+	          CameraConfiguration.cpp
 	          )
 
 
@@ -69,6 +70,7 @@ set(HDR_FILES utils/Defer.h
 	          utils/Partitions.h
 	          StubFrameGrabber.h
 	          FrameDisplayer.h
+	          CameraConfiguration.h
 	          )
 
 

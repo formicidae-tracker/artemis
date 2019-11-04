@@ -31,6 +31,12 @@ if(NOT googletest_POPULATED)
 	add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif(NOT googletest_POPULATED)
 
+option(EURESYS_FRAMEGRABBER_SUPPORT "Add support for Euresys Framegrabber" On)
+option(FORCE_STUB_FRAMEGRABBER_ONLY "Removes support for any other framegraber than stub" Off)
+
+if(FORCE_STUB_FRAMEGRABBER_ONLY)
+	set(EURESYS_FRAMEGRABBER_SUPPORT Off)
+endif(FORCE_STUB_FRAMEGRABBER_ONLY)
 
 
 FetchContent_GetProperties(fort-tags)
@@ -46,8 +52,9 @@ if(NOT hermes_POPULATED)
 endif(NOT hermes_POPULATED)
 set(HERMES_INCLUDE_DIRS ${hermes_SOURCE_DIR}/src ${hermes_BINARY_DIR}/src)
 
-
-find_package(EGrabber REQUIRED)
+if(EURESYS_FRAMEGRABBER_SUPPORT)
+	find_package(EGrabber REQUIRED)
+endif(EURESYS_FRAMEGRABBER_SUPPORT)
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(Eigen3 REQUIRED)
