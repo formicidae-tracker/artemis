@@ -4,6 +4,7 @@
 #include <asio/strand.hpp>
 #include <asio/streambuf.hpp>
 #include <asio/ip/tcp.hpp>
+#include <asio/version.hpp>
 
 #include <google/protobuf/message.h>
 
@@ -39,7 +40,12 @@ private :
 	std::string                            d_host;
 	uint16_t                               d_port;
 	std::shared_ptr<asio::ip::tcp::socket> d_socket;
+
+#if ASIO_VERSION >= 101200
 	asio::io_context::strand               d_strand;
+#else
+	asio::strand                           d_strand;
+#endif
 
 	typedef RingBuffer<std::ostringstream,16> BufferPool;
 	BufferPool::Consumer::Ptr d_consumer;
