@@ -39,7 +39,7 @@ private :
 	std::string                            d_host;
 	uint16_t                               d_port;
 	std::shared_ptr<asio::ip::tcp::socket> d_socket;
-	asio::strand                           d_strand;
+	asio::io_context::strand               d_strand;
 
 	typedef RingBuffer<std::ostringstream,16> BufferPool;
 	BufferPool::Consumer::Ptr d_consumer;
