@@ -19,7 +19,7 @@ addons:
       - libgoogle-glog-dev
       - libopencv-dev
       - libopencv-imgproc-dev
-      - libopencv-highui-dev
+      - libopencv-highgui-dev
 
 
 
