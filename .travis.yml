@@ -1,4 +1,39 @@
 language: cpp
 branches:
   only:
-  - master
+  - dev/build-travis
+notifications:
+  email: false
+
+dist: bionic
+addons:
+  apt:
+    packages:
+      - libeigen3-dev
+      - libasio-dev
+      - libboost-regex-dev
+      - libssl-dev
+      - libboost-dev
+      - libboost-date-time-dev
+      - libboost-filesystem-dev
+      - libgoogle-glog-dev
+      - libopencv-dev
+      - libopencv-imgproc-dev
+      - libopencv-highui-dev
+
+
+
+before_install:
+  - sudo add-apt-repository -y ppa:maarten-fonville/protobuf
+  - sudo apt-get -q update
+  - sudo apt-get -y install protobuf-compiler libprotobuf-dev
+
+script:
+  - mkdir -p build
+  - cd build
+  - cmake  ..
+  - make all check
+
+cache:
+  directories:
+    - build/_deps
