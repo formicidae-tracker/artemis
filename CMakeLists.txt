@@ -17,7 +17,7 @@ FetchContent_Declare(googletest
 
 FetchContent_Declare(fort-tags
                      GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
-                     GIT_TAG        v1.0.0)
+                     GIT_TAG        v1.0.1)
 
 FetchContent_Declare(hermes
                      GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
@@ -75,6 +75,7 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
 	                ${HERMES_INCLUDE_DIRS}
+	                ${APRILTAG_INCLUDE_DIRS}
 	                ${fort-tags_SOURCE_DIR}/include
 	                ${googletest_SOURCE_DIR}/googlemock/include
 	                ${googletest_SOURCE_DIR}/googletest/include
