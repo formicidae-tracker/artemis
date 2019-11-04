@@ -288,11 +288,14 @@ void Execute(int argc, char ** argv) {
 	}
 
 	//queues when outputting data
+
+	std::shared_ptr<OverlayWriter> oWriter;
 	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
 		bool forceIntergerSclaing = opts.LegacyMode;
 
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight,forceIntergerSclaing));
-		pq.push_back(std::make_shared<OverlayWriter>(opts.DrawStatistics));
+		oWriter = std::make_shared<OverlayWriter>(opts.DrawStatistics);
+		pq.push_back(oWriter);
 		if  (! watermark.empty() ) {
 			pq.push_back(std::make_shared<WatermarkingProcess>(watermark));
 		}
@@ -302,12 +305,15 @@ void Execute(int argc, char ** argv) {
 		pq.push_back(std::make_shared<OutputProcess>(io,opts.VideoOutputAddHeader));
 	}
 
+	std::shared_ptr<DrawDetectionProcess> drawDetections;
+
 	if ( opts.DrawDetection == true) {
-		pq.push_back(std::make_shared<DrawDetectionProcess>());
+		drawDetections = std::make_shared<DrawDetectionProcess>();
+		pq.push_back(drawDetections);
 	}
 
 	if ( opts.DisplayOutput ) {
-		pq.push_back(std::make_shared<FrameDisplayer>(desactivateQuitFromWindow));
+		pq.push_back(std::make_shared<FrameDisplayer>(desactivateQuitFromWindow,drawDetections,oWriter));
 	}
 
 

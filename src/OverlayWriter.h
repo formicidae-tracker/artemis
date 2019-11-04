@@ -9,6 +9,10 @@ public :
 	virtual ~OverlayWriter();
 
 	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
+
+	void SetPrompt(const std::string & prompt);
+	void SetPromptValue(const std::string & promptValue);
+
 private :
 
 	typedef uint8_t fontchar[16];
@@ -24,7 +28,10 @@ private :
 	static void DrawFrameNumber(const fort::hermes::FrameReadout & readout,cv::Mat & result);
 	static void DrawDate(const fort::hermes::FrameReadout & readout,cv::Mat & result);
 	static void DrawStatistics(const fort::hermes::FrameReadout & readout,cv::Mat & result);
+	static void DrawPrompt(const std::string & prompt, const std::string & value, size_t line,cv::Mat & result);
 
 	static void DrawText(cv::Mat & img, const std::string & text, size_t x, size_t y);
 	bool d_drawStatistics;
+	std::string d_prompt,d_value;
+
 };

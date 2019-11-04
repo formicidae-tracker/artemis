@@ -2,10 +2,14 @@
 
 #include "ProcessDefinition.h"
 
+class DrawDetectionProcess;
+class OverlayWriter;
 class FrameDisplayer : public ProcessDefinition {
 public:
 
-   	FrameDisplayer(bool desactivateQuit);
+	FrameDisplayer(bool desactivateQuit,
+	               const std::shared_ptr<DrawDetectionProcess> & ddProcess,
+	               const std::shared_ptr<OverlayWriter> & oWriter);
 	virtual ~FrameDisplayer();
 
 	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
@@ -31,4 +35,9 @@ private:
 	int                            d_mouseLastX,d_mouseLastY;
 	double                         d_zoom;
 	bool                           d_inhibQuit;
+
+	std::shared_ptr<DrawDetectionProcess> d_ddProcess;
+	std::shared_ptr<OverlayWriter>        d_oWriter;
+
+	int32_t                                d_highlight;
 };

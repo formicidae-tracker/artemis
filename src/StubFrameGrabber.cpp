@@ -59,11 +59,11 @@ void StubFrameGrabber::Stop() {
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {
-	d_last += std::chrono::milliseconds(100);
+	d_last += std::chrono::milliseconds(250);
 	std::this_thread::sleep_until(d_last);
 
 	Frame::Ptr res = std::make_shared<StubFrame>(d_image,d_timestamp,d_ID);
-	d_timestamp += 100000;
+	d_timestamp += 250000;
 	d_ID += 1;
 	return res;
 }

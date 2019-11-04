@@ -1,5 +1,8 @@
 #include "FrameDisplayer.h"
 
+#include "DrawDetectionProcess.h"
+#include "OverlayWriter.h"
+
 #include <opencv2/highgui/highgui.hpp>
 
 #include <glog/logging.h>
@@ -14,9 +17,14 @@ double clamp(double v, double l, double h) {
 	return std::min(std::max(v,l),h);
 }
 
-FrameDisplayer::FrameDisplayer(bool desactivateQuit)
+FrameDisplayer::FrameDisplayer(bool desactivateQuit,
+                               const std::shared_ptr<DrawDetectionProcess> & ddProcess,
+                               const std::shared_ptr<OverlayWriter> & oWriter)
 	: d_initialized(false)
-	, d_inhibQuit(desactivateQuit){
+	, d_inhibQuit(desactivateQuit)
+	, d_ddProcess(ddProcess)
+	, d_oWriter(oWriter)
+	, d_highlight(-1) {
 	cv::namedWindow("artemis output",cv::WINDOW_NORMAL | CV_WINDOW_KEEPRATIO | CV_GUI_EXPANDED);
 	cv::setMouseCallback("artemis output", &StaticOnMouseCallback, reinterpret_cast<void*>(this));
 }
@@ -119,29 +127,57 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 
 			int8_t key = cv::waitKey(1);
 			if (key != -1) {
-				DLOG(INFO) << "key press: " << key << " dec: " << (int) key;
+				LOG(INFO) << "key press: " << key << " dec: " << (int) key;
 			}
-
-			if ( key == 'z' ) {
-				if ( d_zoom == MinZoom ) {
-					d_zoom = MaxZoom;
-				} else {
-					d_zoom = MinZoom;
+			if ( d_highlight < 0 ) {
+				if ( key == 'z' ) {
+					if ( d_zoom == MinZoom ) {
+						d_zoom = MaxZoom;
+					} else {
+						d_zoom = MinZoom;
+					}
 				}
-			}
 
-			if ( key == 82 ) {
-				d_zoom = clamp(d_zoom + ZoomIncrement,MinZoom,MaxZoom);
-			}
+				if ( key == 82 ) {
+					d_zoom = clamp(d_zoom + ZoomIncrement,MinZoom,MaxZoom);
+				}
 
-			if ( key == 84 ) {
-				d_zoom = clamp(d_zoom - ZoomIncrement,MinZoom,MaxZoom);
-			}
+				if ( key == 84 ) {
+					d_zoom = clamp(d_zoom - ZoomIncrement,MinZoom,MaxZoom);
+				}
 
-			//quit when we press quit
-			if ( key == 'q' ||  key == 27) {
-				if ( d_inhibQuit == false ) {
-					std::raise(SIGINT);
+				//quit when we press quit
+				if ( key == 'q' ||  key == 27) {
+					if ( d_inhibQuit == false ) {
+						std::raise(SIGINT);
+					}
+				}
+
+				if ( d_ddProcess && key == 'h' ) {
+					d_highlight = 0;
+					if ( d_oWriter ) {
+						d_oWriter->SetPrompt("Tag to highlight");
+						d_oWriter->SetPromptValue("");
+					}
+				}
+			} else {
+				if ( key <= '9' && key >= '0' ) {
+					d_highlight = d_highlight * 10 + (key - '0');
+					if ( d_oWriter ) {
+						std::ostringstream os;
+						os << d_highlight;
+						d_oWriter->SetPromptValue(os.str());
+					}
+				}
+
+				if ( d_ddProcess && (key == 'h' || key == 10) ) {
+					d_ddProcess->SetHighlighted(d_highlight);
+					d_highlight = -1;
+					if ( d_oWriter ) {
+						d_oWriter->SetPrompt("");
+						d_oWriter->SetPromptValue("");
+					}
+
 				}
 			}
 		}

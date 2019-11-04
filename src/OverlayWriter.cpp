@@ -16,6 +16,14 @@ OverlayWriter::OverlayWriter(bool drawStatistic)
 OverlayWriter::~OverlayWriter() {
 }
 
+void OverlayWriter::SetPrompt(const std::string & prompt) {
+	d_prompt = prompt;
+}
+void OverlayWriter::SetPromptValue(const std::string & promptValue) {
+	d_value = promptValue;
+}
+
+
 
 std::vector<ProcessFunction> OverlayWriter::Prepare(size_t maxProcess, const cv::Size &) {
 	return {[this](const Frame::Ptr & frame,
@@ -24,9 +32,12 @@ std::vector<ProcessFunction> OverlayWriter::Prepare(size_t maxProcess, const cv:
 	                            cv::Mat & result) {
 		        DrawFrameNumber(readout, result);
 		        DrawDate(readout, result);
+		        size_t promptLine = 1;
 		        if ( d_drawStatistics == true ) {
+			        promptLine = 3;
 			        DrawStatistics(readout,result);
 		        }
+		        DrawPrompt(d_prompt,d_value,promptLine,result);
 	        }};
 }
 
@@ -96,4 +107,13 @@ void OverlayWriter::DrawStatistics(const fort::hermes::FrameReadout & readout,cv
 	os.clear();
 	os << "Detected Quads: " << readout.quads();
 	DrawText(result, os.str(), 0, 2*GLYPH_HEIGHT);
+}
+
+void OverlayWriter::DrawPrompt(const std::string & prompt, const std::string & value, size_t line,cv::Mat & result) {
+	if ( prompt.empty() ) {
+		return;
+	}
+	std::ostringstream os;
+	os << prompt << ": " << value;
+	DrawText(result, os.str(), 0, line *GLYPH_HEIGHT);
 }
