@@ -101,7 +101,7 @@ add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${EGRABBER_LIBRARIES}
 	                                 fort-tags
-	                                 ${FORT_HERMES_CPP_LIBRARIES}
+	                                 fort-hermes-cpp
 	                                 ${PROTOBUF_LIBRARIES}
 	                                 ${OpenCV_LIBS}
 	                                  "-ldl")

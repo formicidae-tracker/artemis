@@ -19,11 +19,18 @@ FetchContent_Declare(fort-tags
                      GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
                      GIT_TAG        v1.0.0)
 
+FetchContent_Declare(hermes
+                     GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
+                     GIT_TAG        v0.2.3)
+
+
+
 FetchContent_GetProperties(googletest)
 if(NOT googletest_POPULATED)
 	FetchContent_Populate(googletest)
 	add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif(NOT googletest_POPULATED)
+
 
 
 FetchContent_GetProperties(fort-tags)
@@ -32,6 +39,12 @@ if(NOT fort-tags_POPULATED)
 	add_subdirectory(${fort-tags_SOURCE_DIR} ${fort-tags_BINARY_DIR})
 endif(NOT fort-tags_POPULATED)
 
+FetchContent_GetProperties(hermes)
+if(NOT hermes_POPULATED)
+	FetchContent_Populate(hermes)
+	add_subdirectory(${hermes_SOURCE_DIR} ${hermes_BINARY_DIR})
+endif(NOT hermes_POPULATED)
+set(HERMES_INCLUDE_DIRS ${hermes_SOURCE_DIR}/src ${hermes_BINARY_DIR}/src)
 
 
 find_package(EGrabber REQUIRED)
@@ -41,7 +54,6 @@ find_package(Eigen3 REQUIRED)
 find_package(Asio)
 
 
-find_package(FortHermesCpp 0.2.0 REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
 
 
@@ -55,7 +67,7 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${OPENCV_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
-	                ${FORT_HERMES_CPP_INCLUDE_DIRS}
+	                ${HERMES_INCLUDE_DIRS}
 	                ${fort-tags_SOURCE_DIR}/include
 	                )
 
