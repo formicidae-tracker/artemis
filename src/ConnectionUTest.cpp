@@ -7,7 +7,8 @@
 #include <asio/read.hpp>
 #include <asio/write.hpp>
 #include <google/protobuf/util/delimited_message_util.h>
-#include "hermes/FrameReadout.pb.h"
+#include <fort-hermes/FrameReadout.pb.h>
+#include <fort-hermes/Header.pb.h>
 
 #include "Connection.h"
 
@@ -15,7 +16,7 @@
 
 class IncommingConnection {
 public :
-	IncommingConnection(asio::io_service & service, Barrier & closed) : d_closed(closed), d_socket(service), d_continue(true), d_received(0) {
+	IncommingConnection(asio::io_service & service, Barrier & closed) : d_closed(closed), d_socket(service), d_continue(true), d_received(0) , d_headerRead(true) {
 	}
 	~IncommingConnection() {
 	}
@@ -23,23 +24,30 @@ public :
 	asio::ip::tcp::socket  d_socket;
 	uint8_t                d_data[8];
 	bool                   d_continue;
+	bool                   d_headerRead;
 	size_t                 d_received;
 	static void Read(const std::shared_ptr<IncommingConnection> & self) {
-		asio::async_read(self->d_socket,asio::mutable_buffers_1(self->d_data,8),
+		asio::async_read(self->d_socket,asio::mutable_buffers_1(self->d_data,7),
 		                 [self](const asio::error_code & ec,std::size_t) {
 			                 if (ec == asio::error::eof) {
 				                 self->d_closed.SignalOne();
 				                 return;
 			                 }
 			                 google::protobuf::io::CodedInputStream ciss(static_cast<const uint8_t*>(&(self->d_data[0])),8);
-			                 fort::FrameReadout m;
+			                 if ( !self->d_headerRead) {
+				                 fort::hermes::Header h;
+				                 bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&h,&ciss,NULL);
+				                 if (!parsed) {
+					                 ADD_FAILURE() << "Could not read header";
+				                 }
+				                 self->d_headerRead = true;
+			                 }
+			                 fort::hermes::FrameReadout m;
 			                 //bug ??
 			                 bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&m,&ciss,NULL);
-			                 parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&m,&ciss,NULL);
 			                 if (!parsed) {
 				                 ADD_FAILURE() << "Could not parse message";
-			                 }
-			                 ++self->d_received;
+			                 } 			                 ++self->d_received;
 			                 EXPECT_EQ(m.frameid(),self->d_received);
 			                 EXPECT_EQ(m.timestamp(),self->d_received*20000);
 			                 Read(self);
@@ -49,7 +57,7 @@ public :
 
 ConnectionUTest::ConnectionUTest()
 	: d_acceptor(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12345))
-	, d_rejector(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12346)){
+	, d_rejector(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12346)) {
 	d_rejectLoop = [this] {
 		auto connection = std::make_shared<IncommingConnection>(d_rejector.get_io_service(),d_closed);
 		d_rejector.async_accept(connection->d_socket,[this,connection](const asio::error_code & ec) {
@@ -70,10 +78,10 @@ ConnectionUTest::ConnectionUTest()
 	d_acceptLoop = [this]{
 		auto connection = std::make_shared<IncommingConnection>(d_acceptor.get_io_service(),d_closed);
 		d_acceptor.async_accept(connection->d_socket,[this,connection](const asio::error_code & ec) {
-				d_acceptLoop();
 				EXPECT_EQ(!ec,true);
-				d_accept.SignalOne();
 				IncommingConnection::Read(connection);
+				d_accept.SignalOne();
+				d_acceptLoop();
 			});
 	};
 
@@ -109,16 +117,15 @@ TEST_F(ConnectionUTest,DoesNotMangle) {
 		FAIL() << "Could not connect: " << e.what();
 	}
 	d_accept.Wait();
-	std::vector<fort::FrameReadout> messages;
+	std::vector<fort::hermes::FrameReadout> messages;
 	for (size_t i = 0; i < 4; ++i) {
-		fort::FrameReadout m;
+		fort::hermes::FrameReadout m;
 		m.set_frameid(i+1);
 		m.set_timestamp(20000*(i+1));
 		messages.push_back(m);
 	}
 	for(auto &m : messages) {
 		Connection::PostMessage(connection,m);
-
 	}
 
 
@@ -131,7 +138,7 @@ TEST_F(ConnectionUTest,CanReconnect) {
 	d_running.Wait();
 	auto connection = Connection::Create(d_service,"localhost",12346,std::chrono::milliseconds(5));
 
-	fort::FrameReadout m;
+	fort::hermes::FrameReadout m;
 	m.set_frameid(1);
 	m.set_timestamp(20000);
 

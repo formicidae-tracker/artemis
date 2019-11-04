@@ -58,7 +58,7 @@ public:
 
 	std::vector<ProcessFunction> Prepare(size_t maxWorker, const cv::Size & size) {
 		d_current = d_maxParallel;
-		return std::vector<ProcessFunction>(d_maxParallel,[this] (const Frame::Ptr & f, const cv::Mat & upstream, fort::FrameReadout & m, cv::Mat & result){
+		return std::vector<ProcessFunction>(d_maxParallel,[this] (const Frame::Ptr & f, const cv::Mat & upstream, fort::hermes::FrameReadout & m, cv::Mat & result){
 				std::unique_lock<std::mutex> lock(d_mutexStart);
 				d_signalStart.wait(lock,[this]() -> bool {
 						if ( d_waiting == true ) {

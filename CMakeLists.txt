@@ -69,6 +69,8 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
 	                ${HERMES_INCLUDE_DIRS}
 	                ${fort-tags_SOURCE_DIR}/include
+	                ${googletest_SOURCE_DIR}/googlemock/include
+	                ${googletest_SOURCE_DIR}/googletest/include
 	                )
 
 
