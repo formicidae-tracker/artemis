@@ -69,6 +69,8 @@ struct Options {
 	std::string LogDir;
 
 	bool        TestMode;
+
+	std::vector<uint32_t> highlighted;
 };
 
 
@@ -136,6 +138,10 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 
 	parser.AddFlag("log-output-dir",opts.LogDir,"Directory to put current logs in");
 
+	std::string tagHighlight;
+
+	parser.AddFlag("highlight-tags",tagHighlight,"Tag to highlight when drawing detections");
+
 	parser.Parse(argc,argv);
 
 	if (opts.PrintHelp == true) {
@@ -154,9 +160,37 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 		throw std::invalid_argument("Frame stride to big, max is 100");
 	}
 
+
 	if (opts.TestMode == true ) {
 		opts.DrawDetection = true;
 		opts.DrawStatistics = true;
+	}
+
+	if ( tagHighlight.empty() == false ) {
+		std::vector<std::string> tagIDs;
+		base::SplitString(tagHighlight.cbegin(),
+		                  tagHighlight.cend(),
+		                  ",",
+		                  std::back_inserter<std::vector<std::string>>(tagIDs));
+
+		for (auto tagIDStr : tagIDs) {
+			std::istringstream is(base::TrimSpaces(tagIDStr));
+			uint32_t tagID;
+			is >> tagID;
+			if ( !is.good() && is.eof() == false ) {
+				std::ostringstream os;
+				os << "Cannot parse '" << tagIDStr << "'  in  '" << tagHighlight << "'";
+				throw std::runtime_error(os.str());
+			}
+			opts.highlighted.push_back(tagID);
+		}
+
+		if ( opts.highlighted.empty() == false ) {
+			opts.DrawDetection = true;
+		}
+	}
+
+	if (opts.DrawDetection == true ) {
 		opts.DisplayOutput = true;
 	}
 
@@ -291,9 +325,9 @@ void Execute(int argc, char ** argv) {
 
 	std::shared_ptr<OverlayWriter> oWriter;
 	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
-		bool forceIntergerSclaing = opts.LegacyMode;
+		bool forceIntegerScaling = opts.LegacyMode;
 
-		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight,forceIntergerSclaing));
+		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight,forceIntegerScaling));
 		oWriter = std::make_shared<OverlayWriter>(opts.DrawStatistics);
 		pq.push_back(oWriter);
 		if  (! watermark.empty() ) {
@@ -310,6 +344,9 @@ void Execute(int argc, char ** argv) {
 	if ( opts.DrawDetection == true) {
 		drawDetections = std::make_shared<DrawDetectionProcess>();
 		pq.push_back(drawDetections);
+		for ( auto tagID : opts.highlighted ) {
+			drawDetections->AddHighlighted(tagID);
+		}
 	}
 
 	if ( opts.DisplayOutput ) {

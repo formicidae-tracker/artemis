@@ -10,15 +10,20 @@ public :
 
 	virtual std::vector<ProcessFunction> Prepare(size_t maxProcess, const cv::Size &);
 
-	const static uint32_t NO_HIGHLIGHT = -1;
+	void AddHighlighted(uint32_t tagID);
+	void RemoveHighlighted(uint32_t tagID);
+	void ToggleHighlighted(uint32_t tagID);
 
-	void SetHighlighted(uint32_t tagID);
 
 private :
 
-	static void DrawAnts(size_t start, size_t stride, const fort::hermes::FrameReadout & readout,cv::Mat & result,double ratio, uint32_t highlighted);
-	static void DrawAnt(const fort::hermes::Tag & a, cv::Mat & result, double ratio, uint32_t highlighted);
+	void DrawAnts(size_t start, size_t stride, const fort::hermes::FrameReadout & readout,cv::Mat & result,double ratio);
+	void DrawAnt(const fort::hermes::Tag & a, cv::Mat & result, double ratio);
 
-	uint32_t d_highlighted;
+	inline bool IsHighlighted(uint32_t tagID) {
+		return d_highlighted.count(tagID) != 0;
+	}
+
+	std::set<uint32_t> d_highlighted;
 
 };

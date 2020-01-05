@@ -156,7 +156,7 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 				if ( d_ddProcess && key == 'h' ) {
 					d_highlight = 0;
 					if ( d_oWriter ) {
-						d_oWriter->SetPrompt("Tag to highlight");
+						d_oWriter->SetPrompt("Tag to toggle highlight");
 						d_oWriter->SetPromptValue("");
 					}
 				}
@@ -171,7 +171,7 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 				}
 
 				if ( d_ddProcess && (key == 'h' || key == 10) ) {
-					d_ddProcess->SetHighlighted(d_highlight);
+					d_ddProcess->ToggleHighlighted(d_highlight);
 					d_highlight = -1;
 					if ( d_oWriter ) {
 						d_oWriter->SetPrompt("");
