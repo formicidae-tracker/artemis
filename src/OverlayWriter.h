@@ -13,6 +13,8 @@ public :
 	void SetPrompt(const std::string & prompt);
 	void SetPromptValue(const std::string & promptValue);
 
+	void SetMessage(const std::vector<std::string> & message);
+	bool HasMessage() const;
 private :
 
 	typedef uint8_t fontchar[16];
@@ -29,9 +31,12 @@ private :
 	static void DrawDate(const fort::hermes::FrameReadout & readout,cv::Mat & result);
 	static void DrawStatistics(const fort::hermes::FrameReadout & readout,cv::Mat & result);
 	static void DrawPrompt(const std::string & prompt, const std::string & value, size_t line,cv::Mat & result);
+	static void DrawMessage(const std::vector<std::string> & message,cv::Mat & result);
 
 	static void DrawText(cv::Mat & img, const std::string & text, size_t x, size_t y);
 	bool d_drawStatistics;
 	std::string d_prompt,d_value;
+
+	std::vector<std::string> d_message;
 
 };

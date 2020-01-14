@@ -38,6 +38,9 @@ std::vector<ProcessFunction> OverlayWriter::Prepare(size_t maxProcess, const cv:
 			        DrawStatistics(readout,result);
 		        }
 		        DrawPrompt(d_prompt,d_value,promptLine,result);
+		        if(!d_message.empty()) {
+			        DrawMessage(d_message,result);
+		        }
 	        }};
 }
 
@@ -116,4 +119,30 @@ void OverlayWriter::DrawPrompt(const std::string & prompt, const std::string & v
 	std::ostringstream os;
 	os << prompt << ": " << value;
 	DrawText(result, os.str(), 0, line *GLYPH_HEIGHT);
+}
+
+void OverlayWriter::DrawMessage(const std::vector<std::string> & message,cv::Mat & result) {
+	size_t height = message.size() * GLYPH_HEIGHT;
+	size_t width = 0;
+	for(const auto & l : message) {
+		width = std::max(width,l.size() * GLYPH_WIDTH);
+	}
+	if (width > result.cols || height > result.rows ) {
+		return;
+	}
+	size_t x = (result.cols - width) / 2;
+	size_t y = ( result.rows - height ) / 2;
+	for(const auto & l : message) {
+		DrawText(result,l,x,y);
+		y += GLYPH_HEIGHT;
+	}
+}
+
+
+void OverlayWriter::SetMessage(const std::vector<std::string> & message) {
+	d_message = message;
+}
+
+bool OverlayWriter::HasMessage() const {
+	return !d_message.empty();
 }

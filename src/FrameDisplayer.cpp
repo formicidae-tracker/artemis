@@ -138,6 +138,30 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 					}
 				}
 
+				if ( key == 'i' ) {
+					d_ddProcess->ToggleDrawID();
+				}
+
+				if ( key == 'h' ) {
+					if ( d_oWriter->HasMessage() ) {
+						d_oWriter->SetMessage({});
+					} else {
+						d_oWriter->SetMessage({
+						                       "                                  ",
+						                       " Key bindings:                    ",
+						                       " <up>: Zoom in                    ",
+						                       " <down>: Zoom out                 ",
+						                       " mouse: panning field of view     ",
+						                       " z: Toggle min/max zoom           ",
+						                       " t: Toggle highlight for a tag ID ",
+						                       " i: Toggle ID drawing             ",
+						                       " h: Toggle this help message      ",
+						                       "                                  ",
+							});
+					}
+				}
+
+
 				if ( key == 82 ) {
 					d_zoom = clamp(d_zoom + ZoomIncrement,MinZoom,MaxZoom);
 				}
@@ -153,7 +177,7 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 					}
 				}
 
-				if ( d_ddProcess && key == 'h' ) {
+				if ( d_ddProcess && key == 't' ) {
 					d_highlight = 0;
 					if ( d_oWriter ) {
 						d_oWriter->SetPrompt("Tag to toggle highlight");
@@ -170,7 +194,7 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 					}
 				}
 
-				if ( d_ddProcess && (key == 'h' || key == 10) ) {
+				if ( d_ddProcess && (key == 't' || key == 10) ) {
 					d_ddProcess->ToggleHighlighted(d_highlight);
 					d_highlight = -1;
 					if ( d_oWriter ) {

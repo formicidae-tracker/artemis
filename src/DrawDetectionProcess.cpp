@@ -7,7 +7,8 @@
 #include <glog/logging.h>
 
 
-DrawDetectionProcess::DrawDetectionProcess() {
+DrawDetectionProcess::DrawDetectionProcess()
+	: d_drawIDs(false) {
 }
 
 DrawDetectionProcess::~DrawDetectionProcess() {
@@ -56,6 +57,12 @@ void DrawDetectionProcess::DrawAnts(size_t start, size_t stride, const fort::her
 	}
 }
 
+
+void DrawDetectionProcess::ToggleDrawID() {
+	d_drawIDs = !d_drawIDs;
+}
+
+
 void DrawDetectionProcess::DrawAnt(const fort::hermes::Tag & a, cv::Mat & result,double ratio) {
 	cv::Vec3b foreground(0xff,0xff,0xff);
 	static cv::Vec3b background(0x00,0x00,0x00);
@@ -69,6 +76,10 @@ void DrawDetectionProcess::DrawAnt(const fort::hermes::Tag & a, cv::Mat & result
 		cv::circle(result,cv::Point(center.x(),center.y()),6,circleHighlight,-1);
 	} else {
 		cv::circle(result,cv::Point(center.x(),center.y()),3,circleColor,-1);
+	}
+
+	if ( d_drawIDs == false ) {
+		return;
 	}
 
 	center += Eigen::Vector2d(6,-2);

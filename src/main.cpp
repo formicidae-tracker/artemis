@@ -323,23 +323,23 @@ void Execute(int argc, char ** argv) {
 
 	//queues when outputting data
 
+	std::shared_ptr<DrawDetectionProcess> drawDetections;
+
 	std::shared_ptr<OverlayWriter> oWriter;
 	if (opts.VideoOutputToStdout || opts.DisplayOutput) {
 		bool forceIntegerScaling = opts.LegacyMode;
 
 		pq.push_back(std::make_shared<ResizeProcess>(opts.VideoOutputHeight,forceIntegerScaling));
-		oWriter = std::make_shared<OverlayWriter>(opts.DrawStatistics);
-		pq.push_back(oWriter);
 		if  (! watermark.empty() ) {
 			pq.push_back(std::make_shared<WatermarkingProcess>(watermark));
 		}
+		oWriter = std::make_shared<OverlayWriter>(opts.DrawStatistics);
+		pq.push_back(oWriter);
 	}
 
 	if ( opts.VideoOutputToStdout ) {
 		pq.push_back(std::make_shared<OutputProcess>(io,opts.VideoOutputAddHeader));
 	}
-
-	std::shared_ptr<DrawDetectionProcess> drawDetections;
 
 	if ( opts.DrawDetection == true) {
 		drawDetections = std::make_shared<DrawDetectionProcess>();
@@ -348,6 +348,7 @@ void Execute(int argc, char ** argv) {
 			drawDetections->AddHighlighted(tagID);
 		}
 	}
+
 
 	if ( opts.DisplayOutput ) {
 		pq.push_back(std::make_shared<FrameDisplayer>(desactivateQuitFromWindow,drawDetections,oWriter));

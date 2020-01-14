@@ -14,6 +14,7 @@ public :
 	void RemoveHighlighted(uint32_t tagID);
 	void ToggleHighlighted(uint32_t tagID);
 
+	void ToggleDrawID();
 
 private :
 
@@ -25,5 +26,5 @@ private :
 	}
 
 	std::set<uint32_t> d_highlighted;
-
+	bool d_drawIDs;
 };
