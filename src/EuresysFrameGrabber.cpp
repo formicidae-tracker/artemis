@@ -7,7 +7,9 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
                                          const CameraConfiguration & cameraConfig)
 	: Euresys::EGrabber<Euresys::CallbackOnDemand>(gentl)
 	, d_lastFrame(0)
-	, d_toAdd(0) {
+	, d_toAdd(0)
+	, d_width(0)
+	, d_height(0) {
 
 	using namespace Euresys;
 
@@ -16,6 +18,8 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 	bool isMaster = !std::regex_search(ifID,slaveRx) ;
 
 	if ( isMaster == true ) {
+		d_width = getInteger<RemoteModule>("Width");
+		d_height = getInteger<RemoteModule>("Height");
 		DLOG(INFO) << "LineSelector: IOUT11";
 		setString<InterfaceModule>("LineSelector","IOUT11");
 		DLOG(INFO) << "LineInverter: True";
@@ -73,6 +77,10 @@ void EuresysFrameGrabber::Stop() {
 
 EuresysFrameGrabber::~EuresysFrameGrabber() {
 	DLOG(INFO) << "Cleaning FrameGrabber";
+}
+
+std::pair<int32_t,int32_t> EuresysFrameGrabber::GetResolution() {
+	return std::make_pair(d_width,d_height);
 }
 
 Frame::Ptr EuresysFrameGrabber::NextFrame() {

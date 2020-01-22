@@ -34,6 +34,7 @@ public :
 	virtual void Stop();
 	virtual Frame::Ptr NextFrame();
 
+	virtual std::pair<int32_t,int32_t> GetResolution();
 private:
 	typedef std::chrono::high_resolution_clock clock;
 	typedef clock::time_point time;

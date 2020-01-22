@@ -58,6 +58,10 @@ void StubFrameGrabber::Start() {
 void StubFrameGrabber::Stop() {
 }
 
+std::pair<int32_t,int32_t> StubFrameGrabber::GetResolution() {
+	return std::make_pair(d_image.cols,d_image.rows);
+}
+
 Frame::Ptr StubFrameGrabber::NextFrame() {
 	d_last += std::chrono::milliseconds(250);
 	std::this_thread::sleep_until(d_last);

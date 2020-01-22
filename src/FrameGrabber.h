@@ -35,4 +35,6 @@ public :
 	virtual void Stop() = 0;
 
 	virtual Frame::Ptr NextFrame() = 0;
+
+	virtual std::pair<int32_t,int32_t> GetResolution() = 0;
 };

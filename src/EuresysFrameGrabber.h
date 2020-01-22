@@ -44,6 +44,7 @@ public :
 	virtual void Stop();
 	virtual Frame::Ptr NextFrame();
 
+	virtual std::pair<int32_t,int32_t> GetResolution();
 private:
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
@@ -52,4 +53,5 @@ private:
 	Frame::Ptr         d_frame;
 	uint64_t           d_lastFrame;
 	uint64_t           d_toAdd;
+	int32_t            d_width,d_height;
 };

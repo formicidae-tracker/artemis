@@ -69,7 +69,7 @@ struct Options {
 	std::string LogDir;
 
 	bool        TestMode;
-
+	bool        FetchResolution;
 	std::vector<uint32_t> highlighted;
 };
 
@@ -92,6 +92,7 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	opts.LegacyMode = false;
 	opts.TestMode = false;
 	parser.AddFlag("help",opts.PrintHelp,"Print this help message",'h');
+	parser.AddFlag("fetch-resolution",opts.FetchResolution,"Print the camera resolution");
 	parser.AddFlag("version",opts.PrintVersion,"Print version");
 
 	parser.AddFlag("at-family",opts.AprilTag2.Family,"The apriltag2 family to use");
@@ -245,6 +246,24 @@ void Execute(int argc, char ** argv) {
 	::google::InstallFailureSignalHandler();
 
 
+	std::shared_ptr<FrameGrabber> fg;
+#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
+	std::shared_ptr<Euresys::EGenTL> gentl;
+	if (opts.StubImagePath.empty() ) {
+		gentl = std::make_shared<Euresys::EGenTL>();
+		fg = std::make_shared<EuresysFrameGrabber>(*gentl,opts.Camera);
+	} else {
+		fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
+	}
+#else
+	fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
+#endif
+
+	if (opts.FetchResolution) {
+		auto resolution = fg->GetResolution();
+		std::cout << resolution.first << " " << resolution.second << std::endl;
+		return;
+	}
 
 	std::vector<CPUID> ioCPUs;
 	std::vector<CPUID> workCPUs;
@@ -354,20 +373,6 @@ void Execute(int argc, char ** argv) {
 	if ( opts.DisplayOutput ) {
 		pq.push_back(std::make_shared<FrameDisplayer>(desactivateQuitFromWindow,drawDetections,oWriter));
 	}
-
-
-	std::shared_ptr<FrameGrabber> fg;
-#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
-	std::shared_ptr<Euresys::EGenTL> gentl;
-	if (opts.StubImagePath.empty() ) {
-		gentl = std::make_shared<Euresys::EGenTL>();
-		fg = std::make_shared<EuresysFrameGrabber>(*gentl,opts.Camera);
-	} else {
-		fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
-	}
-#else
-	fg = std::make_shared<StubFrameGrabber>(opts.StubImagePath);
-#endif
 
 	ProcessQueueExecuter executer(workload,workCPUs.size());
 
