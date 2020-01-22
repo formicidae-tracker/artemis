@@ -1,6 +1,7 @@
 #include "EuresysFrameGrabber.h"
 
 #include <glog/logging.h>
+#include <regex>
 
 EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
                                          const CameraConfiguration & cameraConfig)
@@ -10,32 +11,46 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 
 	using namespace Euresys;
 
-	DLOG(INFO) << "LineSelector: IOUT11";
-	setString<InterfaceModule>("LineSelector","IOUT11");
-	DLOG(INFO) << "LineInverter: True";
-	setString<InterfaceModule>("LineInverter","True");
-	DLOG(INFO) << "LineSource: Device0Strobe";
-	setString<InterfaceModule>("LineSource","Device0Strobe");
+	std::string ifID = getString<InterfaceModule>("InterfaceID");
+	std::regex slaveRx("df-camera");
+	bool isMaster = !std::regex_search(ifID,slaveRx) ;
 
-	DLOG(INFO) << "CameraControlMethod: RC";
-	setString<DeviceModule>("CameraControlMethod","RC");
+	if ( isMaster == true ) {
+		DLOG(INFO) << "LineSelector: IOUT11";
+		setString<InterfaceModule>("LineSelector","IOUT11");
+		DLOG(INFO) << "LineInverter: True";
+		setString<InterfaceModule>("LineInverter","True");
+		DLOG(INFO) << "LineSource: Device0Strobe";
+		setString<InterfaceModule>("LineSource","Device0Strobe");
 
-	//This is a big hack allowing to have the camera controlled by the
-	//framegrabber. We set it to pulse mode and double the frequency.
-	setString<DeviceModule>("ExposureReadoutOverlap","True");
-	DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
-	setInteger<DeviceModule>("CycleMinimumPeriod",1e6/(2*cameraConfig.FPS));
-	setString<DeviceModule>("CxpLinkConfiguration","CXP6_X4");
-	setString<DeviceModule>("CxpTriggerMessageFormat","Toggle");
+		DLOG(INFO) << "CameraControlMethod: RC";
+		setString<DeviceModule>("CameraControlMethod","RC");
 
-	setInteger<DeviceModule>("ExposureTime",6000);
-	DLOG(INFO) << "StrobeDuration: " << cameraConfig.StrobeDuration;
-	setInteger<DeviceModule>("StrobeDuration",cameraConfig.StrobeDuration);
+		//This is a big hack allowing to have the camera controlled by the
+		//framegrabber. We set it to pulse mode and double the frequency.
+		setString<DeviceModule>("ExposureReadoutOverlap","True");
+		DLOG(INFO) << "AcquisitionFrameRate: " << cameraConfig.FPS;
+		setInteger<DeviceModule>("CycleMinimumPeriod",1e6/(2*cameraConfig.FPS));
+		setString<DeviceModule>("CxpLinkConfiguration","CXP6_X4");
+		setString<DeviceModule>("CxpTriggerMessageFormat","Toggle");
 
-	DLOG(INFO) << "StrobeDelay: " << cameraConfig.StrobeDuration;
-	setInteger<DeviceModule>("StrobeDelay",cameraConfig.StrobeDelay);
+		setInteger<DeviceModule>("ExposureTime",6000);
+		DLOG(INFO) << "StrobeDuration: " << cameraConfig.StrobeDuration;
+		setInteger<DeviceModule>("StrobeDuration",cameraConfig.StrobeDuration);
 
-	setString<RemoteModule>("ExposureMode","Edge_Triggerred_Programmable");
+		DLOG(INFO) << "StrobeDelay: " << cameraConfig.StrobeDuration;
+		setInteger<DeviceModule>("StrobeDelay",cameraConfig.StrobeDelay);
+
+		setString<RemoteModule>("ExposureMode","Edge_Triggerred_Programmable");
+	} else {
+		if (cameraConfig.Width == 0 || cameraConfig.Height == 0 ) {
+			throw std::runtime_error("Camera resolution is not specified in DF mode");
+		}
+
+		setInteger<RemoteModule>("Width",cameraConfig.Width);
+		setInteger<RemoteModule>("Height",cameraConfig.Height);
+
+	}
 
 
 	DLOG(INFO) << "Enable Event";

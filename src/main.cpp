@@ -121,7 +121,8 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	parser.AddFlag("camera-fps",opts.Camera.FPS,"Camera FPS to use");
 	parser.AddFlag("camera-strobe-us",opts.Camera.StrobeDuration,"Camera Strobe Length in us");
 	parser.AddFlag("camera-strobe-delay-us",opts.Camera.StrobeDelay,"Camera Strobe Delay in us, negative value allowed");
-	parser.AddFlag("camera-slave-mode",opts.Camera.Slave,"Use the camera in slave mode (CoaXPress Data Forwarding)");
+	parser.AddFlag("camera-slave-width",opts.Camera.Width,"Camera Width argument for slave mode");
+	parser.AddFlag("camera-slave-height",opts.Camera.Height,"Camera Height argument for slave mode");
 	parser.AddFlag("draw-detection",opts.DrawDetection,"Draw detection on the output if activated");
 	parser.AddFlag("display-output", opts.DisplayOutput, "Display locally the detection. Implies --draw-detection and --draw-statistic",'d');
 	parser.AddFlag("draw-statistics", opts.DrawStatistics, "Draw statistics on the output frames");
