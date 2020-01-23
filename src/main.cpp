@@ -73,6 +73,23 @@ struct Options {
 	std::vector<uint32_t> highlighted;
 };
 
+void segfault_logger(int signal, siginfo_t *si, void *arg) {
+	LOG(ERROR) << "Caught segfault at address " <<  si->si_addr;
+    exit(0);
+}
+
+void CatchSegfaultFromNow() {
+	//we catch the sigfault of stupid drivers here !
+	struct sigaction sa;
+
+	memset(&sa, 0, sizeof(struct sigaction));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = segfault_logger;
+    sa.sa_flags   = SA_SIGINFO;
+
+    sigaction(SIGSEGV, &sa, NULL);
+}
+
 
 void ParseArgs(int & argc, char ** argv,Options & opts ) {
 	options::FlagParser parser(options::FlagParser::Default,"low-level vision detection for the FORmicidae Tracker");
@@ -262,6 +279,7 @@ void Execute(int argc, char ** argv) {
 	if (opts.FetchResolution) {
 		auto resolution = fg->GetResolution();
 		std::cout << resolution.first << " " << resolution.second << std::endl;
+		CatchSegfaultFromNow();
 		return;
 	}
 
@@ -454,6 +472,7 @@ void Execute(int argc, char ** argv) {
 		t.join();
 	}
 
+	CatchSegfaultFromNow();
 }
 
 int main(int argc, char ** argv) {
