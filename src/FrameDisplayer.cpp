@@ -25,7 +25,7 @@ FrameDisplayer::FrameDisplayer(bool desactivateQuit,
 	, d_ddProcess(ddProcess)
 	, d_oWriter(oWriter)
 	, d_highlight(-1) {
-	cv::namedWindow("artemis output",cv::WINDOW_NORMAL | CV_WINDOW_KEEPRATIO | CV_GUI_EXPANDED);
+	cv::namedWindow("artemis output",cv::WINDOW_NORMAL | cv::WINDOW_KEEPRATIO | cv::WINDOW_GUI_EXPANDED);
 	cv::setMouseCallback("artemis output", &StaticOnMouseCallback, reinterpret_cast<void*>(this));
 }
 

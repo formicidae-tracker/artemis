@@ -17,7 +17,7 @@ FetchContent_Declare(googletest
 
 FetchContent_Declare(fort-tags
                      GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
-                     GIT_TAG        v1.0.1)
+                     GIT_TAG        v1.2.2)
 
 FetchContent_Declare(hermes
                      GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
@@ -67,11 +67,10 @@ find_package(Protobuf 3.3.0 REQUIRED)
 add_definitions("-D_GNU_SOURCE" "-DNDEBUG")
 
 add_definitions(${EIGEN3_DEFINITIONS})
-
 include_directories(${EGRABBER_INCLUDE_DIRS}
                     ${ASIO_INCLUDE_DIRS}
 	                ${GLOG_INCLUDE_DIRS}
-	                ${OPENCV_INCLUDE_DIRS}
+	                ${OpenCV_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
 	                ${HERMES_INCLUDE_DIRS}

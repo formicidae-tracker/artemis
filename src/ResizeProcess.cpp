@@ -44,7 +44,7 @@ std::vector<ProcessFunction> ResizeProcess::Prepare(size_t nbProcess, const cv::
 			cv::Scalar mean,dev;
 			cv::meanStdDev(d_resized,mean,dev);
 			DLOG(INFO) << "Mean is now : " << mean;
-			cv::cvtColor(d_resized,result,CV_GRAY2RGB);
+			cv::cvtColor(d_resized,result,cv::COLOR_GRAY2RGB);
 		}
 	};
 }
