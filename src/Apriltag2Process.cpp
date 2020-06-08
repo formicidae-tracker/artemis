@@ -28,6 +28,7 @@
 
 #include <Eigen/Geometry>
 #include <Eigen/SVD>
+#include <Eigen/StdVector>
 
 
 AprilTag2Detector::AprilTag2Detector(size_t maxWorkers,
@@ -206,44 +207,56 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 	                const cv::Mat & upstream,
 	                fort::hermes::FrameReadout & readout,
 	                cv::Mat & result) {
-			std::set<int32_t> results;
+		         typedef std::vector<Eigen::Vector2d,Eigen::aligned_allocator<Eigen::Vector2d> > Vector2dList;
 
-			readout.set_timestamp(frame->Timestamp());
-			readout.set_frameid(frame->ID());
-			readout.clear_tags();
-			auto time = readout.mutable_time();
-			time->set_seconds(frame->Time().tv_sec);
-			time->set_nanos(frame->Time().tv_usec * 1000);
-			readout.set_producer_uuid(d_uuid);
-			readout.set_width(frame->Width());
-			readout.set_height(frame->Height());
-			int quads = 0;
-			for (auto const & detector : d_parent->d_detectors) {
-				quads += detector->nquads;
-			}
-			readout.set_quads(quads);
+		         std::map<int32_t,Vector2dList,std::less<int32_t>,
+		                  Eigen::aligned_allocator<std::pair<const int32_t,Vector2dList>>> results;
 
-			for(auto const & detections : d_parent->d_results ) {
-				for( auto const & d : detections ) {
-					if (results.count((int32_t)d.ID) != 0 ) {
-						continue;
-					}
-					results.insert(d.ID);
-					auto a = readout.add_tags();
-					a->set_id(d.ID);
-					a->set_x(d.X);
-					a->set_y(d.Y);
-					a->set_theta(d.Theta);
-				}
-			}
-			if (d_connection) {
-				Connection::PostMessage(d_connection,readout);
-			}
+		         readout.set_timestamp(frame->Timestamp());
+		         readout.set_frameid(frame->ID());
+		         readout.clear_tags();
+		         auto time = readout.mutable_time();
+		         time->set_seconds(frame->Time().tv_sec);
+		         time->set_nanos(frame->Time().tv_usec * 1000);
+		         readout.set_producer_uuid(d_uuid);
+		         readout.set_width(frame->Width());
+		         readout.set_height(frame->Height());
+		         int quads = 0;
+		         for (auto const & detector : d_parent->d_detectors) {
+			         quads += detector->nquads;
+		         }
+		         readout.set_quads(quads);
 
-			//clear any upstream transformation
-			result = frame->ToCV();
+		         for(auto const & detections : d_parent->d_results ) {
+			         for( auto const & d : detections ) {
+				         auto & resultsForThisID = results[d.ID];
+				         Eigen::Vector2d thisPoint(d.X,d.Y);
+				         auto fi = std::find_if(resultsForThisID.cbegin(),
+				                                resultsForThisID.cend(),
+				                                [&thisPoint](const Eigen::Vector2d & p ) {
+					                                // the current point is within 2 pixel of a previous point.
+					                                return (p-thisPoint).squaredNorm() < 4.0;
+				                                });
+				         if ( fi != resultsForThisID.end() ) {
+					         // we already have added a similar point, we skip it
+					         continue;
+				         }
+				         resultsForThisID.push_back(thisPoint);
+				         auto a = readout.add_tags();
+				         a->set_id(d.ID);
+				         a->set_x(d.X);
+				         a->set_y(d.Y);
+				         a->set_theta(d.Theta);
+			         }
+		         }
+		         if (d_connection) {
+			         Connection::PostMessage(d_connection,readout);
+		         }
 
-		}
+		         //clear any upstream transformation
+		         result = frame->ToCV();
+
+	         }
 	};
 }
 
