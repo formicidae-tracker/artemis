@@ -70,7 +70,8 @@ public:
 	private:
 		TagMerging(const AprilTag2Detector::Ptr & parent,
 		           const Connection::Ptr & connection,
-		           const std::string & uuid);
+		           const std::string & uuid,
+		           double minimumTagSize);
 
 		TagMerging(const TagMerging & ) = delete;
 		TagMerging & operator=(const TagMerging &) = delete;
@@ -79,6 +80,7 @@ public:
 		AprilTag2Detector::Ptr d_parent;
 		Connection::Ptr        d_connection;
 		std::string            d_uuid;
+		double                 d_minimumTagSize;
 
 		friend class AprilTag2Detector;
 	};

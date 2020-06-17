@@ -191,10 +191,12 @@ std::vector<ProcessFunction> AprilTag2Detector::ROITagDetection::Prepare(size_t 
 
 AprilTag2Detector::TagMerging::TagMerging(const AprilTag2Detector::Ptr & parent,
                                           const Connection::Ptr & connection,
-                                          const std::string & uuid)
+                                          const std::string & uuid,
+                                          double minimumTagSize)
 	: d_parent(parent)
 	, d_connection(connection)
-	, d_uuid(uuid) {
+	, d_uuid(uuid)
+	, d_minimumTagSize(minimumTagSize) {
 	if (d_connection && d_uuid.empty() ) {
 		throw std::invalid_argument("Sending data over network requires an UUID");
 	}
@@ -226,16 +228,15 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 			         quads += detector->nquads;
 		         }
 		         readout.set_quads(quads);
-
+		         double minDistanceSquared = d_minimumTagSize * d_minimumTagSize;
 		         for(auto const & detections : d_parent->d_results ) {
 			         for( auto const & d : detections ) {
 				         auto & resultsForThisID = results[d.ID];
 				         Eigen::Vector2d thisPoint(d.X,d.Y);
 				         auto fi = std::find_if(resultsForThisID.cbegin(),
 				                                resultsForThisID.cend(),
-				                                [&thisPoint](const Eigen::Vector2d & p ) {
-					                                // the current point is within 2 pixel of a previous point.
-					                                return (p-thisPoint).squaredNorm() < 4.0;
+				                                [minDistanceSquared,&thisPoint](const Eigen::Vector2d & p ) {
+					                                return (p-thisPoint).squaredNorm() < minDistanceSquared;
 				                                });
 				         if ( fi != resultsForThisID.end() ) {
 					         // we already have added a similar point, we skip it
@@ -247,6 +248,11 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 				         a->set_x(d.X);
 				         a->set_y(d.Y);
 				         a->set_theta(d.Theta);
+			         }
+		         }
+		         for (auto const & iter : results) {
+			         for ( const auto & p : iter.second ) {
+				         LOG(INFO) << iter.first << " -> " << p.transpose();
 			         }
 		         }
 		         if (d_connection) {
@@ -270,6 +276,6 @@ ProcessQueue AprilTag2Detector::Create(size_t maxWorkers,
 	auto detector = std::shared_ptr<AprilTag2Detector>(new AprilTag2Detector(maxWorkers,config));
 	return {
 		std::shared_ptr<ProcessDefinition>(new ROITagDetection(detector)),
-			std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection,uuid)),
+		std::shared_ptr<ProcessDefinition>(new TagMerging(detector,connection,uuid,config.QuadMinClusterPixel)),
 	};
 }
