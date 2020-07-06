@@ -39,5 +39,5 @@ private:
 	std::shared_ptr<DrawDetectionProcess> d_ddProcess;
 	std::shared_ptr<OverlayWriter>        d_oWriter;
 
-	int32_t                                d_highlight;
+	std::unique_ptr<std::string>          d_highlightString;
 };

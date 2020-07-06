@@ -8,6 +8,9 @@
 #include <glog/logging.h>
 
 #include <csignal>
+#include <istream>
+
+#include "utils/StringManipulation.h"
 
 const double FrameDisplayer::MinZoom = 1.0;
 const double FrameDisplayer::ZoomIncrement = 0.25;
@@ -23,8 +26,7 @@ FrameDisplayer::FrameDisplayer(bool desactivateQuit,
 	: d_initialized(false)
 	, d_inhibQuit(desactivateQuit)
 	, d_ddProcess(ddProcess)
-	, d_oWriter(oWriter)
-	, d_highlight(-1) {
+	, d_oWriter(oWriter) {
 	cv::namedWindow("artemis output",cv::WINDOW_NORMAL | cv::WINDOW_KEEPRATIO | cv::WINDOW_GUI_EXPANDED);
 	cv::setMouseCallback("artemis output", &StaticOnMouseCallback, reinterpret_cast<void*>(this));
 }
@@ -127,9 +129,9 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 
 			int8_t key = cv::waitKey(1);
 			if (key != -1) {
-				LOG(INFO) << "key press: " << key << " dec: " << (int) key;
+				DLOG(INFO) << "key press: " << key << " dec: " << (int) key;
 			}
-			if ( d_highlight < 0 ) {
+			if ( !d_highlightString ) {
 				if ( key == 'z' ) {
 					if ( d_zoom == MinZoom ) {
 						d_zoom = MaxZoom;
@@ -178,30 +180,52 @@ std::vector<ProcessFunction> FrameDisplayer::Prepare(size_t maxProcess, const cv
 				}
 
 				if ( d_ddProcess && key == 't' ) {
-					d_highlight = 0;
+					d_highlightString = std::unique_ptr<std::string>(new std::string());
 					if ( d_oWriter ) {
 						d_oWriter->SetPrompt("Tag to toggle highlight");
 						d_oWriter->SetPromptValue("");
 					}
 				}
 			} else {
-				if ( key <= '9' && key >= '0' ) {
-					d_highlight = d_highlight * 10 + (key - '0');
-					if ( d_oWriter ) {
-						std::ostringstream os;
-						os << d_highlight;
-						d_oWriter->SetPromptValue(os.str());
+				if ( key == 't' || key == 13 ) {
+					if ( !d_ddProcess == true ) {
+						return;
 					}
-				}
-
-				if ( d_ddProcess && (key == 't' || key == 10) ) {
-					d_ddProcess->ToggleHighlighted(d_highlight);
-					d_highlight = -1;
+					if ( base::HasPrefix(*d_highlightString,"0x") == true ) {
+						std::istringstream iss(*d_highlightString);
+						uint32_t highlight;
+						iss >> std::hex >> highlight;
+						d_ddProcess->ToggleHighlighted(highlight);
+					}
+					d_highlightString.reset();
 					if ( d_oWriter ) {
 						d_oWriter->SetPrompt("");
 						d_oWriter->SetPromptValue("");
 					}
+					return;
+				}
 
+				if ( d_highlightString->size() == 0) {
+					if ( key == '0' ) {
+						*d_highlightString += '0';
+						if ( d_oWriter ) { d_oWriter->SetPromptValue(*d_highlightString); }
+					}
+					return;
+				}
+
+				key = std::tolower(key);
+				if ( d_highlightString->size() == 1) {
+					if ( key == 'x' ) {
+						*d_highlightString += 'x';
+						if ( d_oWriter ) { d_oWriter->SetPromptValue(*d_highlightString); }
+					}
+					return;
+				}
+
+				if ( (key >= '0' && key <= '9')
+				     || (key >= 'a' && key <= 'f') ) {
+					*d_highlightString += key;
+					if ( d_oWriter ) { d_oWriter->SetPromptValue(*d_highlightString); }
 				}
 			}
 		}
