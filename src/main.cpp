@@ -193,9 +193,12 @@ void ParseArgs(int & argc, char ** argv,Options & opts ) {
 		                  std::back_inserter<std::vector<std::string>>(tagIDs));
 
 		for (auto tagIDStr : tagIDs) {
+			if ( base::HasPrefix(base::TrimSpaces(tagIDStr),"0x") == false ) {
+				throw std::runtime_error("Tag '" + tagIDStr + "' is not an hexadecimal number");
+			}
 			std::istringstream is(base::TrimSpaces(tagIDStr));
 			uint32_t tagID;
-			is >> tagID;
+			is >> std::hex >> tagID;
 			if ( !is.good() && is.eof() == false ) {
 				std::ostringstream os;
 				os << "Cannot parse '" << tagIDStr << "'  in  '" << tagHighlight << "'";
