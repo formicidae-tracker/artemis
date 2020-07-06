@@ -6,6 +6,172 @@
 
 #include <glog/logging.h>
 
+#include <iomanip>
+
+#define GHEIGHT 5
+#define GWIDTH 3
+
+class HexadecimalDrawer {
+public:
+	HexadecimalDrawer()
+		: d_glyphs(256,cv::Mat(GHEIGHT+2,GWIDTH+2,CV_8UC3,cv::Vec3b(0,0,0))) {
+
+		static std::vector<std::pair<char,std::vector<uint8_t> >> rawGlyphs
+			= {
+			   { '0',
+			     { 1, 1, 1,
+			       1, 0, 1,
+			       1, 0, 1,
+			       1, 0, 1,
+			       1, 1, 1 }
+			   },
+			   { '1',
+			     { 0, 1, 0,
+			       0, 1, 0,
+			       0, 1, 0,
+			       0, 1, 0,
+			       0, 1, 0
+			     }
+			   },
+			   { '2',
+			     { 1, 1, 1,
+			       0, 0, 1,
+			       1, 1, 1,
+			       1, 0, 0,
+			       1, 1, 1 }
+			   },
+			   { '3',
+			     { 1, 1, 1,
+			       0, 0, 1,
+			       0, 1, 1,
+			       0, 0, 1,
+			       1, 1, 1 }
+			   },
+			   { '4',
+			     { 1, 0, 1,
+			       1, 0, 1,
+			       1, 1, 1,
+			       0, 0, 1,
+			       0, 0, 1 }
+			   },
+			   { '5',
+			     { 1, 1, 1,
+			       1, 0, 0,
+			       1, 1, 1,
+			       0, 0, 1,
+			       1, 1, 1 }
+			   },
+			   { '6',
+			     { 1, 1, 1,
+			       1, 0, 0,
+			       1, 1, 1,
+			       1, 0, 1,
+			       1, 1, 1 }
+			   },
+			   { '7',
+			     { 1, 1, 1,
+			       0, 0, 1,
+			       0, 0, 1,
+			       0, 0, 1,
+			       0, 0, 1 }
+			   },
+			   { '8',
+			     { 1, 1, 1,
+			       1, 0, 1,
+			       1, 1, 1,
+			       1, 0, 1,
+			       1, 1, 1 }
+			   },
+			   { '9',
+			     { 1, 1, 1,
+			       1, 0, 1,
+			       1, 1, 1,
+			       0, 0, 1,
+			       0, 0, 1}
+			   },
+			   { 'x',
+			     { 0, 0, 0,
+			       0, 0, 0,
+			       1, 0, 1,
+			       0, 1, 0,
+			       1, 0, 1}
+			   },
+			   { 'a',
+			     { 0, 1, 0,
+			       1, 0, 1,
+			       1, 1, 1,
+			       1, 0, 1,
+			       1, 0, 1}
+			   },
+			   { 'b',
+			     { 1, 1, 0,
+			       1, 0, 1,
+			       1, 1, 0,
+			       1, 0, 1,
+			       1, 1, 0}
+			   },
+			   { 'c',
+			     { 0, 1, 1,
+			       1, 0, 0,
+			       1, 0, 0,
+			       1, 0, 0,
+			       0, 1, 1}
+			   },
+			   { 'd',
+			     { 1, 1, 0,
+			       1, 0, 1,
+			       1, 0, 1,
+			       1, 0, 1,
+			       1, 1, 0}
+			   },
+			   { 'e',
+			     { 1, 1, 1,
+			       1, 0, 0,
+			       1, 1, 0,
+			       1, 0, 0,
+			       1, 1, 1}
+			   },
+			   { 'f',
+			     { 1, 1, 1,
+			       1, 0, 0,
+			       1, 1, 0,
+			       1, 0, 0,
+			       1, 0, 0}
+			   },
+		};
+
+		for ( const auto & iter : rawGlyphs ) {
+			//copy a new mat otherwise we manipulate the same copy
+			cv::Mat g(GHEIGHT+2,GWIDTH+2,CV_8UC3,cv::Vec3b(0,0,0));
+			d_glyphs[size_t(iter.first)] = g;
+			size_t i = 0;
+			for (size_t iy = 1; iy <= GHEIGHT; ++iy) {
+				for (size_t ix = 1; ix <= GWIDTH; ++ix ) {
+					if ( iter.second[i] == 1 ) {
+						g.at<cv::Vec3b>(iy,ix) = cv::Vec3b(0xff,0xff,0xff);
+					}
+					++i;
+				}
+			}
+		}
+	}
+
+	void draw(cv::Mat & dest,cv::Point topLeft,
+	          uint32_t number,const cv::Vec3b & color) const {
+
+		std::ostringstream os;
+		os << "0x" << std::hex << std::setw(3) << std::setfill('0') << number;
+		for ( const auto & c : os.str() ) {
+			const auto & g = d_glyphs[size_t(c)];
+			g.copyTo(dest(cv::Rect(topLeft,cv::Size(GWIDTH+2,GHEIGHT+2))));
+			topLeft += cv::Point(5,0);
+		}
+	}
+
+private:
+	std::vector<cv::Mat>  d_glyphs;
+
+};
 
 DrawDetectionProcess::DrawDetectionProcess()
 	: d_drawIDs(false) {
@@ -82,49 +248,10 @@ void DrawDetectionProcess::DrawAnt(const fort::hermes::Tag & a, cv::Mat & result
 		return;
 	}
 
-	center += Eigen::Vector2d(6,-2);
+	static HexadecimalDrawer hdrawer;
 
-	static std::vector<std::vector<uint8_t> > glyphs
-		= {
-		   { 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1 }, // 0
-		   { 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0 }, // 1
-		   { 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1 }, // 2
-		   { 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1 }, // 3
-		   { 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1 }, // 4
-		   { 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1 }, // 5
-		   { 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1 }, // 6
-		   { 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1 }, // 7
-		   { 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1 }, // 8
-		   { 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1 }, // 9
-	};
-
-	std::ostringstream os;
-	os << a.id();
-
-
-
-	for( const auto & c : os.str() ) {
-		if ( c < '0' || c > '9' ) {
-			continue;
-		}
-		std::vector<uint8_t> g = glyphs[c - '0'];
-		for(int y = -1; y < 6; ++y ) {
-			for(int x = -1; x < 4; ++x) {
-				int ix = center.x() + x;
-				int iy = center.y() + y;
-				size_t idx = y * 3 + x;
-				if ( ix < 0 || ix > result.cols || iy < 0 || iy > result.rows) {
-					continue;
-				}
-				if (x < 0 || x >= 3 || y < 0 || y >= 5 || g[idx] == 0 ) {
-					result.at<cv::Vec3b>(iy,ix) = background;
-				} else {
-					result.at<cv::Vec3b>(iy,ix) = foreground;
-				}
-			}
-		}
-		center.x() += 5;
-	}
-
+	hdrawer.draw(result,
+	             cv::Point(center.x() + 6, center.y()-2),
+	             a.id(),foreground);
 
 }
