@@ -213,7 +213,6 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 
 		         std::map<int32_t,Vector2dList,std::less<int32_t>,
 		                  Eigen::aligned_allocator<std::pair<const int32_t,Vector2dList>>> results;
-
 		         readout.set_timestamp(frame->Timestamp());
 		         readout.set_frameid(frame->ID());
 		         readout.clear_tags();
@@ -248,11 +247,6 @@ std::vector<ProcessFunction> AprilTag2Detector::TagMerging::Prepare(size_t maxPr
 				         a->set_x(d.X);
 				         a->set_y(d.Y);
 				         a->set_theta(d.Theta);
-			         }
-		         }
-		         for (auto const & iter : results) {
-			         for ( const auto & p : iter.second ) {
-				         LOG(INFO) << iter.first << " -> " << p.transpose();
 			         }
 		         }
 		         if (d_connection) {
