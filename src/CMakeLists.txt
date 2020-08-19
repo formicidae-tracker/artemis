@@ -22,6 +22,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 
 
 set(SRC_FILES utils/Defer.cpp
+              utils/Time.cpp
 	          FrameGrabber.cpp
 	          ProcessDefinition.cpp
 	          ResizeProcess.cpp
@@ -43,12 +44,14 @@ set(SRC_FILES utils/Defer.cpp
 	          StubFrameGrabber.cpp
 	          FrameDisplayer.cpp
 	          CameraConfiguration.cpp
+	          Options.cpp
 	          )
 
 
 
 
 set(HDR_FILES utils/Defer.h
+              utils/Time.hpp
 	          utils/PosixCall.h
 	          FrameGrabber.h
 	          ProcessDefinition.h
@@ -71,26 +74,31 @@ set(HDR_FILES utils/Defer.h
 	          StubFrameGrabber.h
 	          FrameDisplayer.h
 	          CameraConfiguration.h
+	          Options.hpp
 	          )
 
 
 set(UTEST_SRC_FILES main-check.cpp
-	                utils/DeferUTest.cpp
+                    utils/DeferUTest.cpp
+                    utils/TimeUTest.cpp
 	                RingBufferUTest.cpp
 	                utils/FlagParserUTest.cpp
 	                utils/StringManipulationUTest.cpp
 	                ConnectionUTest.cpp
 	                ProcessQueueExecuterUTest.cpp
 	                utils/PartitionsUTest.cpp
+	                OptionsUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
+                    utils/TimeUTest.hpp
 	                RingBufferUTest.h
 	                utils/FlagParserUTest.h
 	                utils/StringManipulationUTest.h
 	                ConnectionUTest.h
 	                ProcessQueueExecuterUTest.h
 	                utils/PartitionsUTest.h
+	                OptionsUTest.hpp
 	                )
 
 if(EGrabber_FOUND)
