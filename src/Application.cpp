@@ -72,11 +72,17 @@ void Application::InitGlobalDependencies() {
 
 
 Application::Application(const Options & options) {
-	d_process = std::make_shared<ProcessFrameTask>();
-
-
 	d_grabber = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
 	                                              options.Camera);
+
+	d_process = std::make_shared<ProcessFrameTask>(options,
+	                                               nullptr,
+	                                               nullptr,
+	                                               nullptr,
+	                                               nullptr,
+	                                               d_grabber->GetResolution());
+
+
 
 	d_acquisition = std::make_shared<AcquisitionTask>(d_grabber,d_process);
 

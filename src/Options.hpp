@@ -56,6 +56,8 @@ struct VideoOutputOptions {
 	void PopulateParser( options::FlagParser & parser);
  	void FinishParse();
 
+	int OutputWidth(int inputWidth,int inputHeight) const;
+
 
 	size_t      Height;
 	bool        AddHeader;

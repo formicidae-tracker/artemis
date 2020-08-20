@@ -137,6 +137,9 @@ void VideoOutputOptions::PopulateParser(options::FlagParser & parser) {
 void VideoOutputOptions::FinishParse() {
 }
 
+int VideoOutputOptions::OutputWidth(int inputWidth,int inputHeight) const {
+	return inputWidth * float(Height) / float(inputHeight);
+}
 
 void DisplayOptions::PopulateParser(options::FlagParser & parser) {
 		parser.AddFlag("highlight-tags",d_highlighted,"Tag to highlight when drawing detections");
@@ -289,6 +292,16 @@ void Options::Validate() {
 		throw std::invalid_argument("Image renew period (" + Process.ImageRenewPeriod.ToString() + ") is too small for production of large dataset (minimum: 15m)");
 	}
 #endif
+
+
+	if ( Network.Host.empty() == false
+	     && Apriltag.Family == fort::tags::Family::Undefined ) {
+		throw std::runtime_error("Connection to '"
+		                         + Network.Host
+		                         + ":"
+		                         + std::to_string(Network.Port)
+		                         + " requested but no family selected");
+	}
 
 }
 

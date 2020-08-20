@@ -7,7 +7,6 @@
 typedef std::vector<cv::Rect> Partition;
 
 
-
 void PartitionRectangle(const cv::Rect & rect, size_t partitions, Partition & result);
 
 void PartitionImage(const cv::Mat & img, size_t partitions, Partition & result);

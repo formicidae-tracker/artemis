@@ -87,7 +87,7 @@ TEST_F(OptionsUTest,TestParse) {
 		    [](const Options & options) {
 			    EXPECT_TRUE(options.General.LegacyMode);
 		    }},
-		   {{"artemis","--host", "foo"},
+		   {{"artemis","--host", "foo", "--at-family", "36h11"},
 		    [](const Options & options) {
 			    EXPECT_EQ(options.Network.Host,"foo");
 		    }},
