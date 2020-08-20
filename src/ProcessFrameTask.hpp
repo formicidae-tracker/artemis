@@ -103,7 +103,8 @@ private :
 	ObjectPool<cv::Mat>               d_framePool;
 	ObjectPool<hermes::FrameReadout>  d_messagePool;
 	std::shared_ptr<cv::Mat>          d_downscaled;
-	const size_t                      d_numThreads;
+	const size_t                      d_maximumThreads;
+	size_t                            d_actualThreads;
 
 	ApriltagDetectorPtr               d_detector;
 

@@ -24,10 +24,11 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	, d_userInterface(userInterface)
 	, d_connection(connection)
 	, d_fullFrameExport(fullFrameExport)
-	, d_numThreads(cv::getNumThreads()) {
+	, d_maximumThreads(cv::getNumThreads()) {
+	d_actualThreads = d_maximumThreads;
 
 	if ( options.Apriltag.Family != tags::Family::Undefined ) {
-		d_detector = std::make_unique<ApriltagDetector>(d_numThreads,
+		d_detector = std::make_unique<ApriltagDetector>(d_actualThreads,
 		                                                cv::Size(inputResolution.first,
 		                                                         inputResolution.second),
 		                                                options.Apriltag);
@@ -63,6 +64,12 @@ void ProcessFrameTask::Run() {
 		if ( !frame ) {
 			break;
 		}
+
+		if ( true /* TODO: fullframeExport finished */ ) {
+			d_actualThreads = d_maximumThreads;
+			cv::setNumThreads(d_actualThreads);
+		}
+
 		ProcessFrameMandatory(frame);
 
 		if ( d_frameQueue.size() > 0 ) {
@@ -164,7 +171,7 @@ void ProcessFrameTask::CloseFrameQueue() {
 void ProcessFrameTask::Detect(const Frame::Ptr & frame,
                               hermes::FrameReadout & m) {
 	if ( d_detector ) {
-		d_detector->Detect(frame->ToCV(),d_numThreads,m);
+		d_detector->Detect(frame->ToCV(),d_actualThreads,m);
 	}
 }
 
@@ -172,8 +179,14 @@ void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
 	if ( d_nextFrameExport.Before(frame->Time()) ) {
 		return;
 	}
+
+	if ( false /* TODO: export is not sucessful */ ) {
+		return;
+	}
+	d_actualThreads = d_maximumThreads - 1;
+	cv::setNumThreads(d_actualThreads);
 	d_nextFrameExport = frame->Time().Add(d_options.Process.ImageRenewPeriod);
-	//TODO: send to export
+
 }
 
 
@@ -211,7 +224,7 @@ ProcessFrameTask::FindUnexportedID(const hermes::FrameReadout & m) {
 			continue;
 		}
 		res.push_back({t.id(),t.x(),t.y()});
-		if ( res.size() >= d_numThreads ) {
+		if ( res.size() >= d_actualThreads ) {
 			break;
 		}
 	}
