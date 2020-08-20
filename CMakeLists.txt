@@ -55,11 +55,13 @@ set(HERMES_INCLUDE_DIRS ${hermes_SOURCE_DIR}/src ${hermes_BINARY_DIR}/src)
 if(EURESYS_FRAMEGRABBER_SUPPORT)
 	find_package(EGrabber REQUIRED)
 endif(EURESYS_FRAMEGRABBER_SUPPORT)
+
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
+find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(Asio)
-
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(TBB tbb REQUIRED)
 
 find_package(Protobuf 3.3.0 REQUIRED)
 
@@ -68,9 +70,9 @@ add_definitions("-D_GNU_SOURCE" "-DNDEBUG")
 
 add_definitions(${EIGEN3_DEFINITIONS})
 include_directories(${EGRABBER_INCLUDE_DIRS}
-                    ${ASIO_INCLUDE_DIRS}
 	                ${GLOG_INCLUDE_DIRS}
 	                ${OpenCV_INCLUDE_DIRS}
+	                ${TBB_INCLUDE_DIRS}
 	                ${gflags_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
 	                ${HERMES_INCLUDE_DIRS}

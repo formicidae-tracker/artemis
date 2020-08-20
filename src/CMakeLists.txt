@@ -87,6 +87,7 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 fort-hermes-cpp
 	                                 ${PROTOBUF_LIBRARIES}
 	                                 ${OpenCV_LIBS}
+	                                 ${TBB_LIBRARIES}
 	                                  "-ldl")
 
 add_executable(artemis main.cpp)

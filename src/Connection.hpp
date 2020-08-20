@@ -8,11 +8,14 @@
 
 #include <google/protobuf/message.h>
 
-#include "RingBuffer.hpp"
+#include <tbb/concurrent_queue.h>
 
-#include <chrono>
+#include "Time.hpp"
 
 #include <mutex>
+
+namespace fort {
+namespace artemis {
 
 class Connection {
 public:
@@ -21,7 +24,8 @@ public:
 	static Ptr Create(asio::io_service & service,
 	                  const std::string & host,
 	                  uint16_t port,
-	                  std::chrono::high_resolution_clock::duration reconnectTime = std::chrono::milliseconds(5000));
+	                  Duration reconnectPeriod = 5 * Duration::Second );
+	// reentrant function
 	static void PostMessage(const Ptr & connection, const google::protobuf::MessageLite & m);
 
 private :
@@ -47,10 +51,8 @@ private :
 	asio::strand                           d_strand;
 #endif
 
-	typedef RingBuffer<std::ostringstream,16> BufferPool;
-	BufferPool::Consumer::Ptr d_consumer;
-	BufferPool::Producer::Ptr d_producer;
-	bool                      d_sending;
+	typedef tbb::concurrent_bounded_queue<std::ostringstream,16> BufferPool;
+	bool      d_sending;
 
-	std::chrono::high_resolution_clock::duration  d_reconnectTime;
+	Duration  d_reconnectPeriod;
 };
