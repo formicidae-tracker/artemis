@@ -1,5 +1,7 @@
 #include "ProcessFrameTask.hpp"
 
+#include <tbb/parallel_for.h>
+
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 
@@ -7,8 +9,8 @@
 
 #include "Connection.hpp"
 #include "ApriltagDetector.hpp"
+#include "FullFrameExportTask.hpp"
 
-#include <tbb/parallel_for.h>
 
 namespace fort {
 namespace artemis {
@@ -51,7 +53,9 @@ ProcessFrameTask::~ProcessFrameTask() {}
 
 void ProcessFrameTask::TearDown() {
 	// TODO: Close UserInterface connection
-	// TODO: Close Frame Exporter
+	if ( d_fullFrameExport ) {
+		d_fullFrameExport->CloseQueue();
+	}
 	// TODO: close video output
 }
 
@@ -65,7 +69,7 @@ void ProcessFrameTask::Run() {
 			break;
 		}
 
-		if ( true /* TODO: fullframeExport finished */ ) {
+		if ( d_fullFrameExport && d_fullFrameExport->IsFree() ) {
 			d_actualThreads = d_maximumThreads;
 			cv::setNumThreads(d_actualThreads);
 		}
@@ -103,7 +107,6 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr & frame ) {
 
 	if ( d_videoOutput ) {
 		//TODO: send frame to ouput
-
 	}
 
 }
@@ -176,17 +179,17 @@ void ProcessFrameTask::Detect(const Frame::Ptr & frame,
 }
 
 void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
-	if ( d_nextFrameExport.Before(frame->Time()) ) {
+	if ( !d_fullFrameExport
+	     || d_nextFrameExport.Before(frame->Time()) ) {
 		return;
 	}
 
-	if ( false /* TODO: export is not sucessful */ ) {
+	if ( d_fullFrameExport->QueueExport(frame) == false ) {
 		return;
 	}
 	d_actualThreads = d_maximumThreads - 1;
 	cv::setNumThreads(d_actualThreads);
 	d_nextFrameExport = frame->Time().Add(d_options.Process.ImageRenewPeriod);
-
 }
 
 

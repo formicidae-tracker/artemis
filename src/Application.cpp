@@ -11,6 +11,7 @@
 
 #include "AcquisitionTask.hpp"
 #include "ProcessFrameTask.hpp"
+#include "FullFrameExportTask.hpp"
 
 namespace fort {
 namespace artemis {
@@ -75,11 +76,15 @@ Application::Application(const Options & options) {
 	d_grabber = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
 	                                              options.Camera);
 
+	if ( options.Process.NewAntOutputDir.empty() == false ) {
+		d_fullFrameExport = std::make_shared<FullFrameExportTask>(options.Process.NewAntOutputDir);
+	}
+
 	d_process = std::make_shared<ProcessFrameTask>(options,
 	                                               nullptr,
 	                                               nullptr,
 	                                               nullptr,
-	                                               nullptr,
+	                                               d_fullFrameExport,
 	                                               d_grabber->GetResolution());
 
 
@@ -100,6 +105,9 @@ void Application::OnSigInt(int sig) {
 }
 
 void Application::SpawnTasks() {
+	if ( d_fullFrameExport ) {
+		d_threads.push_back(Task::Spawn(*d_fullFrameExport,20));
+	}
 	d_threads.push_back(Task::Spawn(*d_process,0));
 	d_threads.push_back(Task::Spawn(*d_acquisition,0));
 }

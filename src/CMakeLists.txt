@@ -36,6 +36,7 @@ set(SRC_FILES utils/Defer.cpp
 	          AcquisitionTask.cpp
 	          ProcessFrameTask.cpp
 	          ApriltagDetector.cpp
+	          FullFrameExportTask.cpp
 	          main.cpp
 	          )
 
@@ -55,6 +56,7 @@ set(HDR_FILES utils/Defer.hpp
 	          AcquisitionTask.hpp
 	          ProcessFrameTask.hpp
 	          ApriltagDetector.hpp
+	          FullFrameExportTask.hpp
 	          Application.hpp
 	          )
 

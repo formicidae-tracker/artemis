@@ -14,6 +14,7 @@ namespace artemis {
 class FrameGrabber;
 class AcquisitionTask;
 class ProcessFrameTask;
+class FullFrameExportTask;
 
 class Application {
 public:
@@ -41,9 +42,11 @@ private :
 	void RemoveSigIntHandler();
 
 
-	std::shared_ptr<FrameGrabber>     d_grabber;
-	std::shared_ptr<ProcessFrameTask> d_process;
-	std::shared_ptr<AcquisitionTask>  d_acquisition;
+	std::shared_ptr<FrameGrabber>        d_grabber;
+	std::shared_ptr<ProcessFrameTask>    d_process;
+	std::shared_ptr<AcquisitionTask>     d_acquisition;
+	std::shared_ptr<FullFrameExportTask> d_fullFrameExport;
+
 
 	std::vector<std::thread>          d_threads;
 

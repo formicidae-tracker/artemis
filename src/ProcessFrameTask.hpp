@@ -58,8 +58,6 @@ private :
 	void Detect(const Frame::Ptr & frame,
 	            hermes::FrameReadout & m);
 
-
-
 	cv::Rect GetROIAt(int x, int y,
 	                  const cv::Size & bound);
 
