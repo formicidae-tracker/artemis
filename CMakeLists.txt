@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.11)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
 FetchContent_Declare(googletest
@@ -17,11 +17,11 @@ FetchContent_Declare(googletest
 
 FetchContent_Declare(fort-tags
                      GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
-                     GIT_TAG        v1.2.2)
+                     GIT_TAG        v1.3.1)
 
 FetchContent_Declare(hermes
                      GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
-                     GIT_TAG        v0.2.3)
+                     GIT_TAG        v0.4.0)
 
 
 

@@ -8,6 +8,9 @@ namespace cv{
 class Mat;
 }
 
+namespace fort {
+namespace artemis {
+
 class Frame {
 public:
 	typedef std::shared_ptr<Frame> Ptr;
@@ -38,3 +41,6 @@ public :
 
 	virtual std::pair<int32_t,int32_t> GetResolution() = 0;
 };
+
+} // namespace artemis
+} // namespace fort

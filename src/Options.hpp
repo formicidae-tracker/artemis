@@ -1,6 +1,6 @@
 #pragma once
 
-#include <utils/Time.hpp>
+#include <Time.hpp>
 #include <fort/tags/fort-tags.h>
 #include <set>
 #include <cstdint>
@@ -69,16 +69,16 @@ struct ApriltagOptions {
  	void FinishParse();
 
 
-	fort::tags::Family Family;
-	float              QuadDecimate;
-	float              QuadSigma;
-	bool               RefineEdges;
-	int                QuadMinClusterPixel;
-	int                QuadMaxNMaxima;
-	float              QuadCriticalRadian;
-	float              QuadMaxLineMSE;
-	int                QuadMinBWDiff;
-	bool               QuadDeglitch;
+	tags::Family Family;
+	float        QuadDecimate;
+	float        QuadSigma;
+	bool         RefineEdges;
+	int          QuadMinClusterPixel;
+	int          QuadMaxNMaxima;
+	float        QuadCriticalRadian;
+	float        QuadMaxLineMSE;
+	int          QuadMinBWDiff;
+	bool         QuadDeglitch;
 
 private:
 	std::string d_family;

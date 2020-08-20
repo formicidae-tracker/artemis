@@ -6,7 +6,6 @@ find_path(EGRABBER_INCLUDE_DIR EGrabber.h
 
 mark_as_advanced(EGRABBER_INCLUDE_DIR)
 
-
 include(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(EGrabber DEFAULT_MSG EGRABBER_INCLUDE_DIR)
 

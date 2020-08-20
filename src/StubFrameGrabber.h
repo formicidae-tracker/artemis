@@ -6,6 +6,9 @@
 
 #include "FrameGrabber.h"
 
+namespace fort {
+namespace artemis {
+
 class StubFrame : public Frame {
 public :
 	StubFrame(const cv::Mat & mat, uint64_t timestamp, uint64_t ID);
@@ -42,3 +45,7 @@ private:
 	uint64_t d_ID,d_timestamp;
 	time     d_last;
 };
+
+
+} // namespace artemis
+} // namespace fort

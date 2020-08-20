@@ -1,20 +1,23 @@
 #pragma once
 
 #include "FrameGrabber.h"
-#include "CameraConfiguration.h"
+#include "Options.hpp"
 
 #include <EGrabber.h>
 
 #include <opencv2/core/core.hpp>
 #include <mutex>
 
+namespace fort {
+namespace artemis {
 
-
-class EuresysFrame : public Frame,public Euresys::ScopedBuffer {
+class EuresysFrame : public Frame {
 public :
-	EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber, const Euresys::NewBufferData &, uint64_t & lastFrame, uint64_t & toAdd);
+	EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber,
+	             const Euresys::NewBufferData &,
+	             uint64_t & lastFrame,
+	             uint64_t & toAdd);
 	virtual ~EuresysFrame();
-
 
 	virtual void * Data();
 	virtual size_t Width() const;
@@ -22,20 +25,20 @@ public :
 	virtual uint64_t Timestamp() const;
 	virtual uint64_t ID() const;
 	const cv::Mat & ToCV();
+
 private :
-	size_t d_width,d_height;
-	uint64_t d_timestamp,d_ID;
-	cv::Mat d_mat;
-	friend class EuresysFrameGrabbero;
+	Euresys::ScopedBuffer d_euresysBuffer;
+	size_t                d_width,d_height;
+	uint64_t              d_timestamp,d_ID;
+	cv::Mat               d_mat;
 };
 
 
-class EuresysFrameGrabber : public FrameGrabber,public Euresys::EGrabber<Euresys::CallbackOnDemand> {
+class EuresysFrameGrabber : public FrameGrabber {
 public :
 	typedef std::shared_ptr<Euresys::ScopedBuffer> BufferPtr;
 
-	EuresysFrameGrabber(Euresys::EGenTL & gentl,
-	                    const CameraConfiguration & cameraConfig);
+	EuresysFrameGrabber(const CameraOptions & cameraConfig);
 
 	virtual ~EuresysFrameGrabber();
 
@@ -49,9 +52,15 @@ private:
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
+	Euresys::EGenTL                              d_egentl;
+	Euresys::EGrabber<Euresys::CallbackOnDemand> d_grabber;
+
 	std::mutex         d_mutex;
 	Frame::Ptr         d_frame;
 	uint64_t           d_lastFrame;
 	uint64_t           d_toAdd;
 	int32_t            d_width,d_height;
 };
+
+} // namespace artemis
+} // namespace fort

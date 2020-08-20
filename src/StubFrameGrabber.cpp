@@ -4,6 +4,10 @@
 
 #include <opencv2/highgui/highgui.hpp>
 
+
+namespace fort {
+namespace artemis {
+
 StubFrame::StubFrame(const cv::Mat & mat, uint64_t timestamp, uint64_t ID)
 	: d_mat(mat.clone())
 	, d_timestamp(timestamp)
@@ -71,3 +75,6 @@ Frame::Ptr StubFrameGrabber::NextFrame() {
 	d_ID += 1;
 	return res;
 }
+
+} // namespace artemis
+} // namespace fort

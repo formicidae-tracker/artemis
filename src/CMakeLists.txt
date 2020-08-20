@@ -22,81 +22,56 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 
 
 set(SRC_FILES utils/Defer.cpp
-              utils/Time.cpp
-	          FrameGrabber.cpp
-	          ProcessDefinition.cpp
-	          ResizeProcess.cpp
-	          Apriltag2Process.cpp
-	          RingBuffer.cpp
-	          ProcessQueueExecuter.cpp
 	          utils/PosixCall.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
-	          OutputProcess.cpp
-	          Connection.cpp
-	          AntCataloguerProcess.cpp
-	          LegacyAntCataloguerProcess.cpp
-	          OverlayWriter.cpp
-	          WatermarkingProcess.cpp
-	          DrawDetectionProcess.cpp
-	          utils/CPUMap.cpp
 	          utils/Partitions.cpp
-	          StubFrameGrabber.cpp
-	          FrameDisplayer.cpp
-	          CameraConfiguration.cpp
+	          Time.cpp
 	          Options.cpp
+	          FrameGrabber.cpp
+	          StubFrameGrabber.cpp
+	          RingBuffer.cpp
+	          Connection.cpp
+	          Application.cpp
+	          main.cpp
 	          )
 
 
 
 
 set(HDR_FILES utils/Defer.h
-              utils/Time.hpp
-	          utils/PosixCall.h
-	          FrameGrabber.h
-	          ProcessDefinition.h
-	          ResizeProcess.h
-	          Apriltag2Process.h
-	          RingBuffer.h
-	          ProcessQueueExecuter.h
-	          utils/PosixCall.h
+              utils/PosixCall.h
+              utils/PosixCall.h
 	          utils/FlagParser.h
 	          utils/StringManipulation.h
-	          OutputProcess.h
-	          Connection.h
-	          AntCataloguerProcess.h
-	          LegacyAntCataloguerProcess.h
-	          OverlayWriter.h
-	          WatermarkingProcess.h
-	          DrawDetectionProcess.h
-	          utils/CPUMap.h
 	          utils/Partitions.h
+	          RingBuffer.h
+	          FrameGrabber.h
+	          Time.hpp
+	          Connection.h
 	          StubFrameGrabber.h
-	          FrameDisplayer.h
-	          CameraConfiguration.h
 	          Options.hpp
+	          Application.hpp
 	          )
 
 
 set(UTEST_SRC_FILES main-check.cpp
                     utils/DeferUTest.cpp
-                    utils/TimeUTest.cpp
+                    utils/FlagParserUTest.cpp
+                    utils/StringManipulationUTest.cpp
+                    TimeUTest.cpp
 	                RingBufferUTest.cpp
-	                utils/FlagParserUTest.cpp
-	                utils/StringManipulationUTest.cpp
 	                ConnectionUTest.cpp
-	                ProcessQueueExecuterUTest.cpp
 	                utils/PartitionsUTest.cpp
 	                OptionsUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.h
-                    utils/TimeUTest.hpp
 	                RingBufferUTest.h
 	                utils/FlagParserUTest.h
 	                utils/StringManipulationUTest.h
+	                TimeUTest.hpp
 	                ConnectionUTest.h
-	                ProcessQueueExecuterUTest.h
 	                utils/PartitionsUTest.h
 	                OptionsUTest.hpp
 	                )
