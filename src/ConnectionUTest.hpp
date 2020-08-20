@@ -9,6 +9,9 @@
 #include <thread>
 #include <condition_variable>
 
+namespace fort {
+namespace artemis {
+
 class Barrier {
 public:
 	Barrier() : d_active(false) {}
@@ -52,3 +55,7 @@ protected:
 	Barrier                 d_running,d_accept,d_closed,d_read;
 	bool                    d_rejected;
 };
+
+} // namespace artemis
+
+} // namespace fort

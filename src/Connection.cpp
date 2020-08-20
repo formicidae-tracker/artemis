@@ -9,6 +9,15 @@
 #include <google/protobuf/util/delimited_message_util.h>
 #include <fort-hermes/Header.pb.h>
 
+namespace fort {
+namespace artemis {
+
+#define Connection_LOG(level,connection) LOG(level) << "[connection" \
+	<< (connection)->d_host \
+	<< ":" \
+	<< (connection)->d_port \
+	<< "]: "
+
 
 void Connection::Connect(const Ptr & self) {
 	std::ostringstream oss;
@@ -21,14 +30,14 @@ void Connection::Connect(const Ptr & self) {
 		asio::async_connect(*res,endpoint,self->d_strand.wrap([self,res](const asio::error_code & ec,
 		                                                                 asio::ip::tcp::resolver::iterator it) {
 					if (ec) {
-						LOG(ERROR) << "Could not connect to '" << self->d_host << ":" << self->d_port << "': " << ec;
+						Connection_LOG(ERROR,self) << "Could not connect to host: " << ec;
 						ScheduleReconnect(self);
 						return;
 					}
 					self->d_socket = res;
 				}));
 	} catch (const std::exception & e) {
-		LOG(ERROR) << "Could not connect to '" << self->d_host << ":" << self->d_port << "': " << e.what();
+		Connection_LOG(ERROR,self) << "Could not connect to host: exception: " << e.what();
 		self->d_strand.post([self](){ScheduleReconnect(self);});
 	}
 
@@ -49,8 +58,8 @@ void Connection::Connect(const Ptr & self) {
 Connection::Ptr Connection::Create(asio::io_service & service,
                                    const std::string & host,
                                    uint16_t port,
-                                   std::chrono::high_resolution_clock::duration reconnectTime) {
-	std::shared_ptr<Connection> res(new Connection(service,host,port,reconnectTime));
+                                   Duration reconnectPeriod ) {
+	std::shared_ptr<Connection> res(new Connection(service,host,port,reconnectPeriod));
 	Connect(res);
 	return res;
 }
@@ -58,69 +67,71 @@ Connection::Ptr Connection::Create(asio::io_service & service,
 Connection::Connection(asio::io_service & service,
                        const std::string & host,
                        uint16_t port,
-                       std::chrono::high_resolution_clock::duration reconnectTime)
+                       Duration reconnectPeriod)
 	: d_service(service)
 	, d_strand(service)
 	, d_host(host)
 	, d_port(port)
 	, d_sending(false)
-	, d_reconnectTime(reconnectTime) {
+	, d_reconnectPeriod(reconnectPeriod) {
 
-	auto prodConsum = BufferPool::Create();
-	d_producer = std::move(prodConsum.first);
-	d_consumer = std::move(prodConsum.second);
+	d_bufferQueue.set_capacity(16);
+
 }
 
 Connection::~Connection() {
 }
 
+// serializes the message to a std::string, which are allowed to
+// contain NULL character, but should be considered a glorified
+// std::vector<uint8_t> could be improved to use an allocation arena
+// instead of buffers
+inline std::string SerializeMessage(const google::protobuf::MessageLite & message ) {
+	std::ostringstream oss;
+	google::protobuf::util::SerializeDelimitedToOstream(message, &oss);
+	return oss.str();
+
+}
+
 void Connection::PostMessage(const Ptr & self,const google::protobuf::MessageLite & message) {
-	std::lock_guard<std::mutex> lock(self->d_sendingMutex);
-	if ( self->d_producer->Full() ) {
-		LOG(WARNING) << "serialization: discarding data: FIFO full";
-		return;
+	if ( self->d_bufferQueue.try_push(SerializeMessage(message)) == false ) {
+		Connection_LOG(WARNING,self) << "discarding message as input queue is full";
 	}
 
-	std::ostringstream & oss = self->d_producer->Tail();
-	oss.str("");
-	oss.clear();
-	google::protobuf::util::SerializeDelimitedToOstream(message, &oss);
-
-	self->d_producer->Push();
-	self->d_strand.post([self]{
-			if(self->d_consumer->Empty() || self->d_sending == true) {
-				return;
-			}
-			if (!self->d_socket) {
-				LOG(WARNING) << "serialization: discarding data: no active connection";
-				self->d_consumer->Pop();
-				ScheduleReconnect(self);
-				return;
-			}
-			ScheduleSend(self);
-		});
+	self->d_strand.post([self] () {
+		                    if(self->d_bufferQueue.size() <= 0  || self->d_sending == true) {
+			                    return;
+		                    }
+		                    if (!self->d_socket) {
+			                    Connection_LOG(WARNING,self) << "discarding message has there is no active connection";\
+			                    std::string discard;
+			                    self->d_bufferQueue.pop(discard);
+			                    ScheduleReconnect(self);
+			                    return;
+		                    }
+		                    ScheduleSend(self);
+	                    });
 }
 
 void Connection::ScheduleSend(const Ptr & self) {
 	self->d_sending = true;
-	auto toSend = std::make_shared<std::string>(self->d_consumer->Head().str());
+	std::string toSend;
+	self->d_bufferQueue.pop(toSend);
 	asio::async_write(*self->d_socket,
-	                  asio::const_buffers_1(&((*toSend)[0]),toSend->size()),
+	                  asio::const_buffers_1(&((toSend)[0]),toSend.size()),
 	                  self->d_strand.wrap([self,toSend](const asio::error_code & ec,
-	                                             std::size_t){
-		                                      self->d_consumer->Pop();
-		                                      if (ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
-			                                      LOG(ERROR) << "serialization: disconnected: " << ec;
-
+	                                                    std::size_t s) {
+		                                      if ( ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
+			                                      Connection_LOG(ERROR,self) << "disconnected: " << ec;
 			                                      if (!self->d_socket) {
 				                                      return;
 			                                      }
 			                                      self->d_socket.reset();
 			                                      ScheduleReconnect(self);
 		                                      } else if ( ec ) {
-			                                      LOG(ERROR) << "serialization: could not send data: " << ec;
+			                                      Connection_LOG(ERROR,self) << "could not send data: " << ec;
 		                                      }
-		                                      if (self->d_consumer->Empty()) {
+		                                      if (self->d_bufferQueue.size() <= 0 ) {
 			                                      self->d_sending = false;
 			                                      return;
 		                                      }
@@ -132,13 +143,16 @@ void Connection::ScheduleReconnect(const Ptr & self) {
 	if (self->d_socket) {
 		return;
 	}
-	auto d = std::chrono::duration_cast<std::chrono::milliseconds>(self->d_reconnectTime);
-	LOG(INFO) << "Reconnecting in "
-	          << d.count()
-	          << "ms to '" << self->d_host << ":" << self->d_port << "'";
-	auto t = std::make_shared<asio::deadline_timer>(self->d_service,boost::posix_time::milliseconds(d.count()));
+
+	Connection_LOG(INFO,self) << "reconnecting in " << self->d_reconnectPeriod;
+	auto period = boost::posix_time::milliseconds(size_t(self->d_reconnectPeriod.Milliseconds()));
+	auto t = std::make_shared<asio::deadline_timer>(self->d_service,
+	                                                period);
 	t->async_wait(self->d_strand.wrap([self,t](const asio::error_code & ) {
-				LOG(INFO) << "Reconnecting to '" << self->d_host << ":" << self->d_port << "'";
-				Connect(self);
-			}));
+		                                  Connection_LOG(INFO,self) << "reconnecting now";
+		                                  Connect(self);
+	                                  }));
 }
+
+} // namespace artemis
+} // namespace fort

@@ -25,21 +25,21 @@ public:
 	                  const std::string & host,
 	                  uint16_t port,
 	                  Duration reconnectPeriod = 5 * Duration::Second );
-	// reentrant function
+
+	// thread-safe function
 	static void PostMessage(const Ptr & connection, const google::protobuf::MessageLite & m);
 
 private :
 	Connection(asio::io_service & service,
 	           const std::string & host,
 	           uint16_t port,
-	           std::chrono::high_resolution_clock::duration reconnectTime);
+	           Duration reconnectPeriod);
 
 	static void ScheduleReconnect(const Ptr & self);
 	static void ScheduleSend(const Ptr & self);
 	static void Connect(const Ptr & self);
 
 	asio::io_service & d_service;
-	std::mutex         d_sendingMutex;
 
 	std::string                            d_host;
 	uint16_t                               d_port;
@@ -51,8 +51,14 @@ private :
 	asio::strand                           d_strand;
 #endif
 
-	typedef tbb::concurrent_bounded_queue<std::ostringstream,16> BufferPool;
+	typedef tbb::concurrent_bounded_queue<std::string> BufferQueue;
+
 	bool      d_sending;
+
+	BufferQueue d_bufferQueue;
 
 	Duration  d_reconnectPeriod;
 };
+
+} // namespace artemis
+} // namespace fort

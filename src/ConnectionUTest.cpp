@@ -14,6 +14,9 @@
 
 #include <glog/logging.h>
 
+namespace fort {
+namespace artemis {
+
 class IncommingConnection {
 public :
 	IncommingConnection(asio::io_service & service, Barrier & closed) : d_closed(closed), d_socket(service), d_continue(true), d_received(0) , d_headerRead(true) {
@@ -154,5 +157,7 @@ TEST_F(ConnectionUTest,CanReconnect) {
 	connection.reset();
 	d_closed.Wait();
 
-
 }
+
+} // namespace artemis
+} // namespace fort

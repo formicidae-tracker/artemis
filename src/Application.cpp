@@ -54,7 +54,7 @@ std::shared_ptr<FrameGrabber> Application::LoadFramegrabber(const std::string & 
 		return std::make_shared<StubFrameGrabber>(stubPath);
 	}
 #else
-	return std::make_shared<StubFrameGrabber>(opts.StubImagePath);
+	return std::make_shared<StubFrameGrabber>(stubPath);
 #endif
 
 

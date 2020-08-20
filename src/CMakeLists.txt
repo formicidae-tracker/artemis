@@ -30,7 +30,6 @@ set(SRC_FILES utils/Defer.cpp
 	          Options.cpp
 	          FrameGrabber.cpp
 	          StubFrameGrabber.cpp
-	          RingBuffer.cpp
 	          Connection.cpp
 	          Application.cpp
 	          main.cpp
@@ -43,7 +42,6 @@ set(HDR_FILES utils/Defer.hpp
 	          utils/FlagParser.hpp
 	          utils/StringManipulation.hpp
 	          utils/Partitions.hpp
-	          RingBuffer.hpp
 	          FrameGrabber.hpp
 	          Time.hpp
 	          Connection.hpp
@@ -58,7 +56,6 @@ set(UTEST_SRC_FILES main-check.cpp
                     utils/FlagParserUTest.cpp
                     utils/StringManipulationUTest.cpp
                     TimeUTest.cpp
-	                RingBufferUTest.cpp
 	                ConnectionUTest.cpp
 	                utils/PartitionsUTest.cpp
 	                OptionsUTest.cpp
@@ -68,7 +65,6 @@ set(UTEST_HDR_FILES utils/DeferUTest.hpp
 	                utils/FlagParserUTest.hpp
 	                utils/StringManipulationUTest.hpp
 	                utils/PartitionsUTest.hpp
-	                RingBufferUTest.hpp
 	                TimeUTest.hpp
 	                ConnectionUTest.hpp
 	                OptionsUTest.hpp
