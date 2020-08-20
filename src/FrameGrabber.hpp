@@ -2,7 +2,9 @@
 
 #include <memory>
 
-#include <sys/time.h>
+#include "Time.hpp"
+
+
 
 namespace cv{
 class Mat;
@@ -24,14 +26,16 @@ public:
 	virtual uint64_t Timestamp() const = 0;
 	virtual uint64_t ID() const = 0;
 	virtual const cv::Mat & ToCV() = 0;
-	const struct timeval & Time() const;
+	const fort::artemis::Time & Time() const;
 private:
 
-	struct timeval d_time;
+	fort::artemis::Time d_time;
 };
 
 class FrameGrabber {
 public :
+	typedef std::shared_ptr<FrameGrabber> Ptr;
+
 	virtual ~FrameGrabber();
 
 	virtual void Start() = 0;
