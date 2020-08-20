@@ -1,4 +1,4 @@
-#include "StringManipulation.h"
+#include "StringManipulation.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -70,4 +70,3 @@ std::string & s::TrimSuffix(std::string & s, const std::string & suffix) {
 std::string & s::TrimSpaces(std::string & s) {
 	return TrimFunc(s,[](char c) { return std::isspace(c);});
 }
-

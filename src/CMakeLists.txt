@@ -37,19 +37,17 @@ set(SRC_FILES utils/Defer.cpp
 	          )
 
 
-
-
-set(HDR_FILES utils/Defer.h
-              utils/PosixCall.h
-              utils/PosixCall.h
-	          utils/FlagParser.h
-	          utils/StringManipulation.h
-	          utils/Partitions.h
-	          RingBuffer.h
-	          FrameGrabber.h
+set(HDR_FILES utils/Defer.hpp
+              utils/PosixCall.hpp
+              utils/PosixCall.hpp
+	          utils/FlagParser.hpp
+	          utils/StringManipulation.hpp
+	          utils/Partitions.hpp
+	          RingBuffer.hpp
+	          FrameGrabber.hpp
 	          Time.hpp
-	          Connection.h
-	          StubFrameGrabber.h
+	          Connection.hpp
+	          StubFrameGrabber.hpp
 	          Options.hpp
 	          Application.hpp
 	          )
@@ -66,19 +64,19 @@ set(UTEST_SRC_FILES main-check.cpp
 	                OptionsUTest.cpp
 	                )
 
-set(UTEST_HDR_FILES utils/DeferUTest.h
-	                RingBufferUTest.h
-	                utils/FlagParserUTest.h
-	                utils/StringManipulationUTest.h
+set(UTEST_HDR_FILES utils/DeferUTest.hpp
+	                utils/FlagParserUTest.hpp
+	                utils/StringManipulationUTest.hpp
+	                utils/PartitionsUTest.hpp
+	                RingBufferUTest.hpp
 	                TimeUTest.hpp
-	                ConnectionUTest.h
-	                utils/PartitionsUTest.h
+	                ConnectionUTest.hpp
 	                OptionsUTest.hpp
 	                )
 
 if(EGrabber_FOUND)
 	list(APPEND SRC_FILES EuresysFrameGrabber.cpp)
-	list(APPEND HDR_FILES EuresysFrameGrabber.h)
+	list(APPEND HDR_FILES EuresysFrameGrabber.hpp)
 endif(EGrabber_FOUND)
 
 

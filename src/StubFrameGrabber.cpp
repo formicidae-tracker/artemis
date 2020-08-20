@@ -1,4 +1,4 @@
-#include "StubFrameGrabber.h"
+#include "StubFrameGrabber.hpp"
 
 #include <thread>
 

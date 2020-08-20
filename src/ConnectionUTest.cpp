@@ -1,4 +1,4 @@
-#include "ConnectionUTest.h"
+#include "ConnectionUTest.hpp"
 
 
 #include <asio/error.hpp>
@@ -10,7 +10,7 @@
 #include <fort-hermes/FrameReadout.pb.h>
 #include <fort-hermes/Header.pb.h>
 
-#include "Connection.h"
+#include "Connection.hpp"
 
 #include <glog/logging.h>
 

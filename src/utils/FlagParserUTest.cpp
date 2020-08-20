@@ -5,7 +5,7 @@
  *  \author Alexandre Tuleu
  */
 
-#include "FlagParserUTest.h"
+#include "FlagParserUTest.hpp"
 #include <memory>
 
 #include <cmath>
@@ -36,7 +36,7 @@ public :
 	std::vector<char*> Argv() {
 		std::vector<char*> res(d_argv.size() + 1, NULL);
 		for( auto a = d_argv.cbegin(); a != d_argv.cend(); ++a) {
-		
+
 			size_t i = (size_t)std::distance(d_argv.cbegin(),a);
 			res[i] = const_cast<char *> (a->c_str());
 		}
@@ -83,7 +83,7 @@ TEST_F(FlagParserUTest,CanParseUInt) {
 		EXPECT_NO_STD_THROW({
 				d_parser->Parse(argc,&(h.Argv()[0]));
 			}) << "When parsing " << d.AsString;
-	
+
 		EXPECT_EQ(d.AsUInt,d_options->UIntFlag);
 	}
 }
@@ -162,7 +162,7 @@ TEST_F(FlagParserUTest,CanHaveMandatoryParameter) {
 			} catch(const std::runtime_error & e) {
 				EXPECT_EQ("Missing mandatory flag(s): {-m/--mandatory-flag}",std::string(e.what()));
 			}
-		});		   
+		});
 }
 
 

@@ -1,4 +1,4 @@
-#include "FrameGrabber.h"
+#include "FrameGrabber.hpp"
 
 
 namespace fort {

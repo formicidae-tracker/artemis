@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "RingBuffer.h"
+#include "RingBuffer.hpp"
 
 class RingBufferUTest : public ::testing::Test {
 protected :

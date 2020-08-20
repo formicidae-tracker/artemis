@@ -1,4 +1,4 @@
-#include "EuresysFrameGrabber.h"
+#include "EuresysFrameGrabber.hpp"
 
 #include <glog/logging.h>
 #include <regex>

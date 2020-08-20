@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FrameGrabber.h"
+#include "FrameGrabber.hpp"
 #include "Options.hpp"
 
 #include <EGrabber.h>

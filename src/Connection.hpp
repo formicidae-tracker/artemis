@@ -8,7 +8,7 @@
 
 #include <google/protobuf/message.h>
 
-#include "RingBuffer.h"
+#include "RingBuffer.hpp"
 
 #include <chrono>
 

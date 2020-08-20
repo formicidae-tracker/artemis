@@ -1,10 +1,10 @@
-#include "FlagParser.h"
+#include "FlagParser.hpp"
 
 #include <cstring>
 
 #include <iomanip>
 
-#include "StringManipulation.h"
+#include "StringManipulation.hpp"
 
 using namespace options;
 

@@ -7,9 +7,9 @@
 
 #include <artemis-config.h>
 
-#include "StubFrameGrabber.h"
+#include "StubFrameGrabber.hpp"
 #ifndef FORCE_STUB_FRAMEGRABBER_ONLY
-#include "EuresysFrameGrabber.h"
+#include "EuresysFrameGrabber.hpp"
 #endif // FORCE_STUB_FRAMEGRABBER
 
 namespace fort {

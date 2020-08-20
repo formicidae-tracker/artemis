@@ -1,6 +1,6 @@
-#include "PartitionsUTest.h"
+#include "PartitionsUTest.hpp"
 
-#include "Partitions.h"
+#include "Partitions.hpp"
 
 
 TEST_F(PartitionsUTest,PartitionEqually) {

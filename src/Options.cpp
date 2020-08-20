@@ -3,8 +3,8 @@
 #include <stdexcept>
 
 
-#include <utils/FlagParser.h>
-#include <utils/StringManipulation.h>
+#include <utils/FlagParser.hpp>
+#include <utils/StringManipulation.hpp>
 
 namespace fort {
 namespace artemis {

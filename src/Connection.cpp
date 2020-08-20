@@ -1,4 +1,4 @@
-#include "Connection.h"
+#include "Connection.hpp"
 
 #include <asio/connect.hpp>
 #include <asio/write.hpp>

@@ -1,5 +1,5 @@
-#include "StringManipulation.h"
-#include "StringManipulationUTest.h"
+#include "StringManipulation.hpp"
+#include "StringManipulationUTest.hpp"
 
 using namespace base;
 

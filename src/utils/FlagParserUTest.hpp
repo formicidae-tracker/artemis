@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 
-#include "FlagParser.h"
+#include "FlagParser.hpp"
 #include <memory>
 
 class FlagParserUTest : public ::testing::Test {
