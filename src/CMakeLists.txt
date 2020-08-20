@@ -26,6 +26,7 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/FlagParser.cpp
 	          utils/StringManipulation.cpp
 	          utils/Partitions.cpp
+	          Task.cpp
 	          Time.cpp
 	          Options.cpp
 	          FrameGrabber.cpp
@@ -42,6 +43,7 @@ set(HDR_FILES utils/Defer.hpp
 	          utils/FlagParser.hpp
 	          utils/StringManipulation.hpp
 	          utils/Partitions.hpp
+	          Task.hpp
 	          FrameGrabber.hpp
 	          Time.hpp
 	          Connection.hpp
@@ -59,6 +61,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                ConnectionUTest.cpp
 	                utils/PartitionsUTest.cpp
 	                OptionsUTest.cpp
+	                TaskUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.hpp
@@ -68,6 +71,7 @@ set(UTEST_HDR_FILES utils/DeferUTest.hpp
 	                TimeUTest.hpp
 	                ConnectionUTest.hpp
 	                OptionsUTest.hpp
+	                TaskUTest.hpp
 	                )
 
 if(EGrabber_FOUND)
