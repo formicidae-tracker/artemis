@@ -33,6 +33,8 @@ set(SRC_FILES utils/Defer.cpp
 	          StubFrameGrabber.cpp
 	          Connection.cpp
 	          Application.cpp
+	          AcquisitionTask.cpp
+	          ProcessFrameTask.cpp
 	          main.cpp
 	          )
 
@@ -49,6 +51,8 @@ set(HDR_FILES utils/Defer.hpp
 	          Connection.hpp
 	          StubFrameGrabber.hpp
 	          Options.hpp
+	          AcquisitionTask.hpp
+	          ProcessFrameTask.hpp
 	          Application.hpp
 	          )
 
@@ -62,6 +66,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                utils/PartitionsUTest.cpp
 	                OptionsUTest.cpp
 	                TaskUTest.cpp
+	                ObjectPoolUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.hpp
@@ -72,6 +77,7 @@ set(UTEST_HDR_FILES utils/DeferUTest.hpp
 	                ConnectionUTest.hpp
 	                OptionsUTest.hpp
 	                TaskUTest.hpp
+	                ObjectPoolUTest.hpp
 	                )
 
 if(EGrabber_FOUND)

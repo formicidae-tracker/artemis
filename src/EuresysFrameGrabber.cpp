@@ -3,6 +3,8 @@
 #include <glog/logging.h>
 #include <regex>
 
+#include <artemis-config.h>
+
 namespace fort {
 namespace artemis {
 
@@ -62,7 +64,7 @@ EuresysFrameGrabber::EuresysFrameGrabber(const CameraOptions & options)
 	DLOG(INFO) << "Enable Event";
 	d_grabber.enableEvent<NewBufferData>();
 	DLOG(INFO) << "Realloc Buffer";
-	d_grabber.reallocBuffers(4);
+	d_grabber.reallocBuffers(ARTEMIS_BUFFER_QUEUE_CAPACITY);
 }
 
 void EuresysFrameGrabber::Start() {

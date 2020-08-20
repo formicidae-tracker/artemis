@@ -1,13 +1,19 @@
 #pragma once
 
 #include "Options.hpp"
+#include  "Task.hpp"
 
 #include <memory>
+#include <vector>
+
+
 
 namespace fort {
 namespace artemis {
 
 class FrameGrabber;
+class AcquisitionTask;
+class ProcessFrameTask;
 
 class Application {
 public:
@@ -18,16 +24,28 @@ public:
 private :
 	static bool InterceptCommand(const Options & options);
 
-	static std::shared_ptr<FrameGrabber> LoadFramegrabber(const std::string & stubImagePath,
-	                                                      const CameraOptions & camera);
-
 	static void InitGlobalDependencies();
 	static void InitGoogleLogging(const std::string & applicationName,
 	                              const GeneralOptions & options);
 
+	static Application * d_application;
+	static void OnSigInt(int sig);
+
 	Application(const Options & options);
 
 	void Run();
+	void SpawnTasks();
+	void JoinTasks();
+
+	void InstallSigIntHandler();
+	void RemoveSigIntHandler();
+
+
+	std::shared_ptr<FrameGrabber>     d_grabber;
+	std::shared_ptr<ProcessFrameTask> d_process;
+	std::shared_ptr<AcquisitionTask>  d_acquisition;
+
+	std::vector<std::thread>          d_threads;
 
 };
 

@@ -5,12 +5,12 @@
 #include <glog/logging.h>
 #include <Eigen/Core>
 
+#include <opencv2/core.hpp>
+
 #include <artemis-config.h>
 
-#include "StubFrameGrabber.hpp"
-#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
-#include "EuresysFrameGrabber.hpp"
-#endif // FORCE_STUB_FRAMEGRABBER
+#include "AcquisitionTask.hpp"
+#include "ProcessFrameTask.hpp"
 
 namespace fort {
 namespace artemis {
@@ -36,28 +36,13 @@ bool Application::InterceptCommand(const Options & options ) {
 	}
 
 	if ( options.General.PrintResolution == true ) {
-		auto resolution = LoadFramegrabber(options.General.StubImagePath,
-		                                   options.Camera)->GetResolution();
+		auto resolution = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
+		                                                    options.Camera)->GetResolution();
 		std::cout << resolution.first << " " << resolution.second << std::endl;
 		return true;
 	}
 
 	return false;
-}
-
-std::shared_ptr<FrameGrabber> Application::LoadFramegrabber(const std::string & stubPath,
-                                                            const CameraOptions & options) {
-#ifndef FORCE_STUB_FRAMEGRABBER_ONLY
-	if (stubPath.empty() ) {
-		return std::make_shared<EuresysFrameGrabber>(options);
-	} else {
-		return std::make_shared<StubFrameGrabber>(stubPath);
-	}
-#else
-	return std::make_shared<StubFrameGrabber>(stubPath);
-#endif
-
-
 }
 
 
@@ -87,11 +72,57 @@ void Application::InitGlobalDependencies() {
 
 
 Application::Application(const Options & options) {
+	d_process = std::make_shared<ProcessFrameTask>();
+
+
+	d_grabber = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
+	                                              options.Camera);
+
+	d_acquisition = std::make_shared<AcquisitionTask>(d_grabber,d_process);
 
 
 }
 
+Application * Application::d_application = nullptr;
+
+void Application::OnSigInt(int sig) {
+	if ( d_application == nullptr ) {
+		throw std::logic_error("Signal handler called without object");
+		exit(1);
+	}
+	d_application->d_acquisition->Stop();
+}
+
+void Application::SpawnTasks() {
+	d_threads.push_back(Task::Spawn(*d_process,0));
+	d_threads.push_back(Task::Spawn(*d_acquisition,0));
+}
+
+void Application::JoinTasks() {
+	for ( auto & thread : d_threads ) {
+		thread.join();
+	}
+}
+
+void Application::InstallSigIntHandler() {
+	if ( d_application != nullptr ) {
+		throw std::logic_error("Handler is already installed");
+	}
+	d_application = this;
+	signal(SIGINT,&OnSigInt);
+}
+
+
+void Application::RemoveSigIntHandler() {
+	signal(SIGINT,SIG_DFL);
+	d_application = nullptr;
+}
+
 void Application::Run() {
+	InstallSigIntHandler();
+	SpawnTasks();
+	JoinTasks();
+	RemoveSigIntHandler();
 }
 
 
