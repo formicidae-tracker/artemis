@@ -139,8 +139,13 @@ cv::Size VideoOutputOptions::WorkingResolution(const cv::Size & input) const {
 	return cv::Size(input.width * double(Height) / double(input.height),Height);
 }
 
+DisplayOptions::DisplayOptions()
+	: DisplayROI(false) {
+}
+
 void DisplayOptions::PopulateParser(options::FlagParser & parser) {
 		parser.AddFlag("highlight-tags",d_highlighted,"Tag to highlight when drawing detections");
+		parser.AddFlag("display-roi",DisplayROI,"Displays ROI");
 }
 
 void DisplayOptions::FinishParse() {
@@ -302,6 +307,12 @@ void Options::Validate() {
 		                         + std::to_string(Network.Port)
 		                         + " requested but no family selected");
 	}
+
+	if ( General.TestMode ) {
+		Display.DisplayROI = true;
+	}
+
+
 
 }
 

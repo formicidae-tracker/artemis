@@ -13,6 +13,8 @@
 #include "FrameGrabber.hpp"
 #include "ObjectPool.hpp"
 
+#include "ui/UserInterface.hpp"
+
 namespace cv {
 class Mat;
 }
@@ -58,7 +60,8 @@ private :
 	void SetUpDetection(const cv::Size & inputResolution,
 	                    const ApriltagOptions & options);
 	void SetUpCataloguing(const ProcessOptions & options);
-	void SetUpUserInterface();
+	void SetUpUserInterface(const cv::Size & workingresolution,
+	                        const DisplayOptions & options);
 	void SetUpPoolObjects(const cv::Size & workingResolution);
 
 
@@ -70,8 +73,9 @@ private :
 	void Detect(const Frame::Ptr & frame,
 	            hermes::FrameReadout & m);
 
-	cv::Rect GetROIAt(int x, int y,
-	                  const cv::Size & bound);
+	static cv::Rect GetROIAt(int x, int y,
+	                         const cv::Size & roiSize,
+	                         const cv::Size & bound);
 
 	void ResetExportedID(const Time & time);
 
@@ -100,6 +104,8 @@ private :
 
 	bool ShouldProcess(uint64_t ID);
 
+	double CurrentFPS(const Time & time);
+
 	const ProcessOptions   d_options;
 
 	FrameQueue             d_frameQueue;
@@ -124,6 +130,11 @@ private :
 	Time                              d_nextFrameExport;
 	Time                              d_nextAntCatalog;
 	std::set<uint32_t>                d_exportedID;
+
+	UserInterface::Zoom d_wantedZoom;
+	size_t              d_frameDropped;
+	size_t              d_frameProcessed;
+	Time                d_start;
 };
 
 } // namespace artemis

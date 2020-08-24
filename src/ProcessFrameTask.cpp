@@ -11,7 +11,7 @@
 #include "ApriltagDetector.hpp"
 #include "FullFrameExportTask.hpp"
 #include "VideoOutputTask.hpp"
-
+#include "UserInterfaceTask.hpp"
 
 namespace fort {
 namespace artemis {
@@ -25,7 +25,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
 
 	SetUpDetection(inputResolution,options.Apriltag);
-	SetUpUserInterface();
+	SetUpUserInterface(workingResolution,options.Display);
 	SetUpVideoOutputTask(options.VideoOutput,context);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects(workingResolution);
@@ -74,8 +74,12 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 	d_fullFrameExport = std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
 }
 
-void ProcessFrameTask::SetUpUserInterface() {
+void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
+                                          const DisplayOptions & options) {
+	d_userInterface = std::make_shared<artemis::UserInterfaceTask>(workingResolution,
+	                                                               options);
 
+	d_wantedZoom = d_userInterface->UnsafeCurrentZoom();
 }
 
 void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
@@ -94,7 +98,9 @@ void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
 ProcessFrameTask::~ProcessFrameTask() {}
 
 void ProcessFrameTask::TearDown() {
-	// TODO: Close UserInterface connection
+	if ( d_userInterface ) {
+		d_userInterface->CloseQueue();
+	}
 
 	if ( d_fullFrameExport ) {
 		d_fullFrameExport->CloseQueue();
@@ -109,6 +115,9 @@ void ProcessFrameTask::TearDown() {
 void ProcessFrameTask::Run() {
 
 	Frame::Ptr frame;
+	d_frameDropped = 0;
+	d_frameProcessed = 0;
+	d_start = Time::Now();
 	for (;;) {
 		d_frameQueue.pop(frame);
 		if ( !frame ) {
@@ -148,11 +157,12 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr & frame ) {
 		d_videoOutput->QueueFrame(converted,frame->Time(),frame->ID());
 	}
 
-	// user interface communication will happen after.
+	// user interface communication will happen after in DisplayFrame.
 
 }
 
 void ProcessFrameTask::DropFrame(const Frame::Ptr & frame) {
+	++d_frameDropped;
 	if ( !d_connection ) {
 		return;
 	}
@@ -176,6 +186,8 @@ void ProcessFrameTask::ProcessFrame(const Frame::Ptr & frame) {
 		}
 		CatalogAnt(frame,*m);
 		ExportFullFrame(frame);
+
+		++d_frameProcessed;
 	}
 
 	DisplayFrame(frame,m);
@@ -275,17 +287,17 @@ ProcessFrameTask::FindUnexportedID(const hermes::FrameReadout & m) {
 
 
 cv::Rect ProcessFrameTask::GetROIAt(int x, int y,
+                                    const cv::Size & roiSize,
                                     const cv::Size & bound) {
-	x = std::clamp(x - int(d_options.NewAntROISize / 2),
+	x = std::clamp(x - roiSize.width / 2,
 	               0,
-	               bound.width - int(d_options.NewAntROISize));
+	               bound.width - roiSize.width);
 
-	y = std::clamp(y - int(d_options.NewAntROISize / 2),
+	y = std::clamp(y - roiSize.height / 2,
 	               0,
-	               bound.height - int(d_options.NewAntROISize));
+	               bound.height - roiSize.height);
 
-	return cv::Rect(cv::Point2d(x,y),cv::Size(d_options.NewAntROISize,
-	                                          d_options.NewAntROISize));
+	return cv::Rect(cv::Point2d(x,y),roiSize);
 }
 
 void ProcessFrameTask::ExportROI(const cv::Mat & image,
@@ -296,15 +308,41 @@ void ProcessFrameTask::ExportROI(const cv::Mat & image,
 
 	std::ostringstream oss;
 	oss << d_options.NewAntOutputDir << "/ant_" << tagID << "_" << frameID << ".png";
-	cv::imwrite(oss.str(),cv::Mat(image,GetROIAt(x,y,image.size())));
+	cv::imwrite(oss.str(),
+	            cv::Mat(image,
+	                    GetROIAt(x,y,
+	                             cv::Size(d_options.NewAntROISize,
+	                                      d_options.NewAntROISize),
+	                             image.size())));
 }
 
 
 void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
                                     const std::shared_ptr<hermes::FrameReadout> & m) {
-	// 1. fetches wanted ROI
-	// 2. prepare roi if needed
-	// 3. send all to process
+
+	d_wantedZoom = d_userInterface->UpdateZoom(d_wantedZoom);
+
+	std::shared_ptr<cv::Mat> zoomed;
+
+	if ( d_wantedZoom.Scale != 1.0 ) {
+		zoomed = d_grayImagePool.Get();
+		cv::Size size = frame->ToCV().size();
+		cv::resize(cv::Mat(frame->ToCV(),GetROIAt(d_wantedZoom.Center.x,
+		                                          d_wantedZoom.Center.y,
+		                                          cv::Size(size.width / d_wantedZoom.Scale,
+		                                                   size.height / d_wantedZoom.Scale),
+		                                          size)),
+		           *zoomed,zoomed->size(),
+		           0,0,cv::INTER_NEAREST);
+	}
+
+	d_userInterface->QueueFrame({.Full = d_downscaled,
+	                             .Zoomed = zoomed,
+	                             .Message = m,
+	                             .CurrentZoom = d_wantedZoom,
+	                             .FPS = CurrentFPS(frame->Time()),
+	                             .FrameProcessed = d_frameProcessed,
+	                             .FrameDropped = d_frameDropped});
 }
 
 
@@ -325,7 +363,9 @@ size_t ProcessFrameTask::GrayscaleImagePerCycle() const {
 	return 1;
 }
 
-
+double ProcessFrameTask::CurrentFPS(const Time & time ){
+	return d_frameProcessed / time.Sub(d_start).Seconds();
+}
 
 
 } // namespace artemis
