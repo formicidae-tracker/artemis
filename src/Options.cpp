@@ -110,14 +110,12 @@ void GeneralOptions::FinishParse() {}
 
 NetworkOptions::NetworkOptions()
 	: Host()
-	, UUID()
 	, Port(3002) {
 }
 
 void NetworkOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("host", Host, "Host to send tag detection readout");
 	parser.AddFlag("port", Port, "Port to send tag detection readout",'p');
-	parser.AddFlag("uuid", UUID,"The UUID to mark data sent over network");
 }
 
 void NetworkOptions::FinishParse() {}
@@ -153,6 +151,7 @@ void DisplayOptions::FinishParse() {
 ProcessOptions::ProcessOptions()
 	: FrameStride(1)
 	, FrameID()
+	, UUID()
 	, NewAntOutputDir()
 	, NewAntROISize(600)
 	, ImageRenewPeriod(2 * Duration::Hour) {
@@ -165,6 +164,7 @@ void ProcessOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("new-ant-output-dir",NewAntOutputDir,"Path where to save new detected ant pictures");
 	parser.AddFlag("new-ant-roi-size", NewAntROISize, "Size of the image to save when a new ant is found");
 	parser.AddFlag("image-renew-period", d_imageRenewPeriod, "ant cataloguing and full frame export renew period");
+	parser.AddFlag("uuid", UUID,"The UUID to mark data sent over network");
 }
 
 void ProcessOptions::FinishParse() {

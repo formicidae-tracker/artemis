@@ -100,7 +100,7 @@ private :
 
 	bool ShouldProcess(uint64_t ID);
 
-	const Options          d_options;
+	const ProcessOptions   d_options;
 
 	FrameQueue             d_frameQueue;
 	VideoOutputTaskPtr     d_videoOutput;

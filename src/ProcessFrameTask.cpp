@@ -19,7 +19,7 @@ namespace artemis {
 ProcessFrameTask::ProcessFrameTask(const Options & options,
                                    boost::asio::io_context & context,
                                    const cv::Size & inputResolution)
-	: d_options(options)
+	: d_options(options.Process)
 	, d_maximumThreads(cv::getNumThreads()) {
 	d_actualThreads = d_maximumThreads;
 	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
@@ -88,8 +88,6 @@ void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
 	                       workingResolution.width,
 	                       workingResolution.height,
 	                       CV_8UC3);
-
-
 }
 
 
@@ -97,9 +95,11 @@ ProcessFrameTask::~ProcessFrameTask() {}
 
 void ProcessFrameTask::TearDown() {
 	// TODO: Close UserInterface connection
+
 	if ( d_fullFrameExport ) {
 		d_fullFrameExport->CloseQueue();
 	}
+
 	if ( d_videoOutput ) {
 		d_videoOutput->CloseQueue();
 	}
@@ -188,7 +188,7 @@ std::shared_ptr<hermes::FrameReadout> ProcessFrameTask::PrepareMessage(const Fra
 	m->set_timestamp(frame->Timestamp());
 	m->set_frameid(frame->ID());
 	frame->Time().ToTimestamp(m->mutable_time());
-	m->set_producer_uuid(d_options.Network.UUID);
+	m->set_producer_uuid(d_options.UUID);
 	m->set_width(frame->Width());
 	m->set_height(frame->Height());
 	return m;
@@ -196,10 +196,10 @@ std::shared_ptr<hermes::FrameReadout> ProcessFrameTask::PrepareMessage(const Fra
 
 
 bool ProcessFrameTask::ShouldProcess(uint64_t ID) {
-	if ( d_options.Process.FrameStride <= 1 ) {
+	if ( d_options.FrameStride <= 1 ) {
 		return true;
 	}
-	return d_options.Process.FrameID.count(ID % d_options.Process.FrameStride) != 0;
+	return d_options.FrameID.count(ID % d_options.FrameStride) != 0;
 }
 
 
@@ -230,13 +230,13 @@ void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
 	}
 	d_actualThreads = d_maximumThreads - 1;
 	cv::setNumThreads(d_actualThreads);
-	d_nextFrameExport = frame->Time().Add(d_options.Process.ImageRenewPeriod);
+	d_nextFrameExport = frame->Time().Add(d_options.ImageRenewPeriod);
 }
 
 
 void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,
                                   const hermes::FrameReadout & m) {
-	if ( d_options.Process.NewAntOutputDir.empty() ) {
+	if ( d_options.NewAntOutputDir.empty() ) {
 		return;
 	}
 
@@ -253,7 +253,7 @@ void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,
 
 void ProcessFrameTask::ResetExportedID(const Time & time) {
 	if ( d_nextAntCatalog.Before(time) ) {
-		d_nextAntCatalog = time.Add(d_options.Process.ImageRenewPeriod);
+		d_nextAntCatalog = time.Add(d_options.ImageRenewPeriod);
 		d_exportedID.clear();
 	}
 }
@@ -276,16 +276,16 @@ ProcessFrameTask::FindUnexportedID(const hermes::FrameReadout & m) {
 
 cv::Rect ProcessFrameTask::GetROIAt(int x, int y,
                                     const cv::Size & bound) {
-	x = std::clamp(x - int(d_options.Process.NewAntROISize / 2),
+	x = std::clamp(x - int(d_options.NewAntROISize / 2),
 	               0,
-	               bound.width - int(d_options.Process.NewAntROISize));
+	               bound.width - int(d_options.NewAntROISize));
 
-	y = std::clamp(y - int(d_options.Process.NewAntROISize / 2),
+	y = std::clamp(y - int(d_options.NewAntROISize / 2),
 	               0,
-	               bound.height - int(d_options.Process.NewAntROISize));
+	               bound.height - int(d_options.NewAntROISize));
 
-	return cv::Rect(cv::Point2d(x,y),cv::Size(d_options.Process.NewAntROISize,
-	                                          d_options.Process.NewAntROISize));
+	return cv::Rect(cv::Point2d(x,y),cv::Size(d_options.NewAntROISize,
+	                                          d_options.NewAntROISize));
 }
 
 void ProcessFrameTask::ExportROI(const cv::Mat & image,
@@ -295,7 +295,7 @@ void ProcessFrameTask::ExportROI(const cv::Mat & image,
                                  double y) {
 
 	std::ostringstream oss;
-	oss << d_options.Process.NewAntOutputDir << "/ant_" << tagID << "_" << frameID << ".png";
+	oss << d_options.NewAntOutputDir << "/ant_" << tagID << "_" << frameID << ".png";
 	cv::imwrite(oss.str(),cv::Mat(image,GetROIAt(x,y,image.size())));
 }
 

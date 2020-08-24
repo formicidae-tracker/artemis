@@ -48,7 +48,6 @@ struct NetworkOptions {
 
 
 	std::string Host;
-	std::string UUID;
 	uint16_t    Port;
 };
 
@@ -109,6 +108,8 @@ struct ProcessOptions {
 
 	size_t             FrameStride;
 	std::set<uint64_t> FrameID;
+	std::string        UUID;
+
 
 	std::string NewAntOutputDir;
 	size_t      NewAntROISize;

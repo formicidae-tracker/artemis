@@ -21,7 +21,6 @@ TEST_F(OptionsUTest,DefaultValues) {
 	EXPECT_TRUE(options.Display.Highlighted.empty());
 
 	EXPECT_EQ(options.Network.Host,"");
-	EXPECT_EQ(options.Network.UUID,"");
 	EXPECT_EQ(options.Network.Port,3002);
 
 	EXPECT_EQ(options.VideoOutput.Height,1080);
@@ -48,6 +47,8 @@ TEST_F(OptionsUTest,DefaultValues) {
 	EXPECT_EQ(options.Process.NewAntOutputDir,"");
 	EXPECT_EQ(options.Process.NewAntROISize,600);
 	EXPECT_EQ(options.Process.ImageRenewPeriod,2 * Duration::Hour);
+	EXPECT_EQ(options.Process.UUID,"");
+
 
 }
 
@@ -97,7 +98,7 @@ TEST_F(OptionsUTest,TestParse) {
 		    }},
 		   {{"artemis","--uuid", "abcdef123456"},
 		    [](const Options & options) {
-			    EXPECT_EQ(options.Network.UUID,"abcdef123456");
+			    EXPECT_EQ(options.Process.UUID,"abcdef123456");
 		    }},
 		   {{"artemis","--video-output-to-stdout"},
 		    [](const Options & options) {
