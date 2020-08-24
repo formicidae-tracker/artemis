@@ -24,7 +24,7 @@ UserInterfaceTask::~UserInterfaceTask() {
 }
 
 void UserInterfaceTask::Run()  {
-	DLOG(INFO) << "[UserInterfaceTask]: Started";
+	LOG(INFO) << "[UserInterfaceTask]: Started";
 	UserInterface::FrameToDisplay frame;
 	for (;;) {
 		d_ui->PollEvents();
@@ -40,7 +40,7 @@ void UserInterfaceTask::Run()  {
 		}
 		d_ui->PushFrame(frame);
 	}
-	DLOG(INFO) << "[UserInterfaceTask]: Ended";
+	LOG(INFO) << "[UserInterfaceTask]: Ended";
 }
 
 

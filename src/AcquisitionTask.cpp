@@ -41,7 +41,7 @@ void AcquisitionTask::Stop() {
 }
 
 void AcquisitionTask::Run() {
-	DLOG(INFO) << "[AcquisitionTask]:  started";
+	LOG(INFO) << "[AcquisitionTask]:  started";
 	d_grabber->Start();
 	while(d_quit.load() == false ) {
 		Frame::Ptr f = d_grabber->NextFrame();
@@ -49,12 +49,12 @@ void AcquisitionTask::Run() {
 			d_processFrame->QueueFrame(f);
 		}
 	}
-	DLOG(INFO) << "[AcquisitionTask]:  TearDown";
+	LOG(INFO) << "[AcquisitionTask]:  Tear Down";
 	d_grabber->Stop();
 	if (d_processFrame) {
 		d_processFrame->CloseFrameQueue();
 	}
-	DLOG(INFO) << "[AcquisitionTask]:  ended";
+	LOG(INFO) << "[AcquisitionTask]:  ended";
 }
 
 

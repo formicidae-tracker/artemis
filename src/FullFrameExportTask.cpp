@@ -18,7 +18,7 @@ FullFrameExportTask::FullFrameExportTask(const std::string & dir)
 FullFrameExportTask::~FullFrameExportTask() {}
 
 void FullFrameExportTask::Run() {
-	DLOG(INFO) << "[FullFrameExportTask]: started";
+	LOG(INFO) << "[FullFrameExportTask]: started";
 	for(;;) {
 		Frame::Ptr f;
 		d_queue.pop(f);
@@ -27,7 +27,7 @@ void FullFrameExportTask::Run() {
 		}
 		ExportFrame(d_dir,f);
 	}
-	DLOG(INFO) << "[FullFrameExportTask]: ended";
+	LOG(INFO) << "[FullFrameExportTask]: ended";
 }
 
 void FullFrameExportTask::CloseQueue() {

@@ -60,11 +60,9 @@ StubFrameGrabber::~StubFrameGrabber() {
 
 void StubFrameGrabber::Start() {
 	d_last = Time::Now().Add(-d_period);
-	DLOG(INFO) << "[StubFrameGrabber]: started";
 }
 
 void StubFrameGrabber::Stop() {
-	DLOG(INFO) << "[StubFrameGrabber]: stopped";
 }
 
 cv::Size StubFrameGrabber::Resolution() const {
@@ -72,13 +70,14 @@ cv::Size StubFrameGrabber::Resolution() const {
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {
-	auto toWait = Time::Now().Sub(d_last);
+	auto toWait = d_last.Add(d_period).Sub(Time::Now());
 	if ( toWait > 0 ) {
 		usleep(toWait.Microseconds());
 	}
 
 	Frame::Ptr res = std::make_shared<StubFrame>(d_image,d_ID);
 	d_ID += 1;
+	d_last = res->Time();
 	return res;
 }
 

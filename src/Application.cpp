@@ -109,15 +109,18 @@ void Application::SpawnTasks() {
 }
 
 void Application::JoinTasks() {
+	//we join all subtask, but leave IO task alive
 	for ( auto & thread : d_threads ) {
 		thread.join();
 	}
+	// now, nobody will post IO operation. we can reset safely.
 	d_guard.reset();
+	// we join the IO thread
 	d_ioThread.join();
 }
 
 void Application::SpawnIOContext() {
-	// putting a wait on SIGINt will ensure that the context remains
+	// putting a wait on SIGINT will ensure that the context remains
 	// active throughout execution.
 	d_signals.async_wait([this](const boost::system::error_code &,
 	                            int ) {
@@ -127,11 +130,10 @@ void Application::SpawnIOContext() {
 	// starts the context in a single threads, and remind to join it
 	// once we got the SIGINT
 	d_ioThread = std::thread([this]() {
-		                         DLOG(INFO) << "[IOTask]: started";
+		                         LOG(INFO) << "[IOTask]: started";
 		                         d_context.run();
-		                         DLOG(INFO) << "[IOTask]: ended";
+		                         LOG(INFO) << "[IOTask]: ended";
 	                         });
-
 }
 
 void Application::Run() {
