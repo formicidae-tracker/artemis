@@ -37,7 +37,7 @@ public:
 	                 const UserInterfaceTaskPtr & userInterface,
 	                 const ConnectionPtr & connection,
 	                 const FullFrameExportTaskPtr & fullFrameExporter,
-	                 std::pair<size_t,size_t> inputResolution);
+	                 const cv::Size & inputResolution);
 
 	virtual ~ProcessFrameTask();
 

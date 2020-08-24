@@ -4,11 +4,9 @@
 
 #include "Time.hpp"
 
+#include <opencv2/core.hpp>
 
 
-namespace cv{
-class Mat;
-}
 
 namespace fort {
 namespace artemis {
@@ -43,7 +41,7 @@ public :
 
 	virtual Frame::Ptr NextFrame() = 0;
 
-	virtual std::pair<int32_t,int32_t> GetResolution() = 0;
+	virtual cv::Size Resolution() const = 0;
 };
 
 } // namespace artemis

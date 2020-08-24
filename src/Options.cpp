@@ -137,8 +137,8 @@ void VideoOutputOptions::PopulateParser(options::FlagParser & parser) {
 void VideoOutputOptions::FinishParse() {
 }
 
-int VideoOutputOptions::OutputWidth(int inputWidth,int inputHeight) const {
-	return inputWidth * float(Height) / float(inputHeight);
+cv::Size VideoOutputOptions::WorkingResolution(const cv::Size & input) const {
+	return cv::Size(input.width * double(Height) / double(input.height),Height);
 }
 
 void DisplayOptions::PopulateParser(options::FlagParser & parser) {

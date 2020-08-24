@@ -4,6 +4,7 @@
 #include <fort/tags/fort-tags.h>
 #include <set>
 #include <cstdint>
+#include <opencv2/core.hpp>
 
 namespace options {
 class FlagParser;
@@ -56,7 +57,7 @@ struct VideoOutputOptions {
 	void PopulateParser( options::FlagParser & parser);
  	void FinishParse();
 
-	int OutputWidth(int inputWidth,int inputHeight) const;
+	cv::Size WorkingResolution(const cv::Size &  inputResolution ) const;
 
 
 	size_t      Height;

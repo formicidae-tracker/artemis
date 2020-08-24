@@ -33,11 +33,11 @@ public :
 
 	virtual ~StubFrameGrabber();
 
-	virtual void Start();
-	virtual void Stop();
-	virtual Frame::Ptr NextFrame();
+	void Start() override;
+	void Stop() override;
+	Frame::Ptr NextFrame() override;
 
-	virtual std::pair<int32_t,int32_t> GetResolution();
+	cv::Size Resolution() const override;
 private:
 	typedef std::chrono::high_resolution_clock clock;
 	typedef clock::time_point time;

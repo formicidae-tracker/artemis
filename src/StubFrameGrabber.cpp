@@ -62,8 +62,8 @@ void StubFrameGrabber::Start() {
 void StubFrameGrabber::Stop() {
 }
 
-std::pair<int32_t,int32_t> StubFrameGrabber::GetResolution() {
-	return std::make_pair(d_image.cols,d_image.rows);
+cv::Size StubFrameGrabber::Resolution() const {
+	return d_image.size();
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {

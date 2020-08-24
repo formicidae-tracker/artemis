@@ -20,7 +20,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
                                    const UserInterfaceTaskPtr & userInterface,
                                    const ConnectionPtr & connection,
                                    const FullFrameExportTaskPtr & fullFrameExport,
-                                   std::pair<size_t,size_t> inputResolution)
+                                   const cv::Size & inputResolution)
 	: d_options(options)
 	, d_videoOutput(videoOutput)
 	, d_userInterface(userInterface)
@@ -31,18 +31,16 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 
 	if ( options.Apriltag.Family != tags::Family::Undefined ) {
 		d_detector = std::make_unique<ApriltagDetector>(d_actualThreads,
-		                                                cv::Size(inputResolution.first,
-		                                                         inputResolution.second),
+		                                                inputResolution,
 		                                                options.Apriltag);
 	}
 
-	int outputWidth = options.VideoOutput.OutputWidth(inputResolution.first,
-	                                                  inputResolution.second);
+	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
 
 
 	d_framePool.Reserve(DownscaledImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	                    outputWidth,
-	                    options.VideoOutput.Height,
+	                    workingResolution.width,
+	                    workingResolution.height,
 	                    CV_8UC1);
 	d_nextAntCatalog = Time::Now();
 	d_nextFrameExport = d_nextAntCatalog.Add(2 * Duration::Minute);

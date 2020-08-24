@@ -38,8 +38,8 @@ bool Application::InterceptCommand(const Options & options ) {
 
 	if ( options.General.PrintResolution == true ) {
 		auto resolution = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
-		                                                    options.Camera)->GetResolution();
-		std::cout << resolution.first << " " << resolution.second << std::endl;
+		                                                    options.Camera)->Resolution();
+		std::cout << resolution.width << " " << resolution.height << std::endl;
 		return true;
 	}
 
@@ -85,7 +85,7 @@ Application::Application(const Options & options) {
 	                                               nullptr,
 	                                               nullptr,
 	                                               d_fullFrameExport,
-	                                               d_grabber->GetResolution());
+	                                               d_grabber->Resolution());
 
 
 
