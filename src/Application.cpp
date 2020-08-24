@@ -12,6 +12,8 @@
 #include "AcquisitionTask.hpp"
 #include "ProcessFrameTask.hpp"
 #include "FullFrameExportTask.hpp"
+#include "VideoOutputTask.hpp"
+#include "UserInterfaceTask.hpp"
 
 namespace fort {
 namespace artemis {
@@ -72,43 +74,36 @@ void Application::InitGlobalDependencies() {
 }
 
 
-Application::Application(const Options & options) {
+Application::Application(const Options & options)
+	: d_signals(d_context,SIGINT) {
+
 	d_grabber = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
 	                                              options.Camera);
 
-	if ( options.Process.NewAntOutputDir.empty() == false ) {
-		d_fullFrameExport = std::make_shared<FullFrameExportTask>(options.Process.NewAntOutputDir);
-	}
-
 	d_process = std::make_shared<ProcessFrameTask>(options,
-	                                               nullptr,
-	                                               nullptr,
-	                                               nullptr,
-	                                               d_fullFrameExport,
+	                                               d_context,
 	                                               d_grabber->Resolution());
 
 
-
 	d_acquisition = std::make_shared<AcquisitionTask>(d_grabber,d_process);
-
-
 }
 
-Application * Application::d_application = nullptr;
-
-void Application::OnSigInt(int sig) {
-	if ( d_application == nullptr ) {
-		throw std::logic_error("Signal handler called without object");
-		exit(1);
-	}
-	d_application->d_acquisition->Stop();
-}
 
 void Application::SpawnTasks() {
-	if ( d_fullFrameExport ) {
-		d_threads.push_back(Task::Spawn(*d_fullFrameExport,20));
+	if ( d_process->FullFrameExportTask() ) {
+		d_threads.push_back(Task::Spawn(*d_process->FullFrameExportTask(),20));
 	}
+
+	if ( d_process->VideoOutputTask() ) {
+		d_threads.push_back(Task::Spawn(*d_process->VideoOutputTask(),0));
+	}
+
+	if ( d_process->UserInterfaceTask() ) {
+		d_threads.push_back(Task::Spawn(*d_process->UserInterfaceTask(),1));
+	}
+
 	d_threads.push_back(Task::Spawn(*d_process,0));
+
 	d_threads.push_back(Task::Spawn(*d_acquisition,0));
 }
 
@@ -118,25 +113,26 @@ void Application::JoinTasks() {
 	}
 }
 
-void Application::InstallSigIntHandler() {
-	if ( d_application != nullptr ) {
-		throw std::logic_error("Handler is already installed");
-	}
-	d_application = this;
-	signal(SIGINT,&OnSigInt);
-}
+void Application::SpawnIOContext() {
+	// putting a wait on SIGINt will ensure that the context remains
+	// active throughout execution.
+	d_signals.async_wait([this](const boost::system::error_code &,
+	                            int ) {
+		                     LOG(INFO) << "Terminating (SIGINT)";
+		                     d_grabber->Stop();
+	                     });
+	// starts the context in a single threads, and remind to join it
+	// once we got the SIGINT
+	d_threads.push_back(std::thread([this]() {
+		                                d_context.run();
+	                                }));
 
-
-void Application::RemoveSigIntHandler() {
-	signal(SIGINT,SIG_DFL);
-	d_application = nullptr;
 }
 
 void Application::Run() {
-	InstallSigIntHandler();
+	SpawnIOContext();
 	SpawnTasks();
 	JoinTasks();
-	RemoveSigIntHandler();
 }
 
 

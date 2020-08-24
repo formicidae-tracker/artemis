@@ -16,34 +16,73 @@ namespace fort {
 namespace artemis {
 
 ProcessFrameTask::ProcessFrameTask(const Options & options,
-                                   const VideoOutputTaskPtr & videoOutput,
-                                   const UserInterfaceTaskPtr & userInterface,
-                                   const ConnectionPtr & connection,
-                                   const FullFrameExportTaskPtr & fullFrameExport,
+                                   boost::asio::io_context & context,
                                    const cv::Size & inputResolution)
 	: d_options(options)
-	, d_videoOutput(videoOutput)
-	, d_userInterface(userInterface)
-	, d_connection(connection)
-	, d_fullFrameExport(fullFrameExport)
 	, d_maximumThreads(cv::getNumThreads()) {
 	d_actualThreads = d_maximumThreads;
-
-	if ( options.Apriltag.Family != tags::Family::Undefined ) {
-		d_detector = std::make_unique<ApriltagDetector>(d_actualThreads,
-		                                                inputResolution,
-		                                                options.Apriltag);
-	}
-
 	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
 
+	SetUpDetection(inputResolution,options.Apriltag);
+	SetUpUserInterface();
+	SetUpVideoOutputTask(options.VideoOutput);
+	SetUpCataloguing(options.Process);
+	SetUpPoolObjects(workingResolution);
+}
 
+
+VideoOutputTaskPtr ProcessFrameTask::VideoOutputTask() const {
+	return d_videoOutput;
+}
+
+UserInterfaceTaskPtr ProcessFrameTask::UserInterfaceTask() const {
+	return d_userInterface;
+}
+
+FullFrameExportTaskPtr 	ProcessFrameTask::FullFrameExportTask() const {
+	return d_fullFrameExport;
+}
+
+
+void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions & options) {
+	if ( options.ToStdout == false ) {
+		return;
+	}
+
+}
+
+void ProcessFrameTask::SetUpDetection(const cv::Size & inputResolution,
+                                      const ApriltagOptions & options) {
+	if ( options.Family == tags::Family::Undefined ) {
+		return;
+	}
+	d_detector = std::make_unique<ApriltagDetector>(d_maximumThreads,
+	                                                inputResolution,
+	                                                options);
+
+}
+void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
+	if ( options.NewAntOutputDir.empty() ) {
+		return ;
+	}
+
+	d_nextAntCatalog = Time::Now();
+	d_nextFrameExport = d_nextAntCatalog.Add(2 * Duration::Minute);
+
+	d_fullFrameExport = std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
+}
+
+void ProcessFrameTask::SetUpUserInterface() {
+
+}
+
+void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
 	d_framePool.Reserve(DownscaledImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
 	                    workingResolution.width,
 	                    workingResolution.height,
 	                    CV_8UC1);
-	d_nextAntCatalog = Time::Now();
-	d_nextFrameExport = d_nextAntCatalog.Add(2 * Duration::Minute);
+
+
 }
 
 

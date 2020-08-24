@@ -5,7 +5,8 @@
 
 #include <memory>
 #include <vector>
-
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
 
 
 namespace fort {
@@ -29,26 +30,27 @@ private :
 	static void InitGoogleLogging(const std::string & applicationName,
 	                              const GeneralOptions & options);
 
-	static Application * d_application;
-	static void OnSigInt(int sig);
-
 	Application(const Options & options);
 
 	void Run();
+
+	void SpawnIOContext();
 	void SpawnTasks();
 	void JoinTasks();
 
-	void InstallSigIntHandler();
-	void RemoveSigIntHandler();
+
+	boost::asio::io_context d_context;
+	boost::asio::signal_set d_signals;
 
 
 	std::shared_ptr<FrameGrabber>        d_grabber;
 	std::shared_ptr<ProcessFrameTask>    d_process;
 	std::shared_ptr<AcquisitionTask>     d_acquisition;
-	std::shared_ptr<FullFrameExportTask> d_fullFrameExport;
 
 
 	std::vector<std::thread>          d_threads;
+
+
 
 };
 

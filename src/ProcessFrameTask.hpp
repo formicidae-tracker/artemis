@@ -6,6 +6,8 @@
 
 #include <fort/hermes/FrameReadout.pb.h>
 
+#include <boost/asio/io_context.hpp>
+
 #include "Task.hpp"
 #include "Options.hpp"
 #include "FrameGrabber.hpp"
@@ -33,10 +35,7 @@ typedef std::shared_ptr<ApriltagDetector>    ApriltagDetectorPtr;
 class ProcessFrameTask : public Task{
 public:
 	ProcessFrameTask(const Options & options,
-	                 const VideoOutputTaskPtr & videoOuput,
-	                 const UserInterfaceTaskPtr & userInterface,
-	                 const ConnectionPtr & connection,
-	                 const FullFrameExportTaskPtr & fullFrameExporter,
+	                 boost::asio::io_context & context,
 	                 const cv::Size & inputResolution);
 
 	virtual ~ProcessFrameTask();
@@ -45,9 +44,21 @@ public:
 
 	void QueueFrame( const Frame::Ptr & );
 	void CloseFrameQueue();
+
+	VideoOutputTaskPtr     VideoOutputTask() const;
+	UserInterfaceTaskPtr   UserInterfaceTask() const;
+	FullFrameExportTaskPtr FullFrameExportTask() const;
+
+
 private :
 	typedef tbb::concurrent_bounded_queue<Frame::Ptr> FrameQueue;
 
+	void SetUpVideoOutputTask(const VideoOutputOptions & options);
+	void SetUpDetection(const cv::Size & inputResolution,
+	                    const ApriltagOptions & options);
+	void SetUpCataloguing(const ProcessOptions & options);
+	void SetUpUserInterface();
+	void SetUpPoolObjects(const cv::Size & workingResolution);
 
 
 	void ProcessFrameMandatory(const Frame::Ptr & frame );
@@ -86,6 +97,9 @@ private :
 	std::shared_ptr<hermes::FrameReadout> PrepareMessage(const Frame::Ptr & frame);
 
 	bool ShouldProcess(uint64_t ID);
+
+
+
 
 	const Options          d_options;
 
