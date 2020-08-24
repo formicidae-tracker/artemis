@@ -165,6 +165,12 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr & frame ) {
 
 void ProcessFrameTask::DropFrame(const Frame::Ptr & frame) {
 	++d_frameDropped;
+	LOG(WARNING) << "Frame dropped due to over-processing. Total dropped: "
+	             << d_frameDropped
+	             << " ("
+	             << 100.0 * double(d_frameDropped) / double(d_frameDropped + d_frameProcessed)
+	             << "%)";
+
 	if ( !d_connection ) {
 		return;
 	}
@@ -176,9 +182,7 @@ void ProcessFrameTask::DropFrame(const Frame::Ptr & frame) {
 }
 
 
-
 void ProcessFrameTask::ProcessFrame(const Frame::Ptr & frame) {
-
 	auto m = PrepareMessage(frame);
 
 	if ( ShouldProcess(frame->ID()) == true ) {
@@ -186,7 +190,9 @@ void ProcessFrameTask::ProcessFrame(const Frame::Ptr & frame) {
 		if ( d_connection ) {
 			Connection::PostMessage(d_connection,*m);
 		}
+
 		CatalogAnt(frame,*m);
+
 		ExportFullFrame(frame);
 
 		++d_frameProcessed;
