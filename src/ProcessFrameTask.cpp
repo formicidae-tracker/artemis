@@ -71,7 +71,7 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 	}
 
 	d_nextAntCatalog = Time::Now();
-	d_nextFrameExport = d_nextAntCatalog.Add(2 * Duration::Minute);
+	d_nextFrameExport = d_nextAntCatalog.Add(1 * Duration::Minute);
 
 	d_fullFrameExport = std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
 }
@@ -240,8 +240,8 @@ void ProcessFrameTask::Detect(const Frame::Ptr & frame,
 }
 
 void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
-	if ( !d_fullFrameExport
-	     || d_nextFrameExport.Before(frame->Time()) ) {
+	if ( ! d_fullFrameExport
+	     || frame->Time().Before(d_nextFrameExport) ) {
 		return;
 	}
 
@@ -269,6 +269,9 @@ void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,
 		                  const auto & [tagID,x,y] = toExport[index];
 		                  ExportROI(frame->ToCV(),frame->ID(),tagID,x,y);
 	                  });
+	for ( const auto & [tagID,x,y] : toExport ) {
+		d_exportedID.insert(tagID);
+	}
 }
 
 void ProcessFrameTask::ResetExportedID(const Time & time) {

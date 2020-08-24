@@ -18,7 +18,7 @@ void StubUserInterface::UpdateFrame(const FrameToDisplay & frame,
                                     const DataToDisplay &) {
 	LOG(INFO) << "Displaying a new frame. Processed: " << frame.FrameProcessed
 	          << " Dropped: " << frame.FrameDropped
-	          << " FPS: " << frame.FPS;
+	          << " FPS: " << frame.FPS << " nquad: " << frame.Message->quads();
 }
 
 

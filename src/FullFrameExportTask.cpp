@@ -12,7 +12,6 @@ FullFrameExportTask::FullFrameExportTask(const std::string & dir)
 	if ( dir.empty() ) {
 		throw std::invalid_argument("No directory for output");
 	}
-	d_queue.set_capacity(0);
 }
 
 FullFrameExportTask::~FullFrameExportTask() {}
@@ -31,10 +30,14 @@ void FullFrameExportTask::Run() {
 }
 
 void FullFrameExportTask::CloseQueue() {
+	LOG(INFO) << "Queue size " << d_queue.size();
 	d_queue.push(nullptr);
 }
 
 bool FullFrameExportTask::QueueExport(const Frame::Ptr & frame) {
+	if ( d_queue.size() >= 0 ) {
+		return false;
+	}
 	return d_queue.try_push(frame);
 }
 
@@ -46,7 +49,9 @@ void FullFrameExportTask::ExportFrame(const std::string & dir,
                                       const Frame::Ptr & frame) {
 	std::ostringstream oss;
 	oss << dir << "/frame_" << frame->ID() << ".png";
+	LOG(INFO) << "Exporting to "  << oss.str();
 	cv::imwrite(oss.str(),frame->ToCV());
+	LOG(INFO) << "Done";
 }
 
 

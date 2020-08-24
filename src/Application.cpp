@@ -20,7 +20,7 @@ namespace artemis {
 
 
 void Application::Execute(int argc, char ** argv) {
-	auto options = Options::Parse(argc,argv);
+	auto options = Options::Parse(argc,argv,true);
 	if ( InterceptCommand(options) == true ) {
 		return;
 	}
