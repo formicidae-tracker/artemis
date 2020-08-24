@@ -53,7 +53,8 @@ public:
 private :
 	typedef tbb::concurrent_bounded_queue<Frame::Ptr> FrameQueue;
 
-	void SetUpVideoOutputTask(const VideoOutputOptions & options);
+	void SetUpVideoOutputTask(const VideoOutputOptions & options,
+	                          boost::asio::io_context & context);
 	void SetUpDetection(const cv::Size & inputResolution,
 	                    const ApriltagOptions & options);
 	void SetUpCataloguing(const ProcessOptions & options);
@@ -92,14 +93,12 @@ private :
 
 	void TearDown();
 
-	size_t DownscaledImagePerCycle() const;
+	size_t GrayscaleImagePerCycle() const;
+	size_t RGBImagePerCycle() const;
 
 	std::shared_ptr<hermes::FrameReadout> PrepareMessage(const Frame::Ptr & frame);
 
 	bool ShouldProcess(uint64_t ID);
-
-
-
 
 	const Options          d_options;
 
@@ -112,7 +111,9 @@ private :
 	FullFrameExportTaskPtr d_fullFrameExport;
 
 
-	ObjectPool<cv::Mat>               d_framePool;
+	ObjectPool<cv::Mat>               d_grayImagePool;
+	ObjectPool<cv::Mat>               d_rgbImagePool;
+
 	ObjectPool<hermes::FrameReadout>  d_messagePool;
 	std::shared_ptr<cv::Mat>          d_downscaled;
 	const size_t                      d_maximumThreads;

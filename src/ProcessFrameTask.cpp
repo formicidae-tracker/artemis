@@ -10,6 +10,7 @@
 #include "Connection.hpp"
 #include "ApriltagDetector.hpp"
 #include "FullFrameExportTask.hpp"
+#include "VideoOutputTask.hpp"
 
 
 namespace fort {
@@ -25,7 +26,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 
 	SetUpDetection(inputResolution,options.Apriltag);
 	SetUpUserInterface();
-	SetUpVideoOutputTask(options.VideoOutput);
+	SetUpVideoOutputTask(options.VideoOutput,context);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects(workingResolution);
 }
@@ -44,11 +45,12 @@ FullFrameExportTaskPtr 	ProcessFrameTask::FullFrameExportTask() const {
 }
 
 
-void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions & options) {
+void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions & options,
+                                            boost::asio::io_context & context) {
 	if ( options.ToStdout == false ) {
 		return;
 	}
-
+	d_videoOutput = std::make_shared<artemis::VideoOutputTask>(options,context);
 }
 
 void ProcessFrameTask::SetUpDetection(const cv::Size & inputResolution,
@@ -77,10 +79,15 @@ void ProcessFrameTask::SetUpUserInterface() {
 }
 
 void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
-	d_framePool.Reserve(DownscaledImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	                    workingResolution.width,
-	                    workingResolution.height,
-	                    CV_8UC1);
+	d_grayImagePool.Reserve(GrayscaleImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
+	                        workingResolution.width,
+	                        workingResolution.height,
+	                        CV_8UC1);
+
+	d_rgbImagePool.Reserve(RGBImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
+	                       workingResolution.width,
+	                       workingResolution.height,
+	                       CV_8UC3);
 
 
 }
@@ -93,7 +100,9 @@ void ProcessFrameTask::TearDown() {
 	if ( d_fullFrameExport ) {
 		d_fullFrameExport->CloseQueue();
 	}
-	// TODO: close video output
+	if ( d_videoOutput ) {
+		d_videoOutput->CloseQueue();
+	}
 }
 
 
@@ -130,21 +139,16 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr & frame ) {
 	if ( !d_videoOutput && !d_userInterface ) {
 		return;
 	}
-	auto downscaled = d_framePool.Get();
-	cv::resize(frame->ToCV(),*downscaled,downscaled->size(),0,0,cv::INTER_NEAREST);
-
-	if ( d_userInterface ) {
-		if ( !d_videoOutput ) {
-			d_downscaled = downscaled;
-		} else {
-			d_downscaled = d_framePool.Get();
-			*d_downscaled = downscaled->clone();
-		}
-	}
+	d_downscaled = d_grayImagePool.Get();
+	cv::resize(frame->ToCV(),*d_downscaled,d_downscaled->size(),0,0,cv::INTER_NEAREST);
 
 	if ( d_videoOutput ) {
-		//TODO: send frame to ouput
+		auto converted = d_rgbImagePool.Get();
+		cv::cvtColor(*d_downscaled,*converted,cv::COLOR_GRAY2RGB);
+		d_videoOutput->QueueFrame(converted,frame->Time(),frame->ID());
 	}
+
+	// user interface communication will happen after.
 
 }
 
@@ -230,7 +234,6 @@ void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
 }
 
 
-
 void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,
                                   const hermes::FrameReadout & m) {
 	if ( d_options.Process.NewAntOutputDir.empty() ) {
@@ -238,7 +241,6 @@ void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,
 	}
 
 	ResetExportedID(frame->Time());
-
 
 	auto toExport = FindUnexportedID(m);
 	tbb::parallel_for(std::size_t(0),
@@ -306,16 +308,23 @@ void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
 }
 
 
-size_t ProcessFrameTask::DownscaledImagePerCycle() const {
-	size_t res(0);
-	if ( d_userInterface ) {
-		res += 2;
-	}
+size_t ProcessFrameTask::RGBImagePerCycle() const {
 	if ( d_videoOutput ) {
-		res += 1;
+		return 1;
 	}
-	return res;
+	return 0;
 }
+
+size_t ProcessFrameTask::GrayscaleImagePerCycle() const {
+	if ( !d_videoOutput && !d_userInterface ) {
+		return 0;
+	}
+	if ( d_userInterface ) {
+		return 2;
+	}
+	return 1;
+}
+
 
 
 
