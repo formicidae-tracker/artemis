@@ -71,7 +71,7 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 	}
 
 	d_nextAntCatalog = Time::Now();
-	d_nextFrameExport = d_nextAntCatalog.Add(1 * Duration::Minute);
+	d_nextFrameExport = d_nextAntCatalog.Add(10 * Duration::Second);
 
 	d_fullFrameExport = std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
 }
