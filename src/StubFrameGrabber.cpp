@@ -13,7 +13,6 @@ namespace artemis {
 
 StubFrame::StubFrame(const cv::Mat & mat, uint64_t ID)
 	: d_mat(mat.clone())
-	, d_timestamp(Time().MonotonicValue() / 1000)
 	, d_ID(ID) {
 }
 
@@ -32,7 +31,7 @@ size_t StubFrame::Height() const {
 }
 
 uint64_t StubFrame::Timestamp() const {
-	return d_timestamp;
+	return Time().MonotonicValue() / 1000;
 }
 
 uint64_t StubFrame::ID() const {

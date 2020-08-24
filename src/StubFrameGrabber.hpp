@@ -20,7 +20,7 @@ public :
 	virtual uint64_t ID() const;
 	const cv::Mat & ToCV();
 private :
-	uint64_t d_timestamp,d_ID;
+	uint64_t d_ID;
 	cv::Mat d_mat;
 };
 
