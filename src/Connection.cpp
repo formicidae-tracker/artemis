@@ -1,8 +1,8 @@
 #include "Connection.hpp"
 
-#include <asio/connect.hpp>
-#include <asio/write.hpp>
-#include <asio/deadline_timer.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/asio/deadline_timer.hpp>
 
 #include <glog/logging.h>
 
@@ -20,22 +20,23 @@ namespace artemis {
 
 
 void Connection::Connect(const Ptr & self) {
+	using namespace boost::asio;
 	std::ostringstream oss;
 	oss << self->d_port;
 	try {
-		asio::ip::tcp::resolver resolver(self->d_service);
-		asio::ip::tcp::resolver::query q(self->d_host.c_str(),oss.str().c_str());
-		asio::ip::tcp::resolver::iterator endpoint = resolver.resolve(q);
-		auto res = std::make_shared<asio::ip::tcp::socket>(self->d_service);
-		asio::async_connect(*res,endpoint,self->d_strand.wrap([self,res](const asio::error_code & ec,
-		                                                                 asio::ip::tcp::resolver::iterator it) {
+		ip::tcp::resolver resolver(self->d_context);
+		ip::tcp::resolver::query q(self->d_host.c_str(),oss.str().c_str());
+		ip::tcp::resolver::iterator endpoint = resolver.resolve(q);
+		auto res = std::make_shared<ip::tcp::socket>(self->d_context);
+		async_connect(*res,endpoint,self->d_strand.wrap([self,res](const boost::system::error_code & ec,
+		                                                           ip::tcp::resolver::iterator it) {
 					if (ec) {
 						Connection_LOG(ERROR,self) << "Could not connect to host: " << ec;
 						ScheduleReconnect(self);
 						return;
 					}
 					self->d_socket = res;
-				}));
+		                                                }));
 	} catch (const std::exception & e) {
 		Connection_LOG(ERROR,self) << "Could not connect to host: exception: " << e.what();
 		self->d_strand.post([self](){ScheduleReconnect(self);});
@@ -55,21 +56,21 @@ void Connection::Connect(const Ptr & self) {
 
 }
 
-Connection::Ptr Connection::Create(asio::io_service & service,
+Connection::Ptr Connection::Create(boost::asio::io_context & context,
                                    const std::string & host,
                                    uint16_t port,
                                    Duration reconnectPeriod ) {
-	std::shared_ptr<Connection> res(new Connection(service,host,port,reconnectPeriod));
+	std::shared_ptr<Connection> res(new Connection(context,host,port,reconnectPeriod));
 	Connect(res);
 	return res;
 }
 
-Connection::Connection(asio::io_service & service,
+Connection::Connection(boost::asio::io_context & context,
                        const std::string & host,
                        uint16_t port,
                        Duration reconnectPeriod)
-	: d_service(service)
-	, d_strand(service)
+	: d_context(context)
+	, d_strand(context)
 	, d_host(host)
 	, d_port(port)
 	, d_sending(false)
@@ -117,26 +118,26 @@ void Connection::ScheduleSend(const Ptr & self) {
 	self->d_sending = true;
 	std::string toSend;
 	self->d_bufferQueue.pop(toSend);
-	asio::async_write(*self->d_socket,
-	                  asio::const_buffers_1(&((toSend)[0]),toSend.size()),
-	                  self->d_strand.wrap([self,toSend](const asio::error_code & ec,
-	                                                    std::size_t s) {
-		                                      if ( ec == asio::error::connection_reset || ec == asio::error::bad_descriptor ) {
-			                                      Connection_LOG(ERROR,self) << "disconnected: " << ec;
-			                                      if (!self->d_socket) {
-				                                      return;
-			                                      }
-			                                      self->d_socket.reset();
-			                                      ScheduleReconnect(self);
-		                                      } else if ( ec ) {
-			                                      Connection_LOG(ERROR,self) << "could not send data: " << ec;
-		                                      }
-		                                      if (self->d_bufferQueue.size() <= 0 ) {
+	boost::asio::async_write(*self->d_socket,
+	                         boost::asio::const_buffers_1(&((toSend)[0]),toSend.size()),
+	                         self->d_strand.wrap([self,toSend](const boost::system::error_code & ec,
+	                                                           std::size_t s) {
+		                                             if ( ec == boost::asio::error::connection_reset || ec == boost::asio::error::bad_descriptor ) {
+			                                             Connection_LOG(ERROR,self) << "disconnected: " << ec;
+			                                             if (!self->d_socket) {
+				                                             return;
+			                                             }
+			                                             self->d_socket.reset();
+			                                             ScheduleReconnect(self);
+		                                             } else if ( ec ) {
+			                                             Connection_LOG(ERROR,self) << "could not send data: " << ec;
+		                                             }
+		                                             if (self->d_bufferQueue.size() <= 0 ) {
 			                                      self->d_sending = false;
 			                                      return;
-		                                      }
-		                                      ScheduleSend(self);
-	                                      }));
+		                                             }
+		                                             ScheduleSend(self);
+	                                             }));
 }
 
 void Connection::ScheduleReconnect(const Ptr & self) {
@@ -146,9 +147,9 @@ void Connection::ScheduleReconnect(const Ptr & self) {
 
 	Connection_LOG(INFO,self) << "reconnecting in " << self->d_reconnectPeriod;
 	auto period = boost::posix_time::milliseconds(size_t(self->d_reconnectPeriod.Milliseconds()));
-	auto t = std::make_shared<asio::deadline_timer>(self->d_service,
-	                                                period);
-	t->async_wait(self->d_strand.wrap([self,t](const asio::error_code & ) {
+	auto t = std::make_shared<boost::asio::deadline_timer>(self->d_context,
+	                                                       period);
+	t->async_wait(self->d_strand.wrap([self,t](const boost::system::error_code & ) {
 		                                  Connection_LOG(INFO,self) << "reconnecting now";
 		                                  Connect(self);
 	                                  }));

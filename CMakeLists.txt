@@ -23,6 +23,10 @@ FetchContent_Declare(hermes
                      GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
                      GIT_TAG        v0.4.0)
 
+FetchContent_Declare(boost-asio
+                     GIT_REPOSITORY https://github.com/boostorg/asio
+                     GIT_TAG        boost-1.74.0)
+
 
 
 FetchContent_GetProperties(googletest)
@@ -30,13 +34,6 @@ if(NOT googletest_POPULATED)
 	FetchContent_Populate(googletest)
 	add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif(NOT googletest_POPULATED)
-
-option(EURESYS_FRAMEGRABBER_SUPPORT "Add support for Euresys Framegrabber" On)
-option(FORCE_STUB_FRAMEGRABBER_ONLY "Removes support for any other framegraber than stub" Off)
-
-if(FORCE_STUB_FRAMEGRABBER_ONLY)
-	set(EURESYS_FRAMEGRABBER_SUPPORT Off)
-endif(FORCE_STUB_FRAMEGRABBER_ONLY)
 
 
 FetchContent_GetProperties(fort-tags)
@@ -52,13 +49,26 @@ if(NOT hermes_POPULATED)
 endif(NOT hermes_POPULATED)
 set(HERMES_INCLUDE_DIRS ${hermes_SOURCE_DIR}/src ${hermes_BINARY_DIR}/src)
 
+FetchContent_GetProperties(boost-asio)
+if(NOT boost-asio_POPULATED)
+	FetchContent_Populate(boost-asio)
+endif(NOT boost-asio_POPULATED)
+set(boost-asio_INCLUDE_DIRS ${boost-asio_SOURCE_DIR}/include)
+
+
+option(EURESYS_FRAMEGRABBER_SUPPORT "Add support for Euresys Framegrabber" On)
+option(FORCE_STUB_FRAMEGRABBER_ONLY "Removes support for any other framegraber than stub" Off)
+
+if(FORCE_STUB_FRAMEGRABBER_ONLY)
+	set(EURESYS_FRAMEGRABBER_SUPPORT Off)
+endif(FORCE_STUB_FRAMEGRABBER_ONLY)
+
 if(EURESYS_FRAMEGRABBER_SUPPORT)
 	find_package(EGrabber REQUIRED)
 endif(EURESYS_FRAMEGRABBER_SUPPORT)
 
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
-find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(TBB tbb REQUIRED)
@@ -70,6 +80,7 @@ add_definitions("-D_GNU_SOURCE" "-DNDEBUG")
 
 add_definitions(${EIGEN3_DEFINITIONS})
 include_directories(${EGRABBER_INCLUDE_DIRS}
+                    ${boost-asio_INCLUDE_DIRS}
 	                ${GLOG_INCLUDE_DIRS}
 	                ${OpenCV_INCLUDE_DIRS}
 	                ${TBB_INCLUDE_DIRS}

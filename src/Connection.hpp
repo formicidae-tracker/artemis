@@ -1,10 +1,10 @@
 #pragma once
 
-#include <asio/io_service.hpp>
-#include <asio/strand.hpp>
-#include <asio/streambuf.hpp>
-#include <asio/ip/tcp.hpp>
-#include <asio/version.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/version.hpp>
 
 #include <google/protobuf/message.h>
 
@@ -14,6 +14,10 @@
 
 #include <mutex>
 
+#if(BOOST_ASIO_VERSION != 101800 )
+#error "Wrong version of boost asio " # BOOST_ASIO_VERSION
+#endif
+
 namespace fort {
 namespace artemis {
 
@@ -21,7 +25,7 @@ class Connection {
 public:
 	typedef std::shared_ptr<Connection> Ptr;
 	~Connection();
-	static Ptr Create(asio::io_service & service,
+	static Ptr Create(boost::asio::io_context & context,
 	                  const std::string & host,
 	                  uint16_t port,
 	                  Duration reconnectPeriod = 5 * Duration::Second );
@@ -30,7 +34,7 @@ public:
 	static void PostMessage(const Ptr & connection, const google::protobuf::MessageLite & m);
 
 private :
-	Connection(asio::io_service & service,
+	Connection(boost::asio::io_context & context,
 	           const std::string & host,
 	           uint16_t port,
 	           Duration reconnectPeriod);
@@ -39,17 +43,13 @@ private :
 	static void ScheduleSend(const Ptr & self);
 	static void Connect(const Ptr & self);
 
-	asio::io_service & d_service;
+	boost::asio::io_context                     & d_context;
 
-	std::string                            d_host;
-	uint16_t                               d_port;
-	std::shared_ptr<asio::ip::tcp::socket> d_socket;
+	std::string                                   d_host;
+	uint16_t                                      d_port;
+	std::shared_ptr<boost::asio::ip::tcp::socket> d_socket;
 
-#if ASIO_VERSION >= 101200
-	asio::io_context::strand               d_strand;
-#else
-	asio::strand                           d_strand;
-#endif
+	boost::asio::io_context::strand               d_strand;
 
 	typedef tbb::concurrent_bounded_queue<std::string> BufferQueue;
 

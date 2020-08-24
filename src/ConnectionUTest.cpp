@@ -1,11 +1,11 @@
 #include "ConnectionUTest.hpp"
 
 
-#include <asio/error.hpp>
-#include <asio/connect.hpp>
-#include <asio/streambuf.hpp>
-#include <asio/read.hpp>
-#include <asio/write.hpp>
+#include <boost/asio/error.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/asio/read.hpp>
+#include <boost/asio/write.hpp>
 #include <google/protobuf/util/delimited_message_util.h>
 #include <fort-hermes/FrameReadout.pb.h>
 #include <fort-hermes/Header.pb.h>
@@ -19,93 +19,93 @@ namespace artemis {
 
 class IncommingConnection {
 public :
-	IncommingConnection(asio::io_service & service, Barrier & closed) : d_closed(closed), d_socket(service), d_continue(true), d_received(0) , d_headerRead(true) {
+	IncommingConnection(boost::asio::io_context & context, Barrier & closed) : d_closed(closed), d_socket(context), d_continue(true), d_received(0) , d_headerRead(true) {
 	}
 	~IncommingConnection() {
 	}
-	Barrier &              d_closed;
-	asio::ip::tcp::socket  d_socket;
-	uint8_t                d_data[8];
-	bool                   d_continue;
-	bool                   d_headerRead;
-	size_t                 d_received;
+	Barrier &                     d_closed;
+	boost::asio::ip::tcp::socket  d_socket;
+	uint8_t                       d_data[8];
+	bool                          d_continue;
+	bool                          d_headerRead;
+	size_t                        d_received;
 	static void Read(const std::shared_ptr<IncommingConnection> & self) {
-		asio::async_read(self->d_socket,asio::mutable_buffers_1(self->d_data,7),
-		                 [self](const asio::error_code & ec,std::size_t) {
-			                 if (ec == asio::error::eof) {
-				                 self->d_closed.SignalOne();
-				                 return;
-			                 }
-			                 google::protobuf::io::CodedInputStream ciss(static_cast<const uint8_t*>(&(self->d_data[0])),8);
-			                 if ( !self->d_headerRead) {
-				                 fort::hermes::Header h;
-				                 bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&h,&ciss,NULL);
-				                 if (!parsed) {
-					                 ADD_FAILURE() << "Could not read header";
-				                 }
-				                 self->d_headerRead = true;
-			                 }
-			                 fort::hermes::FrameReadout m;
-			                 //bug ??
-			                 bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&m,&ciss,NULL);
-			                 if (!parsed) {
-				                 ADD_FAILURE() << "Could not parse message";
-			                 } 			                 ++self->d_received;
-			                 EXPECT_EQ(m.frameid(),self->d_received);
-			                 EXPECT_EQ(m.timestamp(),self->d_received*20000);
-			                 Read(self);
-		                 });
+		boost::asio::async_read(self->d_socket,boost::asio::mutable_buffers_1(self->d_data,7),
+		                        [self](const boost::system::error_code & ec,std::size_t) {
+			                        if (ec == boost::asio::error::eof) {
+				                        self->d_closed.SignalOne();
+				                        return;
+			                        }
+			                        google::protobuf::io::CodedInputStream ciss(static_cast<const uint8_t*>(&(self->d_data[0])),8);
+			                        if ( !self->d_headerRead) {
+				                        fort::hermes::Header h;
+				                        bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&h,&ciss,NULL);
+				                        if (!parsed) {
+					                        ADD_FAILURE() << "Could not read header";
+				                        }
+				                        self->d_headerRead = true;
+			                        }
+			                        fort::hermes::FrameReadout m;
+			                        //bug ??
+			                        bool parsed = google::protobuf::util::ParseDelimitedFromCodedStream(&m,&ciss,NULL);
+			                        if (!parsed) {
+				                        ADD_FAILURE() << "Could not parse message";
+			                        } 			                 ++self->d_received;
+			                        EXPECT_EQ(m.frameid(),self->d_received);
+			                        EXPECT_EQ(m.timestamp(),self->d_received*20000);
+			                        Read(self);
+		                        });
 	}
 };
 
 ConnectionUTest::ConnectionUTest()
-	: d_acceptor(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12345))
-	, d_rejector(d_service,asio::ip::tcp::endpoint(asio::ip::tcp::v4(),12346)) {
+	: d_acceptor(d_context,boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(),12345))
+	, d_rejector(d_context,boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(),12346)) {
 	d_rejectLoop = [this] {
-		auto connection = std::make_shared<IncommingConnection>(d_rejector.get_io_service(),d_closed);
-		d_rejector.async_accept(connection->d_socket,[this,connection](const asio::error_code & ec) {
-				if (!d_rejected) {
-					d_rejected = true;
-					connection->d_socket.close();
-					d_accept.SignalOne();
-				} else {
-					IncommingConnection::Read(connection);
-					d_accept.SignalOne();
-				}
-				d_rejectLoop();
-			});
-	};
+		               auto connection = std::make_shared<IncommingConnection>(d_context,d_closed);
+		               d_rejector.async_accept(connection->d_socket,[this,connection](const boost::system::error_code & ec) {
+				               if (!d_rejected) {
+					               d_rejected = true;
+					               connection->d_socket.close();
+					               d_accept.SignalOne();
+				               } else {
+					               IncommingConnection::Read(connection);
+					               d_accept.SignalOne();
+				               }
+				               d_rejectLoop();
+			               });
+	               };
 
 
 
 	d_acceptLoop = [this]{
-		auto connection = std::make_shared<IncommingConnection>(d_acceptor.get_io_service(),d_closed);
-		d_acceptor.async_accept(connection->d_socket,[this,connection](const asio::error_code & ec) {
-				EXPECT_EQ(!ec,true);
-				IncommingConnection::Read(connection);
-				d_accept.SignalOne();
-				d_acceptLoop();
-			});
-	};
+		               auto connection = std::make_shared<IncommingConnection>(d_context,d_closed);
+		               d_acceptor.async_accept(connection->d_socket,[this,connection](const boost::system::error_code & ec) {
+				               EXPECT_EQ(!ec,true);
+				               IncommingConnection::Read(connection);
+				               d_accept.SignalOne();
+				               d_acceptLoop();
+			               });
+	               };
 
 
 }
 
 void ConnectionUTest::SetUp() {
-	d_service.reset();
+	d_context.reset();
 	d_rejected = false;
 	d_rejectLoop();
 	d_acceptLoop();
 
-	d_service.post([this](){ d_running.SignalOne(); });
+	boost::asio::post(d_context,[this](){ d_running.SignalOne(); });
 
 	d_thread = std::thread([this](){
-			d_service.run();
+			d_context.run();
 		});
 }
 
 void ConnectionUTest::TearDown() {
-	d_service.stop();
+	d_context.stop();
 	d_thread.join();
 }
 
@@ -115,7 +115,7 @@ TEST_F(ConnectionUTest,DoesNotMangle) {
 	Connection::Ptr connection;
 
 	try {
-		connection = Connection::Create(d_service, "localhost", 12345);
+		connection = Connection::Create(d_context, "localhost", 12345);
 	} catch (const std::exception & e) {
 		FAIL() << "Could not connect: " << e.what();
 	}
@@ -139,7 +139,7 @@ TEST_F(ConnectionUTest,DoesNotMangle) {
 
 TEST_F(ConnectionUTest,CanReconnect) {
 	d_running.Wait();
-	auto connection = Connection::Create(d_service,"localhost",12346,std::chrono::milliseconds(5));
+	auto connection = Connection::Create(d_context,"localhost",12346,std::chrono::milliseconds(5));
 
 	fort::hermes::FrameReadout m;
 	m.set_frameid(1);

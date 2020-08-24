@@ -3,8 +3,8 @@
 #include <gtest/gtest.h>
 
 
-#include <asio/io_service.hpp>
-#include <asio/ip/tcp.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/ip/tcp.hpp>
 
 #include <thread>
 #include <condition_variable>
@@ -48,14 +48,13 @@ protected:
 	void TearDown();
 
 
-	asio::io_service        d_service;
-	asio::ip::tcp::acceptor d_acceptor,d_rejector;
-	std::function<void ()>  d_acceptLoop,d_rejectLoop;
-	std::thread             d_thread;
-	Barrier                 d_running,d_accept,d_closed,d_read;
-	bool                    d_rejected;
+	boost::asio::io_context        d_context;
+	boost::asio::ip::tcp::acceptor d_acceptor,d_rejector;
+	std::function<void ()>         d_acceptLoop,d_rejectLoop;
+	std::thread                    d_thread;
+	Barrier                        d_running,d_accept,d_closed,d_read;
+	bool                           d_rejected;
 };
 
 } // namespace artemis
-
 } // namespace fort
