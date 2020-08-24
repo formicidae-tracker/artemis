@@ -38,10 +38,11 @@ private :
 	void SpawnTasks();
 	void JoinTasks();
 
+	typedef boost::asio::executor_work_guard<boost::asio::io_context::executor_type> WorkGuard;
 
 	boost::asio::io_context d_context;
 	boost::asio::signal_set d_signals;
-
+	WorkGuard               d_guard;
 
 	std::shared_ptr<FrameGrabber>        d_grabber;
 	std::shared_ptr<ProcessFrameTask>    d_process;
@@ -49,7 +50,7 @@ private :
 
 
 	std::vector<std::thread>          d_threads;
-
+	std::thread                       d_ioThread;
 
 
 };

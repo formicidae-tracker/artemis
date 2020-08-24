@@ -4,13 +4,16 @@
 
 #include <opencv2/highgui/highgui.hpp>
 
+#include <unistd.h>
+
+#include <glog/logging.h>
 
 namespace fort {
 namespace artemis {
 
-StubFrame::StubFrame(const cv::Mat & mat, uint64_t timestamp, uint64_t ID)
+StubFrame::StubFrame(const cv::Mat & mat, uint64_t ID)
 	: d_mat(mat.clone())
-	, d_timestamp(timestamp)
+	, d_timestamp(Time().MonotonicValue() / 1000)
 	, d_ID(ID) {
 }
 
@@ -41,9 +44,11 @@ const cv::Mat & StubFrame::ToCV() {
 }
 
 
-StubFrameGrabber::StubFrameGrabber(const std::string & path)
+StubFrameGrabber::StubFrameGrabber(const std::string & path,
+                                   double FPS)
 	: d_ID(0)
-	, d_timestamp(0) {
+	, d_timestamp(0)
+	, d_period(1.0e9 / FPS) {
 	d_image = cv::imread(path,0);
 	if ( d_image.data == NULL ) {
 		throw std::runtime_error("Could not load '" + path + "'");
@@ -54,12 +59,12 @@ StubFrameGrabber::~StubFrameGrabber() {
 }
 
 void StubFrameGrabber::Start() {
-	d_ID = 0;
-	d_timestamp = 0;
-	d_last = clock::now();
+	d_last = Time::Now().Add(-d_period);
+	DLOG(INFO) << "[StubFrameGrabber]: started";
 }
 
 void StubFrameGrabber::Stop() {
+	DLOG(INFO) << "[StubFrameGrabber]: stopped";
 }
 
 cv::Size StubFrameGrabber::Resolution() const {
@@ -67,11 +72,12 @@ cv::Size StubFrameGrabber::Resolution() const {
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {
-	d_last += std::chrono::milliseconds(250);
-	std::this_thread::sleep_until(d_last);
+	auto toWait = Time::Now().Sub(d_last);
+	if ( toWait > 0 ) {
+		usleep(toWait.Microseconds());
+	}
 
-	Frame::Ptr res = std::make_shared<StubFrame>(d_image,d_timestamp,d_ID);
-	d_timestamp += 250000;
+	Frame::Ptr res = std::make_shared<StubFrame>(d_image,d_ID);
 	d_ID += 1;
 	return res;
 }

@@ -54,7 +54,7 @@ void Application::InitGoogleLogging(const std::string & applicationName,
 	if ( options.LogDir.empty() == false ) {
 		FLAGS_log_dir = options.LogDir.c_str();
 	}
-	// FLAGS_stderrthreshold = 0; // maybe we should need less log
+	FLAGS_stderrthreshold = 0; // maybe we should need less log
 	::google::InitGoogleLogging(applicationName.c_str());
 	::google::InstallFailureSignalHandler();
 }
@@ -75,7 +75,8 @@ void Application::InitGlobalDependencies() {
 
 
 Application::Application(const Options & options)
-	: d_signals(d_context,SIGINT) {
+	: d_signals(d_context,SIGINT)
+	, d_guard(d_context.get_executor()) {
 
 	d_grabber = AcquisitionTask::LoadFrameGrabber(options.General.StubImagePath,
 	                                              options.Camera);
@@ -111,6 +112,8 @@ void Application::JoinTasks() {
 	for ( auto & thread : d_threads ) {
 		thread.join();
 	}
+	d_guard.reset();
+	d_ioThread.join();
 }
 
 void Application::SpawnIOContext() {
@@ -119,13 +122,15 @@ void Application::SpawnIOContext() {
 	d_signals.async_wait([this](const boost::system::error_code &,
 	                            int ) {
 		                     LOG(INFO) << "Terminating (SIGINT)";
-		                     d_grabber->Stop();
+		                     d_acquisition->Stop();
 	                     });
 	// starts the context in a single threads, and remind to join it
 	// once we got the SIGINT
-	d_threads.push_back(std::thread([this]() {
-		                                d_context.run();
-	                                }));
+	d_ioThread = std::thread([this]() {
+		                         DLOG(INFO) << "[IOTask]: started";
+		                         d_context.run();
+		                         DLOG(INFO) << "[IOTask]: ended";
+	                         });
 
 }
 

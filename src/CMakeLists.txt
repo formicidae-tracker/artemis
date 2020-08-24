@@ -106,6 +106,7 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${PROTOBUF_LIBRARIES}
 	                                 ${OpenCV_LIBS}
 	                                 ${TBB_LIBRARIES}
+	                                 glfw
 	                                  "-ldl")
 
 add_executable(artemis main.cpp)

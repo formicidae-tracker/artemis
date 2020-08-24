@@ -2,8 +2,6 @@
 
 #include <opencv2/core/core.hpp>
 
-#include <chrono>
-
 #include "FrameGrabber.hpp"
 
 namespace fort {
@@ -11,7 +9,7 @@ namespace artemis {
 
 class StubFrame : public Frame {
 public :
-	StubFrame(const cv::Mat & mat, uint64_t timestamp, uint64_t ID);
+	StubFrame(const cv::Mat & mat, uint64_t ID);
 	virtual ~StubFrame();
 
 
@@ -29,7 +27,8 @@ private :
 
 class StubFrameGrabber : public FrameGrabber {
 public :
-	StubFrameGrabber(const std::string & path);
+	StubFrameGrabber(const std::string & path,
+	                 double FPS);
 
 	virtual ~StubFrameGrabber();
 
@@ -41,9 +40,10 @@ public :
 private:
 	typedef std::chrono::high_resolution_clock clock;
 	typedef clock::time_point time;
-	cv::Mat  d_image;
-	uint64_t d_ID,d_timestamp;
-	time     d_last;
+	cv::Mat           d_image;
+	uint64_t          d_ID,d_timestamp;
+	Time              d_last;
+	Duration          d_period;
 };
 
 

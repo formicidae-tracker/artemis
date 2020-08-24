@@ -5,7 +5,11 @@ namespace artemis {
 
 UserInterface::UserInterface(const cv::Size & workingResolution,
                              const DisplayOptions & options)
-	: d_highlighted(options.Highlighted.begin(),
+	: d_zoom({.Scale = 1.0,
+	          .Center = cv::Point(workingResolution.width / 2,
+	                              workingResolution.height / 2),
+		})
+	, d_highlighted(options.Highlighted.begin(),
 	                options.Highlighted.end())
 	,d_displayROI(options.DisplayROI) {
 

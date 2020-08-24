@@ -2,6 +2,8 @@
 
 #include "ui/StubUserInterface.hpp"
 
+#include "glog/logging.h"
+
 namespace fort {
 namespace artemis {
 
@@ -22,6 +24,7 @@ UserInterfaceTask::~UserInterfaceTask() {
 }
 
 void UserInterfaceTask::Run()  {
+	DLOG(INFO) << "[UserInterfaceTask]: Started";
 	UserInterface::FrameToDisplay frame;
 	for (;;) {
 		d_ui->PollEvents();
@@ -29,10 +32,15 @@ void UserInterfaceTask::Run()  {
 		while(d_displayQueue.try_pop(frame) == true) {
 			hasNew = true;
 		}
-		if ( hasNew == true ) {
-			d_ui->PushFrame(frame);
+		if ( hasNew == false ) {
+			continue;
 		}
+		if ( !frame.Full) {
+			break;
+		}
+		d_ui->PushFrame(frame);
 	}
+	DLOG(INFO) << "[UserInterfaceTask]: Ended";
 }
 
 

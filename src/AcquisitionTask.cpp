@@ -8,6 +8,7 @@
 
 #include "ProcessFrameTask.hpp"
 
+#include <glog/logging.h>
 
 namespace fort {
 namespace artemis {
@@ -21,7 +22,7 @@ FrameGrabber::Ptr AcquisitionTask::LoadFrameGrabber(const std::string & stubImag
 		return std::make_shared<StubFrameGrabber>(stubImagePath);
 	}
 #else
-	return std::make_shared<StubFrameGrabber>(stubImagePath);
+	return std::make_shared<StubFrameGrabber>(stubImagePath,options.FPS);
 #endif
 }
 
@@ -40,6 +41,7 @@ void AcquisitionTask::Stop() {
 }
 
 void AcquisitionTask::Run() {
+	DLOG(INFO) << "[AcquisitionTask]:  started";
 	d_grabber->Start();
 	while(d_quit.load() == false ) {
 		Frame::Ptr f = d_grabber->NextFrame();
@@ -47,10 +49,12 @@ void AcquisitionTask::Run() {
 			d_processFrame->QueueFrame(f);
 		}
 	}
+	DLOG(INFO) << "[AcquisitionTask]:  TearDown";
 	d_grabber->Stop();
 	if (d_processFrame) {
 		d_processFrame->CloseFrameQueue();
 	}
+	DLOG(INFO) << "[AcquisitionTask]:  ended";
 }
 
 

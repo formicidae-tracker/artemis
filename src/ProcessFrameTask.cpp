@@ -13,6 +13,8 @@
 #include "VideoOutputTask.hpp"
 #include "UserInterfaceTask.hpp"
 
+#include <glog/logging.h>
+
 namespace fort {
 namespace artemis {
 
@@ -113,7 +115,7 @@ void ProcessFrameTask::TearDown() {
 
 
 void ProcessFrameTask::Run() {
-
+	DLOG(INFO) << "[ProcessFrameTask]: Started";
 	Frame::Ptr frame;
 	d_frameDropped = 0;
 	d_frameProcessed = 0;
@@ -139,8 +141,9 @@ void ProcessFrameTask::Run() {
 		ProcessFrame(frame);
 	}
 
+	DLOG(INFO) << "[ProcessFrameTask]: TearDown";
 	TearDown();
-
+	DLOG(INFO) << "[ProcessFrameTask]: Ended";
 }
 
 
@@ -321,6 +324,11 @@ void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
                                     const std::shared_ptr<hermes::FrameReadout> & m) {
 
 	d_wantedZoom = d_userInterface->UpdateZoom(d_wantedZoom);
+
+	std::cerr << "Wanted zoom: " << d_wantedZoom.Scale
+	          << " x:" << d_wantedZoom.Center.x
+	          << " y: " << d_wantedZoom.Center.y
+	          << std::endl;
 
 	std::shared_ptr<cv::Mat> zoomed;
 

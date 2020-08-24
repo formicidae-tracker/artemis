@@ -51,7 +51,6 @@ TEST_F(OptionsUTest,DefaultValues) {
 	EXPECT_EQ(options.Process.ImageRenewPeriod,2 * Duration::Hour);
 	EXPECT_EQ(options.Process.UUID,"");
 
-
 }
 
 TEST_F(OptionsUTest,TestParse) {

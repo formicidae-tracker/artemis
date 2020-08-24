@@ -41,6 +41,7 @@ void VideoOutputTask::CloseQueue() {
 
 
 void VideoOutputTask::Run() {
+	DLOG(INFO) << "[VideoOutputTask]: Started";
 
 	FrameData data;
 
@@ -65,6 +66,7 @@ void VideoOutputTask::Run() {
 
 		OutputData(imagePtr,frameID);
 	}
+	DLOG(INFO) << "[VideoOutputTask]: Ended";
 }
 
 void VideoOutputTask::OverlayTime(cv::Mat & frame,
