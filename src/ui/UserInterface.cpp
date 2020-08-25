@@ -45,7 +45,8 @@ void UserInterface::ZoomChanged(const Zoom & zoom) {
 
 UserInterface::DataToDisplay
 UserInterface::ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> & m ) {
-	DataToDisplay data {.DisplayROI = d_displayROI };
+	DataToDisplay data;
+	data.DisplayROI = d_displayROI;
 	data.HighlightedIndexes.clear();
 	data.NormalIndexes.clear();
 	if ( !m ) {

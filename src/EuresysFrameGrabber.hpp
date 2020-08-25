@@ -1,23 +1,27 @@
 #pragma once
 
 #include "FrameGrabber.hpp"
-#include "Options.hpp"
 
 #include <EGrabber.h>
+
+#include "Options.hpp"
 
 #include <opencv2/core/core.hpp>
 #include <mutex>
 
+
 namespace fort {
 namespace artemis {
 
-class EuresysFrame : public Frame {
+class EuresysFrame : public Frame,public Euresys::ScopedBuffer {
 public :
 	EuresysFrame(Euresys::EGrabber<Euresys::CallbackOnDemand> & grabber,
-	             const Euresys::NewBufferData &,
-	             uint64_t & lastFrame,
-	             uint64_t & toAdd);
+				 const Euresys::NewBufferData &,
+				 uint64_t & lastFrame,
+				 uint64_t & toAdd);
+
 	virtual ~EuresysFrame();
+
 
 	virtual void * Data();
 	virtual size_t Width() const;
@@ -25,35 +29,32 @@ public :
 	virtual uint64_t Timestamp() const;
 	virtual uint64_t ID() const;
 	const cv::Mat & ToCV();
-
 private :
-	Euresys::ScopedBuffer d_euresysBuffer;
-	size_t                d_width,d_height;
-	uint64_t              d_timestamp,d_ID;
-	cv::Mat               d_mat;
+	size_t d_width,d_height;
+	uint64_t d_timestamp,d_ID;
+	cv::Mat d_mat;
+	friend class EuresysFrameGrabbero;
 };
 
 
-class EuresysFrameGrabber : public FrameGrabber {
+class EuresysFrameGrabber : public FrameGrabber,public Euresys::EGrabber<Euresys::CallbackOnDemand> {
 public :
 	typedef std::shared_ptr<Euresys::ScopedBuffer> BufferPtr;
 
-	EuresysFrameGrabber(const CameraOptions & cameraConfig);
+	EuresysFrameGrabber(Euresys::EGenTL & gentl,
+	                    const CameraOptions & options);
 
 	virtual ~EuresysFrameGrabber();
 
 
-	virtual void Start();
-	virtual void Stop();
-	virtual Frame::Ptr NextFrame();
+	void Start() override;
+	void Stop() override;
+	Frame::Ptr NextFrame() override;
 
-	virtual std::pair<int32_t,int32_t> GetResolution();
+	cv::Size Resolution() const override;
 private:
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
-
-	Euresys::EGenTL                              d_egentl;
-	Euresys::EGrabber<Euresys::CallbackOnDemand> d_grabber;
 
 	std::mutex         d_mutex;
 	Frame::Ptr         d_frame;
@@ -62,5 +63,7 @@ private:
 	int32_t            d_width,d_height;
 };
 
+
 } // namespace artemis
+
 } // namespace fort

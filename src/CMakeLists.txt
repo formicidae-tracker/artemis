@@ -107,6 +107,7 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${OpenCV_LIBS}
 	                                 ${TBB_LIBRARIES}
 	                                 glfw
+	                                 boost_system
 	                                  "-ldl")
 
 add_executable(artemis main.cpp)

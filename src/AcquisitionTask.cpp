@@ -16,10 +16,11 @@ namespace artemis {
 FrameGrabber::Ptr AcquisitionTask::LoadFrameGrabber(const std::string & stubImagePath,
                                                     const CameraOptions & options) {
 #ifndef FORCE_STUB_FRAMEGRABBER_ONLY
-	if (stubPath.empty() ) {
-		return std::make_shared<EuresysFrameGrabber>(options);
+	if (stubImagePath.empty() ) {
+		static Euresys::EGenTL egentl;
+		return std::make_shared<EuresysFrameGrabber>(egentl,options);
 	} else {
-		return std::make_shared<StubFrameGrabber>(stubImagePath);
+	  return std::make_shared<StubFrameGrabber>(stubImagePath,options.FPS);
 	}
 #else
 	return std::make_shared<StubFrameGrabber>(stubImagePath,options.FPS);

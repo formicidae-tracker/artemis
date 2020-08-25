@@ -2,7 +2,7 @@
 
 #include <unistd.h>
 #include <sys/time.h>
-#include <sys/types.h>
+#include <sys/syscall.h>
 #include <sys/resource.h>
 
 #include "utils/PosixCall.hpp"
@@ -16,7 +16,7 @@ Task::~Task() {}
 std::thread Task::Spawn(Task & task,size_t niceness) {
 	return std::thread([&task,niceness]() {
 		                   if ( niceness != 0 ) {
-			                   auto tid = gettid();
+			                   auto tid = syscall(SYS_gettid);
 			                   p_call(setpriority,PRIO_PROCESS,tid,niceness);
 		                   }
 		                   task.Run();

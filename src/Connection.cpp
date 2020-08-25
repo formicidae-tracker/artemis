@@ -3,6 +3,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/error.hpp>
 
 #include <glog/logging.h>
 

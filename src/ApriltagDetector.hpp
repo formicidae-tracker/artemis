@@ -6,6 +6,7 @@
 #include "Options.hpp"
 #include "utils/Partitions.hpp"
 
+#include <functional>
 
 namespace fort {
 namespace artemis {

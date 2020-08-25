@@ -5,6 +5,8 @@
 
 #include "../Options.hpp"
 
+#include <functional>
+
 namespace fort {
 namespace artemis {
 
