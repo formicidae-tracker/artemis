@@ -27,8 +27,6 @@ FetchContent_Declare(boost-asio
                      GIT_REPOSITORY https://github.com/boostorg/asio
                      GIT_TAG        boost-1.74.0)
 
-
-
 FetchContent_GetProperties(googletest)
 if(NOT googletest_POPULATED)
 	FetchContent_Populate(googletest)

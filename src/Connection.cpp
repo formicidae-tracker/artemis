@@ -8,7 +8,7 @@
 #include <glog/logging.h>
 
 #include <google/protobuf/util/delimited_message_util.h>
-#include <fort-hermes/Header.pb.h>
+#include <fort/hermes/Header.pb.h>
 
 namespace fort {
 namespace artemis {

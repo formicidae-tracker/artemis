@@ -7,8 +7,8 @@
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
 #include <google/protobuf/util/delimited_message_util.h>
-#include <fort-hermes/FrameReadout.pb.h>
-#include <fort-hermes/Header.pb.h>
+#include <fort/hermes/FrameReadout.pb.h>
+#include <fort/hermes/Header.pb.h>
 
 #include "Connection.hpp"
 
