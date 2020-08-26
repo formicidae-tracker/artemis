@@ -56,7 +56,8 @@ private :
 	typedef tbb::concurrent_bounded_queue<Frame::Ptr> FrameQueue;
 
 	void SetUpVideoOutputTask(const VideoOutputOptions & options,
-	                          boost::asio::io_context & context);
+	                          boost::asio::io_context & context,
+	                          bool legacyMode);
 	void SetUpDetection(const cv::Size & inputResolution,
 	                    const ApriltagOptions & options);
 	void SetUpCataloguing(const ProcessOptions & options);

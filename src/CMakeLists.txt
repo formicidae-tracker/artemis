@@ -39,6 +39,7 @@ set(SRC_FILES utils/Defer.cpp
 	          FullFrameExportTask.cpp
 	          UserInterfaceTask.cpp
 	          VideoOutputTask.cpp
+	          ImageTextRenderer.cpp
 	          ui/UserInterface.cpp
 	          ui/StubUserInterface.cpp
 	          main.cpp
@@ -63,6 +64,7 @@ set(HDR_FILES utils/Defer.hpp
 	          FullFrameExportTask.hpp
 	          UserInterfaceTask.hpp
 	          VideoOutputTask.hpp
+	          ImageTextRenderer.hpp
 	          ui/UserInterface.hpp
 	          ui/StubUserInterface.hpp
 	          Application.hpp

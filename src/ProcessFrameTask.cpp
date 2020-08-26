@@ -28,7 +28,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 
 	SetUpDetection(inputResolution,options.Apriltag);
 	SetUpUserInterface(workingResolution,options.Display);
-	SetUpVideoOutputTask(options.VideoOutput,context);
+	SetUpVideoOutputTask(options.VideoOutput,context,options.General.LegacyMode);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects(workingResolution);
 }
@@ -48,11 +48,12 @@ FullFrameExportTaskPtr 	ProcessFrameTask::FullFrameExportTask() const {
 
 
 void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions & options,
-                                            boost::asio::io_context & context) {
+                                            boost::asio::io_context & context,
+                                            bool legacyMode) {
 	if ( options.ToStdout == false ) {
 		return;
 	}
-	d_videoOutput = std::make_shared<artemis::VideoOutputTask>(options,context);
+	d_videoOutput = std::make_shared<artemis::VideoOutputTask>(options,context,legacyMode);
 }
 
 void ProcessFrameTask::SetUpDetection(const cv::Size & inputResolution,

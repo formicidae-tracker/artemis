@@ -16,7 +16,8 @@ namespace artemis {
 class VideoOutputTask : public Task {
 public:
 	VideoOutputTask(const VideoOutputOptions & options,
-	                boost::asio::io_context & context);
+	                boost::asio::io_context & context,
+	                bool legacyMode);
 
 	virtual ~VideoOutputTask();
 
@@ -31,6 +32,18 @@ public:
 
 
 private :
+	void OverlayData(cv::Mat & frame,
+	                 const Time & time,
+	                 uint64_t frameID);
+
+	void OverlayFrameNumber(cv::Mat & frame,
+	                        uint64_t frameID);
+
+
+	void OverlayLegacyTime(cv::Mat & frame,
+	                       const Time & time);
+
+
 	void OverlayTime(cv::Mat & frame,
 	                 const Time & time);
 
@@ -52,6 +65,7 @@ private :
 	std::mutex d_mutex;
 	bool       d_done;
 	const bool d_addHeader;
+	const bool d_legacyMode;
 
 	std::vector<uint64_t> d_headerData;
 };

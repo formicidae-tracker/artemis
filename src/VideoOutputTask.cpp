@@ -7,14 +7,18 @@
 #include <boost/asio/write.hpp>
 #include <boost/asio/buffer.hpp>
 
+#include "ImageTextRenderer.hpp"
+
 namespace fort {
 namespace artemis {
 
 VideoOutputTask::VideoOutputTask(const VideoOutputOptions & options,
-                                 boost::asio::io_context & context)
+                                 boost::asio::io_context & context,
+                                 bool legacyMode)
 	: d_stream(context,STDOUT_FILENO)
 	, d_done(true)
-	, d_addHeader(options.AddHeader) {
+	, d_addHeader(options.AddHeader)
+	, d_legacyMode(legacyMode) {
 
 	int flags = fcntl(STDOUT_FILENO, F_GETFL);
 	if ( flags == -1 ) {
@@ -62,18 +66,48 @@ void VideoOutputTask::Run() {
 			d_done = false;
 		}
 
-		OverlayTime(*imagePtr,time);
+		OverlayData(*imagePtr,time,frameID);
 
 		OutputData(imagePtr,frameID);
 	}
 	LOG(INFO) << "[VideoOutputTask]: Ended";
 }
 
+void VideoOutputTask::OverlayData(cv::Mat & frame,
+                                  const Time & time,
+                                  uint64_t frameID) {
+	if ( d_legacyMode == true ) {
+		OverlayFrameNumber(frame,frameID);
+		OverlayLegacyTime(frame,time);
+	}
+	OverlayTime(frame,time);
+}
+
+void VideoOutputTask::OverlayFrameNumber(cv::Mat & frame,
+                                         uint64_t frameID) {
+	std::ostringstream os;
+	os << "Frame "  << std::setw(8) << std::setfill('0') << frameID;
+	ImageTextRenderer::RenderText(frame,os.str(),{0,0});
+}
+
+
+void VideoOutputTask::OverlayLegacyTime(cv::Mat & frame,
+                                        const Time & time) {
+	std::ostringstream oss;
+	auto fTime = time.ToTimeT();
+	oss << std::put_time(std::localtime(&fTime),"%c %Z");
+	ImageTextRenderer::RenderText(frame,oss.str(),{frame.cols,0},ImageTextRenderer::RIGHT_ALIGNED);
+}
+
+
 void VideoOutputTask::OverlayTime(cv::Mat & frame,
                                   const Time & time) {
-
-	//TODO overlay time
+	auto rounded = time.Round(Duration::Millisecond);
+	std::ostringstream oss;
+	oss << rounded;
+	ImageTextRenderer::RenderText(frame,oss.str(),{frame.cols,0},ImageTextRenderer::RIGHT_ALIGNED);
 }
+
 
 
 void VideoOutputTask::OutputData(const std::shared_ptr<cv::Mat> & framePtr,
