@@ -10,17 +10,14 @@ addons:
   apt:
     packages:
       - libeigen3-dev
-      - libasio-dev
-      - libboost-regex-dev
+      - libboost-system-dev
       - libssl-dev
       - libboost-dev
-      - libboost-date-time-dev
-      - libboost-filesystem-dev
       - libgoogle-glog-dev
       - libopencv-dev
       - libopencv-imgproc-dev
       - libopencv-highgui-dev
-
+      - libglfw3-dev
 
 
 before_install:
