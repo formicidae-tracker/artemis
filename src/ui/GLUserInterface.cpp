@@ -183,10 +183,6 @@ void GLUserInterface::InitPBOs() {
 		glGenBuffers(1,&(d_buffer[i].PBO));
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER,d_buffer[i].PBO);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER,d_workingSize.width*d_workingSize.height,0,GL_STREAM_DRAW);
-		d_buffer[i].TagLabels = std::make_shared<GLTextRenderer>(d_vgaFont,
-		                                                         d_workingSize,
-		                                                         cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
-		                                                         cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
 	}
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
 }
@@ -216,11 +212,9 @@ void GLUserInterface::UploadTexture(const DrawBuffer & buffer) {
 void GLUserInterface::InitGLData() {
 	DLOG(INFO) << "[GLUserInterface]: InitGLData";
 
-	d_vgaFont = GLAsciiFontAtlas::VGAFont();
-	d_dataRenderer = std::make_shared<GLTextRenderer>(d_vgaFont,
-	                                                  d_workingSize,
-	                                                  cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
-	                                                  cv::Vec4f(0.0f,0.1f,0.2f,0.0f));
+	d_textRenderer = std::make_shared<FreetypeGl>(true);
+	d_labelMarkup = d_textRenderer->createMarkup("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",32,FreetypeGl::COLOR_WHITE);
+
 	InitPBOs();
 
 	ComputeViewport();
@@ -278,7 +272,7 @@ void GLUserInterface::InitGLData() {
 	                                                 std::string(primitive_fragmentshader,primitive_fragmentshader+primitive_fragmentshader_size));
 
 
-	auto gSize = d_vgaFont->TotalGlyphSize();
+	auto gSize = cv::Size(9,16);
 	size_t cols = OVERLAY_COLS + 2;
 	size_t rows = OVERLAY_ROWS + 2;
 	GLfloat overlayData[] = {
@@ -304,9 +298,6 @@ void GLUserInterface::InitGLData() {
 	auto scaleID = glGetUniformLocation(d_primitiveProgram,"scaleMat");
 	glUniformMatrix3fv(scaleID,1,GL_FALSE,scaleMat.data());
 
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 }
 
@@ -357,16 +348,22 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
 		return;
 	}
-	std::vector<std::pair<std::string,cv::Point>> tagLabels;
+
+	d_textRenderer->setProjectionOrtho(0,buffer.Frame.Message->width(),0,buffer.Frame.Message->height(),-1,1);
+
 	std::vector<GLfloat> pointData;
 	size_t nPoints = std::max(buffer.Data.HighlightedIndexes.size(),buffer.Data.NormalIndexes.size());
-	tagLabels.reserve(buffer.Data.HighlightedIndexes.size() + buffer.Data.NormalIndexes.size());
+	buffer.TagLabels.reserve(buffer.Data.HighlightedIndexes.size() + buffer.Data.NormalIndexes.size());
+	buffer.TagLabels.clear();
 	pointData.reserve(2*nPoints);
 	for ( const auto hIndex : buffer.Data.HighlightedIndexes ) {
 		const auto & t = buffer.Frame.Message->tags(hIndex);
 		pointData.push_back(t.x());
 		pointData.push_back(t.y());
-		tagLabels.push_back(std::make_pair(FormatTagID(t.id()),cv::Point(t.x(),t.y())));
+		buffer.TagLabels.push_back(d_textRenderer->createText(FormatTagID(t.id())));
+		buffer.TagLabels.back().setPosition(t.x(),t.y(),0);
+		buffer.TagLabels.back().setScalingFactor(100);
+
 	}
 
 	glBindBuffer(GL_ARRAY_BUFFER,buffer.HighlightedPointsVBO);
@@ -377,14 +374,14 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 		const auto & t = buffer.Frame.Message->tags(nIndex);
 		pointData.push_back(t.x());
 		pointData.push_back(t.y());
-		tagLabels.push_back(std::make_pair(FormatTagID(t.id()),cv::Point(t.x(),t.y())));
+		buffer.TagLabels.push_back(d_textRenderer->createText(FormatTagID(t.id()),d_labelMarkup));
+		buffer.TagLabels.back().setPosition(t.x(),t.y(),0);
+		buffer.TagLabels.back().setScalingFactor(4);
 	}
 
 	glBindBuffer(GL_ARRAY_BUFFER,buffer.NormalPointsVBO);
 	glBufferData(GL_ARRAY_BUFFER,sizeof(GLfloat) * pointData.size(),&pointData[0],GL_DYNAMIC_DRAW);
 
-	buffer.TagLabels->Compile(tagLabels,cv::Size(buffer.Frame.Message->width(),
-	                                             buffer.Frame.Message->height()));
 }
 
 void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
@@ -434,7 +431,9 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
-	static auto vgaFont = GLAsciiFontAtlas::VGAFont();
+	for ( const auto & t : buffer.TagLabels ) {
+		d_textRenderer->renderText(t);
+	}
 }
 
 template <typename T>
@@ -469,25 +468,23 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	glDrawArrays(GL_TRIANGLES,0,6);
 	glDisableVertexAttribArray(0);
 
-	auto gsize = d_vgaFont->TotalGlyphSize();
-
 
 	std::ostringstream oss;
 	oss << buffer.Frame.FrameDropped
 	    << " (" << std::fixed << std::setprecision(2)
-	    << (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
+	    << (100.0f * buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
 
-	d_dataRenderer->Compile({
-	                         {printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)),cv::Point(gsize.width,1*gsize.height)},
-			{printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()),cv::Point(gsize.width,3*gsize.height)},
-			{printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()),cv::Point(gsize.width,4*gsize.height)},
-			{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
-			{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
-			{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
+	// d_dataRenderer->Compile({
+	//                          {printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)),cv::Point(gsize.width,1*gsize.height)},
+	// 		{printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()),cv::Point(gsize.width,3*gsize.height)},
+	// 		{printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()),cv::Point(gsize.width,4*gsize.height)},
+	// 		{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
+	// 		{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
+	// 		{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
 
-		},d_workingSize);
-	d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
-	                                d_workingSize));
+	// 	},d_workingSize);
+	// d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
+	//                                 d_workingSize));
 
 }
 
@@ -504,9 +501,12 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
-	buffer.TagLabels->Render(cv::Rect(cv::Point(-50,-50),cv::Size(buffer.Frame.Message->width(),
-	                                                          buffer.Frame.Message->height())));
+	DrawLabels(buffer);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	DrawInformations(buffer);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glfwSwapBuffers(d_window.get());
 }

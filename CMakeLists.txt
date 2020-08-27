@@ -27,6 +27,11 @@ FetchContent_Declare(boost-asio
                      GIT_REPOSITORY https://github.com/boostorg/asio
                      GIT_TAG        boost-1.74.0)
 
+FetchContent_Declare(freetype-gl
+                     GIT_REPOSITORY https://github.com/rougier/freetype-gl
+                     GIT_TAG        1a8c007)
+
+
 FetchContent_GetProperties(googletest)
 if(NOT googletest_POPULATED)
 	FetchContent_Populate(googletest)
@@ -52,6 +57,17 @@ if(NOT boost-asio_POPULATED)
 	FetchContent_Populate(boost-asio)
 endif(NOT boost-asio_POPULATED)
 set(boost-asio_INCLUDE_DIRS ${boost-asio_SOURCE_DIR}/include)
+
+FetchContent_GetProperties(freetype-gl)
+if(NOT freetype-gl_POPULATED)
+	FetchContent_Populate(freetype-gl)
+	set(freetype-gl_WITH_VAO ON CACHE INTERNAL "")
+	set(freetype-gl_BUILD_DEMOS OFF CACHE INTERNAL "")
+	set(freetype-gl_BUILD_APIDOC OFF CACHE INTERNAL "")
+	set(freetype-gl_BUILD_MAKEFONT OFF CACHE INTERNAL "")
+	add_subdirectory(${freetype-gl_SOURCE_DIR} ${freetype-cl_BINARY_DIR})
+endif(NOT freetype-gl_POPULATED)
+
 
 
 option(EURESYS_FRAMEGRABBER_SUPPORT "Add support for Euresys Framegrabber" On)
@@ -90,6 +106,7 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${EIGEN3_INCLUDE_DIRS}
 	                ${HERMES_INCLUDE_DIRS}
 	                ${APRILTAG_INCLUDE_DIRS}
+	                ${freetype-gl_SOURCE_DIR}
 	                ${fort-tags_SOURCE_DIR}/include
 	                ${googletest_SOURCE_DIR}/googlemock/include
 	                ${googletest_SOURCE_DIR}/googletest/include

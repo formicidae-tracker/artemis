@@ -9,6 +9,8 @@
 
 #include "GLTextRenderer.hpp"
 
+#include <freetype-gl/freetype-gl.h>
+
 namespace fort {
 namespace artemis {
 
@@ -36,7 +38,7 @@ private:
 		DataToDisplay       Data;
 		GLuint              PBO;
 		GLuint              NormalPointsVBO,HighlightedPointsVBO;
-		GLTextRenderer::Ptr TagLabels;
+		std::vector<FreetypeGlText> TagLabels;
 	};
 
 
@@ -68,8 +70,8 @@ private:
 	cv::Size       d_windowSize;
 	Zoom           d_zoom;
 
-	GLAsciiFontAtlas::Ptr d_vgaFont;
-	GLTextRenderer::Ptr   d_dataRenderer;
+	texture_atlas_t * d_labelAtlas;
+	texture_font_t  * d_labelFont;
 	GLuint d_frameVBO,d_frameTBO,d_frameProgram,d_frameTexture,
 		d_pointProgram,d_pointVBO,d_dataOverlayVBO,d_primitiveProgram;
 
