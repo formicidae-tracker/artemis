@@ -61,7 +61,7 @@ private:
 	Zoom           d_zoom;
 
 
-	GLuint d_frameVBO,d_frameProgram;
+	GLuint d_frameVBO,d_frameProgram,d_frameTexture;
 };
 
 

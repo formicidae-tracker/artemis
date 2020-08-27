@@ -20,12 +20,16 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 	                ${CMAKE_CURRENT_SOURCE_DIR}
 	                )
 
-configure_file(ui/shaders_resources.cmake.in ui/shaders_resources.cmake)
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders.c
-	COMMAND ${CMAKE_COMMAND} ARGS "-P" ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_resources.cmake
-	DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_resources.cmake
-	ui/shaders/frame.vertexshader
-	ui/shaders/frame.fragmentshader)
+
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.c ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.h
+                   COMMAND ${RESOURCIFY_EXECUTABLE} ARGS "-O" ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.vertexshader
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader
+                   DEPENDS resourcify
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.vertexshader
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader)
+
 
 
 set(SRC_FILES utils/Defer.cpp
@@ -50,6 +54,8 @@ set(SRC_FILES utils/Defer.cpp
 	          ui/UserInterface.cpp
 	          ui/StubUserInterface.cpp
 	          ui/GLUserInterface.cpp
+	          ui/ShaderUtils.cpp
+	          ui/shaders_data.c
 	          main.cpp
 	          )
 
@@ -76,6 +82,8 @@ set(HDR_FILES utils/Defer.hpp
 	          ui/UserInterface.hpp
 	          ui/StubUserInterface.hpp
 	          ui/GLUserInterface.hpp
+	          ui/ShaderUtils.hpp
+	          ui/shaders_data.h
 	          Application.hpp
 	          )
 

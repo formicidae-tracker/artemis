@@ -101,5 +101,6 @@ include(EnableMakeCheck)
 enable_testing()
 enable_make_check()
 
+add_subdirectory(scripts)
 
 add_subdirectory(src)
