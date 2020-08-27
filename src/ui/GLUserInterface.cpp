@@ -14,6 +14,15 @@
 
 #include "ui/shaders_data.h"
 
+#if (GLFW_VERSION_MAJOR * 100 + GLFW_VERSION_MINOR) < 303
+#define IMPLEMENT_GLFW_GET_ERROR 1
+#endif
+
+#ifdef IMPLEMENT_GLFW_GET_ERROR
+#include <mutex>
+#include <deque>
+#endif
+
 
 #define throw_glfw_error(ctx) do {	  \
 		const char * glfwErrorDescription; \
@@ -22,11 +31,38 @@
 	} while(0)
 
 
+namespace fort {
+namespace artemis {
 
+#ifdef IMPLEMENT_GLFW_GET_ERROR
+
+std::deque<std::pair<int,const char*>> GLFWErrorStack;
+std::mutex  GLFWErrorMutex;
+void GLFWErrorCallback(int error, const char * description) {
+	std::lock_guard<std::mutex> lock(GLFWErrorMutex);
+	GLFWErrorStack.push_back({error,description});
+}
+
+}
+}
+
+int glfwGetError(const char ** description) {
+	std::lock_guard<std::mutex> lock(fort::artemis::GLFWErrorMutex);
+	if ( fort::artemis::GLFWErrorStack.empty() ) {
+		return 0;
+	}
+	auto res = fort::artemis::GLFWErrorStack.front();
+	if ( description != nullptr ) {
+		*description = res.second;
+	}
+	fort::artemis::GLFWErrorStack.pop_front();
+	return res.first;
+}
 
 namespace fort {
 namespace artemis {
 
+#endif // IMPLEMENT_GLFW_GET_ERROR
 
 
 
@@ -39,6 +75,9 @@ GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
 	, d_workingSize(workingResolution)
 	, d_windowSize(workingResolution) {
 
+#ifdef IMPLEMENT_GLFW_GET_ERROR
+	glfwSetErrorCallback(&GLFWErrorCallback);
+#endif // IMPLEMENT_GLFW_GET_ERROR
 	DLOG(INFO) << "[GLUserInterface]: initialiazing GLFW";
 
 	if ( !glfwInit() ) {
