@@ -1,0 +1,12 @@
+// -*- mode: glsl -*-
+#version 330 core
+
+uniform vec3 circleColor;
+
+
+void main(){
+	vec2 circleCoordinate = 2.0 * gl_PointCoord - 1.0;
+	float dist = dot(circleCoordinate,circleCoordinate);
+	gl_FragColor.rbg = circleColor;
+	gl_FragColor.a = 1.0 - smoothstep(0.5,0.9,dist);
+}

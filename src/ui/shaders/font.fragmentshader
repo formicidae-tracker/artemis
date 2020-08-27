@@ -1,0 +1,13 @@
+// -*- mode: glsl -*-
+#version 330 core
+
+in vec2 UV;
+
+uniform sampler2D fontSampler;
+uniform vec4 foreground;
+uniform vec4 background;
+
+void main(){
+	float value = texture(fontSampler,UV).r;
+	gl_FragColor = mix(background,foreground,value);
+}

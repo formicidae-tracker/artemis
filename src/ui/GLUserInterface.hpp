@@ -1,12 +1,13 @@
 #pragma once
 
-
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 #include <memory>
 
 #include "UserInterface.hpp"
 
+#include "GLTextRenderer.hpp"
 
 namespace fort {
 namespace artemis {
@@ -31,9 +32,11 @@ private:
 	static GLFWwindowPtr OpenWindow(const cv::Size & size);
 
 	struct DrawBuffer {
-		FrameToDisplay Frame;
-		DataToDisplay  Data;
-		GLuint         PBO;
+		FrameToDisplay      Frame;
+		DataToDisplay       Data;
+		GLuint              PBO;
+		GLuint              NormalPointsVBO,HighlightedPointsVBO;
+		GLTextRenderer::Ptr TagLabels;
 	};
 
 
@@ -49,9 +52,13 @@ private:
 	void Draw();
 
 	void UploadTexture(const DrawBuffer & buffer);
-
+	void UploadPoints(DrawBuffer & buffer);
 	void Draw(const DrawBuffer & buffer);
 
+
+	void DrawMovieFrame(const DrawBuffer & buffer);
+	void DrawPoints(const DrawBuffer & buffer);
+	void DrawLabels(const DrawBuffer & buffer);
 
 	DrawBuffer     d_buffer[2];
 	size_t         d_index;
@@ -61,7 +68,8 @@ private:
 	Zoom           d_zoom;
 
 
-	GLuint d_frameVBO,d_frameProgram,d_frameTexture;
+	GLuint d_frameVBO,d_frameTBO,d_frameProgram,d_frameTexture,
+		d_pointProgram,d_pointVBO;
 };
 
 

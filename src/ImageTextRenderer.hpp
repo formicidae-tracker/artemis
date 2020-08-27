@@ -33,7 +33,11 @@ private :
 
 	static size_t TextWidth(const std::string & text);
 
+	static void Initialize();
+
 	static FontChar s_fontData[256];
+	static bool     s_initialized;
+
 };
 
 } // namespace artemis

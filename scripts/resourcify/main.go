@@ -183,6 +183,11 @@ func Execute() error {
 		data.Resources[r.VariableName] = r
 	}
 
+	err = os.MkdirAll(filepath.Dir(opts.Output), 0755)
+	if err != nil {
+		return err
+	}
+
 	hFile, err := os.Create(hPath)
 	if err != nil {
 		return err

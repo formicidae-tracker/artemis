@@ -26,9 +26,29 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.c ${CMAKE_
                    COMMAND ${RESOURCIFY_EXECUTABLE} ARGS "-O" ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data
                                                          "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.vertexshader
                                                          "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.vertexshader
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/circle.fragmentshader
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.vertexshader
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.fragmentshader
+
+
                    DEPENDS resourcify
                            ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.vertexshader
-                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader)
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.vertexshader
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/circle.fragmentshader
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.vertexshader
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.fragmentshader
+
+                           )
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data.c ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data.h
+                   COMMAND ${RESOURCIFY_EXECUTABLE} ARGS "-O" ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/fonts/vga.fon
+
+                   DEPENDS resourcify
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fonts/vga.fon
+                           )
 
 
 
@@ -56,6 +76,9 @@ set(SRC_FILES utils/Defer.cpp
 	          ui/GLUserInterface.cpp
 	          ui/ShaderUtils.cpp
 	          ui/shaders_data.c
+	          fonts/fonts_data.c
+	          ui/GLAsciiFontAtlas.cpp
+	          ui/GLTextRenderer.cpp
 	          main.cpp
 	          )
 
@@ -84,6 +107,9 @@ set(HDR_FILES utils/Defer.hpp
 	          ui/GLUserInterface.hpp
 	          ui/ShaderUtils.hpp
 	          ui/shaders_data.h
+	          fonts/fonts_data.h
+	          ui/GLAsciiFontAtlas.hpp
+	          ui/GLTextRenderer.hpp
 	          Application.hpp
 	          )
 

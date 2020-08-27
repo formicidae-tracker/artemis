@@ -6,9 +6,10 @@ layout(location = 1) in vec2 vertexUV;
 
 out vec2 UV;
 
+uniform mat3 scaleMat;
+
 void main() {
-	gl_Position.xy = vertexPosition;
-	gl_Position.z = 0.0;
+	gl_Position.xyz = scaleMat * vec3(vertexPosition.x,vertexPosition.y,1.0);
 	gl_Position.w = 1.0;
 	UV = vertexUV;
 }
