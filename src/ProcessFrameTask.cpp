@@ -352,6 +352,7 @@ void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
 	                             .Zoomed = zoomed,
 	                             .Message = m,
 	                             .CurrentZoom = d_wantedZoom,
+	                             .FrameTime = frame->Time(),
 	                             .FPS = CurrentFPS(frame->Time()),
 	                             .FrameProcessed = d_frameProcessed,
 	                             .FrameDropped = d_frameDropped});

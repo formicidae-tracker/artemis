@@ -31,6 +31,7 @@ public:
 		Zoom CurrentZoom;
 
 		//Other data
+		Time       FrameTime;
 		double     FPS;
 		size_t     FrameProcessed;
 		size_t     FrameDropped;

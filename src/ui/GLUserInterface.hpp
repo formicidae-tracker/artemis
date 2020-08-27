@@ -59,6 +59,7 @@ private:
 	void DrawMovieFrame(const DrawBuffer & buffer);
 	void DrawPoints(const DrawBuffer & buffer);
 	void DrawLabels(const DrawBuffer & buffer);
+	void DrawInformations(const DrawBuffer & buffer);
 
 	DrawBuffer     d_buffer[2];
 	size_t         d_index;
@@ -67,9 +68,13 @@ private:
 	cv::Size       d_windowSize;
 	Zoom           d_zoom;
 
-
+	GLAsciiFontAtlas::Ptr d_vgaFont;
+	GLTextRenderer::Ptr   d_dataRenderer;
 	GLuint d_frameVBO,d_frameTBO,d_frameProgram,d_frameTexture,
-		d_pointProgram,d_pointVBO;
+		d_pointProgram,d_pointVBO,d_dataOverlayVBO,d_primitiveProgram;
+
+	const static size_t OVERLAY_COLS = 30;
+	const static size_t OVERLAY_ROWS = 8;
 };
 
 

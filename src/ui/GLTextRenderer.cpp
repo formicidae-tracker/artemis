@@ -86,22 +86,9 @@ std::shared_ptr<GLuint> GLTextRenderer::s_program;
 void GLTextRenderer::Render(const cv::Rect & roi ) {
 	Eigen::Matrix3f scaleMat;
 
-	scaleMat << 2.0f / float(roi.width), 0.0f,  -1.0,
-		0.0f, -2.0f / float(roi.height) , 1.0f,
+	scaleMat << 2.0f / float(roi.width), 0.0f,  -1.0 - roi.x / float(roi.width),
+		0.0f, -2.0f / float(roi.height) , 1.0f + roi.y / float(roi.height),
 		0.0f,0.0f,0.0f;
-	// scaleMat.setIdentity();
-	// scaleMat(2,2) = 0.0f;
-	// GLfloat data[] = {
-	//                 -1.0f,-1.0f,0.0f,0.0f,
-	//                 +1.0f,-1.0f,1.0f,0.0f,
-	//                 +1.0f,+1.0f,1.0f,1.0f,
-	//                 +1.0f,+1.0f,1.0f,1.0f,
-	//                 -1.0f,+1.0f,0.0f,1.0f,
-	//                 -1.0f,-1.0f,0.0f,0.0f,
-	// };
-	// glBindBuffer(GL_ARRAY_BUFFER,d_vbo);
-	// glBufferData(GL_ARRAY_BUFFER,sizeof(data),data,GL_DYNAMIC_DRAW);
-	// d_vertexSize = 6;
 
 	glUseProgram(*s_program);
 

@@ -176,7 +176,6 @@ bool operator==(const UserInterface::Zoom & a,
 
 void GLUserInterface::InitPBOs() {
 	DLOG(INFO) << "[GLUserInterface]: initialiazing PBOs";
-	static auto vgaFont = GLAsciiFontAtlas::VGAFont();
 	for ( size_t i = 0; i < 2; ++i) {
 		glGenBuffers(1,&(d_buffer[i].HighlightedPointsVBO));
 		glGenBuffers(1,&(d_buffer[i].NormalPointsVBO));
@@ -184,7 +183,7 @@ void GLUserInterface::InitPBOs() {
 		glGenBuffers(1,&(d_buffer[i].PBO));
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER,d_buffer[i].PBO);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER,d_workingSize.width*d_workingSize.height,0,GL_STREAM_DRAW);
-		d_buffer[i].TagLabels = std::make_shared<GLTextRenderer>(vgaFont,
+		d_buffer[i].TagLabels = std::make_shared<GLTextRenderer>(d_vgaFont,
 		                                                         d_workingSize,
 		                                                         cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
 		                                                         cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
@@ -216,6 +215,12 @@ void GLUserInterface::UploadTexture(const DrawBuffer & buffer) {
 
 void GLUserInterface::InitGLData() {
 	DLOG(INFO) << "[GLUserInterface]: InitGLData";
+
+	d_vgaFont = GLAsciiFontAtlas::VGAFont();
+	d_dataRenderer = std::make_shared<GLTextRenderer>(d_vgaFont,
+	                                                  d_workingSize,
+	                                                  cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
+	                                                  cv::Vec4f(0.0f,0.1f,0.2f,0.0f));
 	InitPBOs();
 
 	ComputeViewport();
@@ -269,8 +274,40 @@ void GLUserInterface::InitGLData() {
 	d_pointProgram = ShaderUtils::CompileProgram(std::string(primitive_vertexshader,primitive_vertexshader+primitive_vertexshader_size),
 	                                             std::string(circle_fragmentshader,circle_fragmentshader+circle_fragmentshader_size));
 
+	d_primitiveProgram = ShaderUtils::CompileProgram(std::string(primitive_vertexshader,primitive_vertexshader+primitive_vertexshader_size),
+	                                                 std::string(primitive_fragmentshader,primitive_fragmentshader+primitive_fragmentshader_size));
+
+
+	auto gSize = d_vgaFont->TotalGlyphSize();
+	size_t cols = OVERLAY_COLS + 2;
+	size_t rows = OVERLAY_ROWS + 2;
+	GLfloat overlayData[] = {
+	                         gSize.width * 1.0f,gSize.height * 1.0f,
+	                         gSize.width * (1.0f + cols),gSize.height * 1.0f,
+	                         gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
+	                         gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
+	                         gSize.width * 1.0f,gSize.height * (1.0f + rows),
+	                         gSize.width * 1.0f,gSize.height * 1.0f,
+	};
+
+	glGenBuffers(1,&d_dataOverlayVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, d_dataOverlayVBO);
+	glBufferData(GL_ARRAY_BUFFER,sizeof(overlayData),overlayData,GL_STATIC_DRAW);
+
+	glUseProgram(d_primitiveProgram);
+
+	Eigen::Matrix3f scaleMat;
+	scaleMat << 2.0 / float(d_workingSize.width), 0.0f , -1.0f,
+		0.0f, -2.0 / float(d_workingSize.height), 1.0f,
+		0.0f,0.0f,0.0f;
+
+	auto scaleID = glGetUniformLocation(d_primitiveProgram,"scaleMat");
+	glUniformMatrix3fv(scaleID,1,GL_FALSE,scaleMat.data());
+
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 }
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
@@ -400,6 +437,60 @@ void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
 	static auto vgaFont = GLAsciiFontAtlas::VGAFont();
 }
 
+template <typename T>
+std::string printLine(const std::string & label, size_t size,const T & value) {
+	std::ostringstream oss;
+	oss << label << ":"
+	    << std::setw(size - label.size() -1)
+	    << std::setfill(' ')
+	    << std::right
+	    << std::fixed
+	    << std::setprecision(2)
+	    << value;
+	return oss.str();
+}
+
+void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
+
+	glUseProgram(d_primitiveProgram);
+
+	auto colorID = glGetUniformLocation(d_primitiveProgram,"primitiveColor");
+	glUniform4f(colorID,0.0f,0.1f,0.2f,0.7f);
+
+
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, d_dataOverlayVBO);
+	glVertexAttribPointer(0,
+	                      2,
+	                      GL_FLOAT,
+	                      GL_FALSE,
+	                      0,
+	                      (void*)0);
+	glDrawArrays(GL_TRIANGLES,0,6);
+	glDisableVertexAttribArray(0);
+
+	auto gsize = d_vgaFont->TotalGlyphSize();
+
+
+	std::ostringstream oss;
+	oss << buffer.Frame.FrameDropped
+	    << " (" << std::fixed << std::setprecision(2)
+	    << (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
+
+	d_dataRenderer->Compile({
+	                         {printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)),cv::Point(gsize.width,1*gsize.height)},
+			{printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()),cv::Point(gsize.width,3*gsize.height)},
+			{printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()),cv::Point(gsize.width,4*gsize.height)},
+			{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
+			{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
+			{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
+
+		},d_workingSize);
+	d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
+	                                d_workingSize));
+
+}
+
 
 void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 	if ( !buffer.Frame.Full ) {
@@ -413,8 +504,9 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
-	buffer.TagLabels->Render(cv::Rect(cv::Point(0,0),cv::Size(buffer.Frame.Message->width(),
+	buffer.TagLabels->Render(cv::Rect(cv::Point(-50,-50),cv::Size(buffer.Frame.Message->width(),
 	                                                          buffer.Frame.Message->height())));
+	DrawInformations(buffer);
 
 	glfwSwapBuffers(d_window.get());
 }

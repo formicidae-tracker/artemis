@@ -1,0 +1,8 @@
+// -*- mode: glsl -*-
+#version 330 core
+
+uniform vec4 primitiveColor;
+
+void main(){
+	gl_FragColor = primitiveColor;
+}
