@@ -153,7 +153,7 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${OpenCV_LIBS}
 	                                 ${TBB_LIBRARIES}
 	                                 glfw
-	                                 GLEW::glew
+	                                 ${GLEW_LIBRARIES}
 	                                 GL
 	                                 boost_system
 	                                  "-ldl")
