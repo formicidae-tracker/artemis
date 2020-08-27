@@ -23,15 +23,12 @@ addons:
 
 
 before_install:
-  - sudo wget https://dl.google.com/go/go1.14.6.linux-amd64.tar.gz
-  - sudo tar -C /usr/local -xzf go1.14.6.linux-amd64.tar.gz
   - sudo add-apt-repository -y ppa:maarten-fonville/protobuf
   - sudo apt-get -q update
   - sudo apt-get -y install protobuf-compiler libprotobuf-dev
 
 
 script:
-  - export PATH="/usr/local/go/bin:$PATH"
   - mkdir -p build
   - cd build
   - cmake  -DFORCE_STUB_FRAMEGRABBER_ONLY=On -DEURESYS_FRAMEGRABBER_SUPPORT=Off ..
