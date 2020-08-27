@@ -19,6 +19,7 @@ addons:
       - libopencv-imgproc-dev
       - libopencv-highgui-dev
       - libglfw3-dev
+      - libglew-dev
 
 
 before_install:
