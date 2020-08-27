@@ -23,7 +23,7 @@ public:
 
 	void Run() override;
 
-	UserInterface::Zoom UnsafeCurrentZoom();
+	const UserInterface::Zoom & DefaultZoom() const;
 
 	UserInterface::Zoom UpdateZoom(const UserInterface::Zoom & previous);
 
@@ -32,10 +32,14 @@ public:
 	void CloseQueue();
 
 private:
-	tbb::concurrent_queue<UserInterface::Zoom>           d_zoomQueue;
 	tbb::concurrent_queue<UserInterface::FrameToDisplay> d_displayQueue;
 
 	std::unique_ptr<UserInterface>        d_ui;
+	const cv::Size                        d_workingResolution;
+	const DisplayOptions                  d_options;
+	const UserInterface::Zoom             d_defaultZoom;
+	UserInterface::ZoomChannelPtr         d_zoomChannel;
+
 };
 
 } // namespace artemis

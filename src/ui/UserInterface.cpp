@@ -4,24 +4,13 @@ namespace fort {
 namespace artemis {
 
 UserInterface::UserInterface(const cv::Size & workingResolution,
-                             const DisplayOptions & options)
-	: d_zoom({.Scale = 1.0,
-	          .Center = cv::Point(workingResolution.width / 2,
-	                              workingResolution.height / 2),
-		})
+                             const DisplayOptions & options,
+                             const ZoomChannelPtr & zoomChannel)
+	: d_zoomChannel(zoomChannel)
 	, d_highlighted(options.Highlighted.begin(),
 	                options.Highlighted.end())
 	,d_displayROI(options.DisplayROI) {
 
-	d_onZoom = [](const Zoom & ) {};
-}
-
-void UserInterface::OnZoom(const OnZoomCallback & callback) {
-	d_onZoom = callback;
-}
-
-UserInterface::Zoom UserInterface::CurrentZoom() const {
-	return d_zoom;
 }
 
 void UserInterface::ToggleHighlight(uint32_t tagID) {
@@ -39,8 +28,7 @@ void UserInterface::SetROIDisplay(bool displayROI) {
 
 
 void UserInterface::ZoomChanged(const Zoom & zoom) {
-	d_zoom = zoom;
-	d_onZoom(zoom);
+	d_zoomChannel->push(zoom);
 }
 
 UserInterface::DataToDisplay

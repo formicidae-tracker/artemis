@@ -82,7 +82,7 @@ void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
 	d_userInterface = std::make_shared<artemis::UserInterfaceTask>(workingResolution,
 	                                                               options);
 
-	d_wantedZoom = d_userInterface->UnsafeCurrentZoom();
+	d_wantedZoom = d_userInterface->DefaultZoom();
 }
 
 void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {

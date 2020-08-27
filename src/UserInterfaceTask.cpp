@@ -1,6 +1,6 @@
 #include "UserInterfaceTask.hpp"
 
-#include "ui/StubUserInterface.hpp"
+#include "ui/GLUserInterface.hpp"
 
 #include "glog/logging.h"
 
@@ -8,15 +8,17 @@ namespace fort {
 namespace artemis {
 
 
+
 UserInterfaceTask::UserInterfaceTask(const cv::Size & workingResolution,
-                                     const DisplayOptions & options) {
-
-	d_ui = std::make_unique<StubUserInterface>(workingResolution,options);
-
-	d_ui->OnZoom([this](const UserInterface::Zoom & zoom) {
-		             d_zoomQueue.push(zoom);
-	             });
-
+                                     const DisplayOptions & options)
+	: d_workingResolution(workingResolution)
+	, d_options(options)
+	, d_defaultZoom({1.0,
+	                 cv::Point(workingResolution.width/2,
+	                           workingResolution.height/2)}) \
+	, d_zoomChannel(std::make_shared<UserInterface::ZoomChannel>()) {
+	// UI not initialized here to ensure that it is initialized from
+	// the working thread (i.e. once the task is spawned in Run())
 }
 
 UserInterfaceTask::~UserInterfaceTask() {
@@ -24,7 +26,12 @@ UserInterfaceTask::~UserInterfaceTask() {
 }
 
 void UserInterfaceTask::Run()  {
+	LOG(INFO) << "[UserInterfaceTask]: Initialize OpenGL";
+
+	d_ui = std::make_unique<GLUserInterface>(d_workingResolution,d_options,d_zoomChannel);
+
 	LOG(INFO) << "[UserInterfaceTask]: Started";
+
 	UserInterface::FrameToDisplay frame;
 	for (;;) {
 		d_ui->PollEvents();
@@ -40,17 +47,18 @@ void UserInterfaceTask::Run()  {
 		}
 		d_ui->PushFrame(frame);
 	}
+	d_ui.reset();
 	LOG(INFO) << "[UserInterfaceTask]: Ended";
 }
 
 
-UserInterface::Zoom UserInterfaceTask::UnsafeCurrentZoom() {
-	return d_ui->CurrentZoom();
+const UserInterface::Zoom & UserInterfaceTask::DefaultZoom() const {
+	return d_defaultZoom;
 }
 
 UserInterface::Zoom UserInterfaceTask::UpdateZoom(const UserInterface::Zoom & previous) {
 	UserInterface::Zoom previous_ = previous;
-	while ( d_zoomQueue.try_pop(previous_) == true ) {
+	while ( d_zoomChannel->try_pop(previous_) == true ) {
 	}
 	return previous_;
 }

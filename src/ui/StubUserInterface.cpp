@@ -7,8 +7,9 @@ namespace fort {
 namespace artemis {
 
 StubUserInterface::StubUserInterface(const cv::Size & workingResolution,
-                                     const DisplayOptions & options)
-	: UserInterface(workingResolution,options) {
+                                     const DisplayOptions & options,
+                                     const ZoomChannelPtr & zoomChannel)
+	: UserInterface(workingResolution,options,zoomChannel) {
 }
 
 void StubUserInterface::PollEvents() {

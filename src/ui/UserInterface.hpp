@@ -1,11 +1,16 @@
 #pragma once
 
+#include <functional>
+
+#include <tbb/concurrent_queue.h>
+
 #include <opencv2/core.hpp>
+
 #include <fort/hermes/FrameReadout.pb.h>
 
 #include "../Options.hpp"
 
-#include <functional>
+
 
 namespace fort {
 namespace artemis {
@@ -32,14 +37,13 @@ public:
 
 	};
 
-	typedef std::function<void(Zoom)> OnZoomCallback;
+	typedef tbb::concurrent_queue<Zoom> ZoomChannel;
+	typedef std::shared_ptr<ZoomChannel> ZoomChannelPtr;
 
 	UserInterface(const cv::Size & workingResolution,
-	              const DisplayOptions & options);
+	              const DisplayOptions & options,
+	              const ZoomChannelPtr & zoomChannel);
 
-	void OnZoom(const OnZoomCallback & callback);
-
-	Zoom CurrentZoom() const;
 
 	virtual void PollEvents() = 0;
 
@@ -61,8 +65,7 @@ protected:
 	DataToDisplay ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> & m);
 
 private:
-	Zoom               d_zoom;
-	OnZoomCallback     d_onZoom;
+	ZoomChannelPtr     d_zoomChannel;
 	std::set<uint32_t> d_highlighted;
 	bool               d_displayROI;
 };

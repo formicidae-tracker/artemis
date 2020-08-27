@@ -9,7 +9,8 @@ class StubUserInterface : public UserInterface {
 public:
 
 	StubUserInterface(const cv::Size & workingResolution,
-	                  const DisplayOptions & options);
+	                  const DisplayOptions & options,
+	                  const ZoomChannelPtr & zoomChannel);
 
 	void PollEvents() override;
 

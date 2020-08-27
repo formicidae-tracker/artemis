@@ -20,6 +20,13 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
 	                ${CMAKE_CURRENT_SOURCE_DIR}
 	                )
 
+configure_file(ui/shaders_resources.cmake.in ui/shaders_resources.cmake)
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders.c
+	COMMAND ${CMAKE_COMMAND} ARGS "-P" ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_resources.cmake
+	DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_resources.cmake
+	ui/shaders/frame.vertexshader
+	ui/shaders/frame.fragmentshader)
+
 
 set(SRC_FILES utils/Defer.cpp
 	          utils/PosixCall.cpp
@@ -42,6 +49,7 @@ set(SRC_FILES utils/Defer.cpp
 	          ImageTextRenderer.cpp
 	          ui/UserInterface.cpp
 	          ui/StubUserInterface.cpp
+	          ui/GLUserInterface.cpp
 	          main.cpp
 	          )
 
@@ -67,6 +75,7 @@ set(HDR_FILES utils/Defer.hpp
 	          ImageTextRenderer.hpp
 	          ui/UserInterface.hpp
 	          ui/StubUserInterface.hpp
+	          ui/GLUserInterface.hpp
 	          Application.hpp
 	          )
 
@@ -109,6 +118,8 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${OpenCV_LIBS}
 	                                 ${TBB_LIBRARIES}
 	                                 glfw
+	                                 GLEW::glew
+	                                 GL
 	                                 boost_system
 	                                  "-ldl")
 
