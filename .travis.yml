@@ -31,7 +31,7 @@ before_install:
 
 
 script:
-  - export PATH=:$PATH:/usr/local/go/bin
+  - export PATH="/usr/local/go/bin:$PATH"
   - mkdir -p build
   - cd build
   - cmake  -DFORCE_STUB_FRAMEGRABBER_ONLY=On -DEURESYS_FRAMEGRABBER_SUPPORT=Off ..
