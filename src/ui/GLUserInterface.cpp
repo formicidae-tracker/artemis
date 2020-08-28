@@ -155,7 +155,8 @@ void GLUserInterface::InitContext() {
 
 
 GLUserInterface::~GLUserInterface() {
-	d_dataOverlayPBO.reset();
+	d_boxOverlayVBO.reset();
+	d_textOverlayVBO.reset();
 	d_frameVBO.reset();
 	for(size_t i = 0; i <2 ; ++i) {
 		d_buffer[i].NormalTags.reset();
@@ -186,7 +187,8 @@ void GLUserInterface::UpdateFrame(const FrameToDisplay & frame,
 }
 
 void GLUserInterface::ComputeViewport() {
-	int wantedWidth = d_workingSize.width * double(d_windowSize.height) / double(d_workingSize.height);
+	float windowRatio = float(d_windowSize.height) / float(d_workingSize.height);
+	int wantedWidth = d_workingSize.width * windowRatio;
 	if ( wantedWidth <= d_windowSize.width ) {
 		DLOG(INFO) << "[GLUserInterface]: Viewport with full height " << wantedWidth << "x" << d_windowSize.height;
 
@@ -194,14 +196,17 @@ void GLUserInterface::ComputeViewport() {
 		           0,
 		           wantedWidth,
 		           d_windowSize.height);
+		d_viewSize = cv::Size(wantedWidth,d_windowSize.height);
 	} else {
 		wantedWidth = d_windowSize.width;
-		int wantedHeight = d_workingSize.height * double(d_windowSize.width) / double(d_workingSize.width);
+		windowRatio = float(d_windowSize.width) / float(d_workingSize.width);
+		int wantedHeight = d_workingSize.height * windowRatio;
 		DLOG(INFO) << "[GLUserInterface]: Viewport with full width " << d_windowSize.width << "x" << wantedHeight;
 		glViewport(0,
 		           (d_windowSize.height - wantedHeight) / 2,
 		           d_windowSize.width,
 		           wantedHeight);
+		d_viewSize = cv::Size(d_windowSize.width,wantedHeight);
 	}
 }
 
@@ -312,23 +317,21 @@ void GLUserInterface::InitGLData() {
 
 	d_fontProgram = ShaderUtils::CompileProgram(std::string(font_vertexshader,font_vertexshader+font_vertexshader_size),
 	                                            std::string(font_fragmentshader,font_fragmentshader+font_fragmentshader_size));
+	size_t l = LABEL_FONT_SIZE;
+	size_t o = OVERLAY_FONT_SIZE;
 
-	cv::Size gSize(9,16);
-	size_t cols = OVERLAY_COLS + 2;
+
+	d_overlayFont =  std::make_shared<GLFont>("Free Mono",o,512);
+	d_boxOverlayVBO = std::make_shared<GLVertexBufferObject>();
+	d_textOverlayVBO = std::make_shared<GLVertexBufferObject>();
+
+	d_overlayGlyphSize = d_overlayFont->UploadText(*d_textOverlayVBO,
+	                                               1.0,
+	                                               {"0",cv::Point(0,0)}).size();
+
+	auto & gSize = d_overlayGlyphSize;
+	size_t cols = OVERLAY_COLS - 8;
 	size_t rows = OVERLAY_ROWS + 2;
-	GLVertexBufferObject::Matrix overlayData(6,2);
-
-	overlayData <<
-		gSize.width * 1.0f,gSize.height * 1.0f,
-		gSize.width * (1.0f + cols),gSize.height * 1.0f,
-		gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
-		gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
-		gSize.width * 1.0f,gSize.height * (1.0f + rows),
-		gSize.width * 1.0f,gSize.height * 1.0f;
-
-	d_dataOverlayPBO = std::make_shared<GLVertexBufferObject>();
-
-	d_dataOverlayPBO->Upload(overlayData,2,0,0);
 
 	glUseProgram(d_primitiveProgram);
 
@@ -340,11 +343,8 @@ void GLUserInterface::InitGLData() {
 	auto scaleID = glGetUniformLocation(d_primitiveProgram,"scaleMat");
 	glUniformMatrix3fv(scaleID,1,GL_FALSE,scaleMat.data());
 
-	size_t l = LABEL_FONT_SIZE;
-	size_t o = OVERLAY_FONT_SIZE;
 
 	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l,512);
-	d_overlayFont =  std::make_shared<GLFont>("Free Mono",o,512);
 
 
 	glEnable(GL_BLEND);
@@ -482,33 +482,67 @@ std::string printLine(const std::string & label, size_t size,const T & value) {
 void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 
 
-
-
 	glUseProgram(d_primitiveProgram);
 
-	auto colorID = glGetUniformLocation(d_primitiveProgram,"primitiveColor");
-	glUniform4f(colorID,0.0f,0.1f,0.2f,0.7f);
+	UploadColor(d_primitiveProgram,"primitiveColor",cv::Vec4f(0.0f,0.1f,0.2f,0.7f));
 
-	d_dataOverlayPBO->Render(GL_TRIANGLES);
+	Eigen::Matrix3f scaleMat;
+	scaleMat <<
+		float(2.0) / float(d_viewSize.width), 0.0f                                  , -1.0f,
+		0.0f                                , -float(2.0) / float(d_viewSize.height),  1.0f,
+		0.0f                                , 0.0f                                  , 0.0f;
+	UploadMatrix(d_primitiveProgram,"scaleMat",scaleMat);
 
-	// auto gsize = d_vgaFont->TotalGlyphSize();
+	std::ostringstream oss;
+	oss << buffer.Frame.FrameDropped
+	    << " (" << std::fixed << std::setprecision(2)
+	    << 100.0f * (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
 
 
-	// std::ostringstream oss;
-	// oss << buffer.Frame.FrameDropped
-	//     << " (" << std::fixed << std::setprecision(2)
-	//     << (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
+	std::vector<GLFont::PositionedText> texts
+		= {
+		   {printLine(" ",OVERLAY_COLS," ") + " ",
+		    cv::Point(d_overlayGlyphSize.width,1*d_overlayGlyphSize.height)},
+		   {printLine(" Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)) + " ",
+		    cv::Point(d_overlayGlyphSize.width,2*d_overlayGlyphSize.height)},
+		   {printLine(" Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()) + " ",
+		    cv::Point(d_overlayGlyphSize.width,4*d_overlayGlyphSize.height)},
+		   {printLine(" Quads",OVERLAY_COLS,buffer.Frame.Message->quads()) + " ",
+		    cv::Point(d_overlayGlyphSize.width,5*d_overlayGlyphSize.height)},
+		   {printLine(" FPS",OVERLAY_COLS,buffer.Frame.FPS) + " ",
+		    cv::Point(d_overlayGlyphSize.width,7*d_overlayGlyphSize.height)},
+		   {printLine(" Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed) + " ",
+		    cv::Point(d_overlayGlyphSize.width,8*d_overlayGlyphSize.height)},
+		   {printLine(" Frame Dropped",OVERLAY_COLS,oss.str()) + " ",
+		    cv::Point(d_overlayGlyphSize.width,9*d_overlayGlyphSize.height)},
+		   {printLine(" ",OVERLAY_COLS," ") + " ",
+		    cv::Point(d_overlayGlyphSize.width,10*d_overlayGlyphSize.height)},
+	};
 
-	// d_dataRenderer->Compile({
-	//                          {printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)),cv::Point(gsize.width,1*gsize.height)},
-	// 		{printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()),cv::Point(gsize.width,3*gsize.height)},
-	// 		{printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()),cv::Point(gsize.width,4*gsize.height)},
-	// 		{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
-	// 		{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
-	// 		{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
-	// 	},d_workingSize);
-	// d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
-	//                                 d_workingSize));
+	auto bBox = d_overlayFont->UploadTexts(*d_textOverlayVBO,
+	                                       1.0,
+	                                       texts.cbegin(),
+	                                       texts.cend());
+
+
+	GLVertexBufferObject::Matrix boxData(6,2);
+	boxData <<
+		bBox.x             , bBox.y              ,
+		bBox.x + bBox.width, bBox.y              ,
+		bBox.x             , bBox.y + bBox.height,
+		bBox.x             , bBox.y + bBox.height,
+		bBox.x + bBox.width, bBox.y              ,
+		bBox.x + bBox.width, bBox.y + bBox.height;
+	d_boxOverlayVBO->Upload(boxData,2,0,0);
+	d_boxOverlayVBO->Render(GL_TRIANGLES);
+
+	RenderText(*d_textOverlayVBO,
+	           *d_overlayFont,
+	           cv::Rect(cv::Point(0,0),
+	                    d_viewSize),
+	           cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
+	           cv::Vec4f(1.0f,1.0f,1.0f,0.0f));
+
 
 }
 

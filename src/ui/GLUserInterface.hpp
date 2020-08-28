@@ -90,12 +90,13 @@ private:
 	size_t         d_index;
 
 	const cv::Size d_workingSize;
-	cv::Size       d_windowSize;
+	cv::Size       d_windowSize,d_viewSize;
 	Zoom           d_zoom;
 
 	std::shared_ptr<GLFont> d_labelFont,d_overlayFont;
+	cv::Size                d_overlayGlyphSize;
 
-	GLVertexBufferObject::Ptr d_frameVBO,d_dataOverlayPBO;
+	GLVertexBufferObject::Ptr d_frameVBO,d_boxOverlayVBO,d_textOverlayVBO;
 	GLuint d_frameProgram,d_frameTexture,
 		d_pointProgram,d_primitiveProgram, d_fontProgram;
 
@@ -104,7 +105,7 @@ private:
 	const static size_t NORMAL_POINT_SIZE = 70;
 	const static size_t HIGHLIGHTED_POINT_SIZE = 100;
 	const static size_t LABEL_FONT_SIZE = 16;
-	const static size_t OVERLAY_FONT_SIZE = 24;
+	const static size_t OVERLAY_FONT_SIZE = 14;
 };
 
 

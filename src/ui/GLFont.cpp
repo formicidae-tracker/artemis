@@ -73,7 +73,7 @@ GLuint GLFont::TextureID() const {
 cv::Rect GLFont::UploadText(GLVertexBufferObject & dest,
                             double scalingFactor,
                             const PositionedText & text) {
-	GLVertexBufferObject::Matrix data(6* text.first.size(),4);
+	GLVertexBufferObject::Matrix data(6* (text.first.size()+1),4);
 	auto block = data.block(0,0,6*(text.first.size()+1),4);
 	auto [tlx,tly,brx,bry] = RenderTextInMatrix(block,scalingFactor,text);
 	dest.Upload(data,2,2,0);

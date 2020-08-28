@@ -53,16 +53,17 @@ public :
 			              auto [tlx,tly,brx,bry] = RenderTextInMatrix(block,scalingFactor,text);
 			              row += dataSize;
 			              topLeft = Eigen::Vector2f(std::min(topLeft.x(),tlx),std::min(topLeft.y(),tly));
-			              bottomRight = Eigen::Vector2f(std::max(bottomRight.x(),brx),std::min(bottomRight.y(),bry));
+			              bottomRight = Eigen::Vector2f(std::max(bottomRight.x(),brx),std::max(bottomRight.y(),bry));
 		              });
 		dest.Upload(data,2,2,0);
 		bottomRight -= topLeft;
 		return cv::Rect(cv::Point(topLeft.x(),topLeft.y()),cv::Size(bottomRight.x(),bottomRight.y()));
 	}
 private :
-std::tuple<float,float,float,float> RenderTextInMatrix(Eigen::Block<GLVertexBufferObject::Matrix> & block,
-                                                       double scalingFactor,
-                                                       const PositionedText & text);
+	std::tuple<float,float,float,float>
+	RenderTextInMatrix(Eigen::Block<GLVertexBufferObject::Matrix> & block,
+	                   double scalingFactor,
+	                   const PositionedText & text);
 
 	texture_atlas_t * d_atlas;
 	texture_font_t  * d_font;
