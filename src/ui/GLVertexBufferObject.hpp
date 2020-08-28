@@ -26,7 +26,7 @@ public:
 	            size_t d_texelSize,
 	            size_t d_colorSize);
 
-	void Render(GLenum type);
+	void Render(GLenum type) const;
 
 private:
 	GLuint d_ID;

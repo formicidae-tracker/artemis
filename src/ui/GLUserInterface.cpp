@@ -14,6 +14,9 @@
 
 #include "ui/shaders_data.h"
 
+#include "GLFont.hpp"
+
+
 #if (GLFW_VERSION_MAJOR * 100 + GLFW_VERSION_MINOR) < 303
 #define IMPLEMENT_GLFW_GET_ERROR 1
 #endif
@@ -270,11 +273,6 @@ void GLUserInterface::InitGLData() {
 	glBindVertexArray(VAO);
 
 
-	d_vgaFont = GLAsciiFontAtlas::VGAFont();
-	d_dataRenderer = std::make_shared<GLTextRenderer>(d_vgaFont,
-	                                                  d_workingSize,
-	                                                  cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
-	                                                  cv::Vec4f(0.0f,0.1f,0.2f,0.0f));
 	InitPBOs();
 
 	ComputeViewport();
@@ -312,8 +310,10 @@ void GLUserInterface::InitGLData() {
 	d_primitiveProgram = ShaderUtils::CompileProgram(std::string(primitive_vertexshader,primitive_vertexshader+primitive_vertexshader_size),
 	                                                 std::string(primitive_fragmentshader,primitive_fragmentshader+primitive_fragmentshader_size));
 
+	d_fontProgram = ShaderUtils::CompileProgram(std::string(font_vertexshader,font_vertexshader+font_vertexshader_size),
+	                                            std::string(font_fragmentshader,font_fragmentshader+font_fragmentshader_size));
 
-	auto gSize = d_vgaFont->TotalGlyphSize();
+	cv::Size gSize(9,16);
 	size_t cols = OVERLAY_COLS + 2;
 	size_t rows = OVERLAY_ROWS + 2;
 	GLVertexBufferObject::Matrix overlayData(6,2);
@@ -339,6 +339,12 @@ void GLUserInterface::InitGLData() {
 
 	auto scaleID = glGetUniformLocation(d_primitiveProgram,"scaleMat");
 	glUniformMatrix3fv(scaleID,1,GL_FALSE,scaleMat.data());
+
+	size_t l = LABEL_FONT_SIZE;
+	size_t o = OVERLAY_FONT_SIZE;
+
+	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l,512);
+	d_overlayFont =  std::make_shared<GLFont>("Free Mono",o,512);
 
 
 	glEnable(GL_BLEND);
@@ -393,14 +399,15 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
 		return;
 	}
-	std::vector<std::pair<std::string,cv::Point>> tagLabels;
+	float factor = 1.0 / WindowScaleFactor(buffer);
+	std::vector<GLFont::PositionedText> tagLabels;
 	GLVertexBufferObject::Matrix points(std::max(buffer.Data.HighlightedIndexes.size(),buffer.Data.NormalIndexes.size()),2);
-
+	tagLabels.reserve(buffer.Data.HighlightedIndexes.size() + buffer.Data.NormalIndexes.size());
 	size_t i = -1;
 	for ( const auto hIndex : buffer.Data.HighlightedIndexes ) {
 		const auto & t = buffer.Frame.Message->tags(hIndex);
 		points.block<1,2>(++i,0) = Eigen::Vector2f(t.x(),t.y());
-		//TODO compile text
+		tagLabels.push_back(std::make_pair(FormatTagID(t.id()),cv::Point(t.x(),t.y())));
 	}
 
 	buffer.HighlightedTags->Upload(points.block(0,0,i+1,2),2,0,0);
@@ -410,19 +417,30 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	for ( const auto nIndex : buffer.Data.NormalIndexes ) {
 		const auto & t = buffer.Frame.Message->tags(nIndex);
 		points.block<1,2>(++i,0) = Eigen::Vector2f(t.x(),t.y());
-		//TODO compile text
+		tagLabels.push_back(std::make_pair(FormatTagID(t.id()),cv::Point(t.x(),t.y())));
 	}
 	buffer.NormalTags->Upload(points.block(0,0,i+1,2),2,0,0);
 
+	d_labelFont->UploadTexts(*buffer.TagLabels,
+	                         factor,
+	                         tagLabels.cbegin(),
+	                         tagLabels.cend());
 }
 
+float GLUserInterface::WindowScaleFactor(const DrawBuffer & buffer) const {
+	if ( buffer.TrackingSize == cv::Size(0,0) ) {
+		throw std::logic_error("No tracking size");
+	}
+	return std::min(float(d_windowSize.width)/float(buffer.TrackingSize.width),
+	                float(d_windowSize.height)/float(buffer.TrackingSize.height));
+}
 
 void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
 		return;
 	}
 	glUseProgram(d_pointProgram);
-
+	auto factor = WindowScaleFactor(buffer);
 	Eigen::Matrix3f scaleMat;
 	scaleMat <<  2.0f / float(buffer.Frame.Message->width()),0,-1.0f,
 		0, -2.0f / float(buffer.Frame.Message->height()),1.0f,
@@ -430,16 +448,22 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	UploadMatrix(d_pointProgram,"scaleMat",scaleMat);
 
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(0.0f,1.0f,1.0f));
-	glPointSize(18.0f);
+	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor );
 	buffer.HighlightedTags->Render(GL_POINTS);
 
-	glPointSize(9.0f);
+	glPointSize(float(NORMAL_POINT_SIZE) * factor);
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(1.0f,0.0f,0.0f));
 	buffer.NormalTags->Render(GL_POINTS);
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
-	static auto vgaFont = GLAsciiFontAtlas::VGAFont();
+	RenderText(*buffer.TagLabels,
+	           *d_labelFont,
+	           cv::Rect(cv::Point(NORMAL_POINT_SIZE * 1.2,
+	                              NORMAL_POINT_SIZE * 1.2 +float(LABEL_FONT_SIZE) / WindowScaleFactor(buffer)),
+	                    buffer.TrackingSize),
+	           cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
+	           cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
 }
 
 template <typename T>
@@ -456,6 +480,9 @@ std::string printLine(const std::string & label, size_t size,const T & value) {
 }
 
 void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
+
+
+
 
 	glUseProgram(d_primitiveProgram);
 
@@ -479,7 +506,6 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	// 		{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
 	// 		{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
 	// 		{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
-
 	// 	},d_workingSize);
 	// d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
 	//                                 d_workingSize));
@@ -503,6 +529,29 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 	DrawInformations(buffer);
 
 	glfwSwapBuffers(d_window.get());
+}
+
+
+void GLUserInterface::RenderText(const GLVertexBufferObject & buffer,
+                                 const GLFont & font,
+                                 const cv::Rect & roi,
+                                 const cv::Vec4f & foreground,
+                                 const cv::Vec4f & background) {
+	glUseProgram(d_fontProgram);
+	UploadColor(d_fontProgram,"foreground",foreground);
+	UploadColor(d_fontProgram,"background",background);
+	Eigen::Matrix3f scaleMat;
+	scaleMat <<
+		2.0f/ float(roi.width), 0.0f                     , -1.0f + float(roi.x) / float(roi.width),
+		0.0f                  , -2.0f / float(roi.height), 1.0f - float(roi.y) / float(roi.height),
+		0.0f                  , 0.0f                     , 0.0f;
+	UploadMatrix(d_fontProgram,"scaleMat",scaleMat);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D,font.TextureID());
+	glUniform1i(font.TextureID(), 0);
+
+	buffer.Render(GL_TRIANGLES);
 }
 
 

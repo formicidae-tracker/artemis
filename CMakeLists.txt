@@ -27,6 +27,11 @@ FetchContent_Declare(boost-asio
                      GIT_REPOSITORY https://github.com/boostorg/asio
                      GIT_TAG        boost-1.74.0)
 
+FetchContent_Declare(freetype-gl
+                     GIT_REPOSITORY https://github.com/rougier/freetype-gl
+                     GIT_TAG        1a8c007f3fe7b1441f9e5616bc23d7455f4b07dd)
+
+
 FetchContent_GetProperties(googletest)
 if(NOT googletest_POPULATED)
 	FetchContent_Populate(googletest)
@@ -54,6 +59,22 @@ endif(NOT boost-asio_POPULATED)
 set(boost-asio_INCLUDE_DIRS ${boost-asio_SOURCE_DIR}/include)
 
 
+set(OpenGL_PREFERENCE GLVND)
+FetchContent_GetProperties(freetype-gl)
+if(NOT freetype-gl_POPULATED)
+
+	set(freetype-gl_WITH_GLEW ON CACHE INTERNAL "")
+	set(freetype-gl_USE_VAO ON CACHE INTERNAL "")
+	set(freetype-gl_BUILD_DEMOS OFF CACHE INTERNAL "")
+	set(freetype-gl_BUILD_APIDOC OFF CACHE INTERNAL "")
+	set(freetype-gl_BUILD_MAKEFONT OFF CACHE INTERNAL "")
+
+	FetchContent_Populate(freetype-gl)
+	add_subdirectory(${freetype-gl_SOURCE_DIR} ${freetype-gl_BINARY_DIR})
+endif(NOT freetype-gl_POPULATED)
+set(FREETYPE_GL_INCLUDE_DIRS ${freetype-gl_SOURCE_DIR})
+
+
 option(EURESYS_FRAMEGRABBER_SUPPORT "Add support for Euresys Framegrabber" On)
 option(FORCE_STUB_FRAMEGRABBER_ONLY "Removes support for any other framegraber than stub" Off)
 
@@ -69,12 +90,12 @@ find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(GLEW REQUIRED)
 
 pkg_check_modules(TBB tbb REQUIRED)
-
-
+pkg_check_modules(FONTCONFIG fontconfig freetype2 REQUIRED)
 
 find_package(Protobuf 3.3.0 REQUIRED)
 
@@ -91,6 +112,8 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
 	                ${HERMES_INCLUDE_DIRS}
 	                ${APRILTAG_INCLUDE_DIRS}
 	                ${GLEW_INCLUDE_DIRS}
+	                ${FREETYPE_GL_INCLUDE_DIRS}
+	                ${FONTCONFIG_INCLUDE_DIRS}
 	                ${fort-tags_SOURCE_DIR}/include
 	                ${googletest_SOURCE_DIR}/googlemock/include
 	                ${googletest_SOURCE_DIR}/googletest/include

@@ -47,7 +47,7 @@ void GLVertexBufferObject::Upload(const Matrix & data,
 
 }
 
-void GLVertexBufferObject::Render(GLenum mode) {
+void GLVertexBufferObject::Render(GLenum mode) const {
 	auto colSize = d_vertexSize + d_texelSize + d_colorSize;
 
 	if ( d_elementSize == 0 || colSize == 0) {

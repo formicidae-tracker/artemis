@@ -79,8 +79,7 @@ set(SRC_FILES utils/Defer.cpp
 	          ui/ShaderUtils.cpp
 	          ui/shaders_data.c
 	          fonts/fonts_data.c
-	          ui/GLAsciiFontAtlas.cpp
-	          ui/GLTextRenderer.cpp
+	          ui/GLFont.cpp
 	          main.cpp
 	          )
 
@@ -111,8 +110,7 @@ set(HDR_FILES utils/Defer.hpp
 	          ui/ShaderUtils.hpp
 	          ui/shaders_data.h
 	          fonts/fonts_data.h
-	          ui/GLAsciiFontAtlas.hpp
-	          ui/GLTextRenderer.hpp
+	          ui/GLFont.hpp
 	          Application.hpp
 	          )
 
@@ -156,7 +154,9 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${TBB_LIBRARIES}
 	                                 glfw
 	                                 ${GLEW_LIBRARIES}
-	                                 GL
+	                                 OpenGL::OpenGL
+	                                 freetype-gl
+	                                 ${FONTCONFIG_LIBRARIES}
 	                                 boost_system
 	                                  "-ldl")
 

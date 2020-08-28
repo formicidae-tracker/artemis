@@ -13,6 +13,8 @@
 namespace fort {
 namespace artemis {
 
+class GLFont;
+
 class GLUserInterface : public UserInterface {
 public:
 	GLUserInterface(const cv::Size & workingResolution,
@@ -75,6 +77,14 @@ private:
 	                        const std::string & name,
 	                        const cv::Vec4f & color);
 
+	void RenderText(const GLVertexBufferObject & buffer,
+	                const GLFont & font,
+	                const cv::Rect & inputSize,
+	                const cv::Vec4f & forgeround,
+	                const cv::Vec4f & background);
+
+	float WindowScaleFactor(const DrawBuffer & buffer) const;
+
 
 	DrawBuffer     d_buffer[2];
 	size_t         d_index;
@@ -83,14 +93,18 @@ private:
 	cv::Size       d_windowSize;
 	Zoom           d_zoom;
 
-	GLAsciiFontAtlas::Ptr d_vgaFont;
-	GLTextRenderer::Ptr   d_dataRenderer;
+	std::shared_ptr<GLFont> d_labelFont,d_overlayFont;
+
 	GLVertexBufferObject::Ptr d_frameVBO,d_dataOverlayPBO;
 	GLuint d_frameProgram,d_frameTexture,
-		d_pointProgram,d_primitiveProgram;
+		d_pointProgram,d_primitiveProgram, d_fontProgram;
 
 	const static size_t OVERLAY_COLS = 30;
 	const static size_t OVERLAY_ROWS = 8;
+	const static size_t NORMAL_POINT_SIZE = 70;
+	const static size_t HIGHLIGHTED_POINT_SIZE = 100;
+	const static size_t LABEL_FONT_SIZE = 16;
+	const static size_t OVERLAY_FONT_SIZE = 24;
 };
 
 
