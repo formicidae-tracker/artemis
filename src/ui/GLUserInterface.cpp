@@ -152,6 +152,14 @@ void GLUserInterface::InitContext() {
 
 
 GLUserInterface::~GLUserInterface() {
+	d_dataOverlayPBO.reset();
+	d_frameVBO.reset();
+	for(size_t i = 0; i <2 ; ++i) {
+		d_buffer[i].NormalTags.reset();
+		d_buffer[i].HighlightedTags.reset();
+		d_buffer[i].TagLabels.reset();
+	}
+
 	d_window.reset();
 	glfwTerminate();
 }
@@ -165,6 +173,11 @@ void GLUserInterface::UpdateFrame(const FrameToDisplay & frame,
 	auto & buffer = d_buffer[d_index];
 	buffer.Frame = frame;
 	buffer.Data = data;
+	if ( !frame.Message ) {
+		buffer.TrackingSize = cv::Size(0,0);
+	} else {
+		buffer.TrackingSize = cv::Size(frame.Message->width(),frame.Message->height());
+	}
 	d_index = (d_index + 1 )%2;
 	Draw();
 }
@@ -216,16 +229,13 @@ bool operator==(const UserInterface::Zoom & a,
 void GLUserInterface::InitPBOs() {
 	DLOG(INFO) << "[GLUserInterface]: initialiazing PBOs";
 	for ( size_t i = 0; i < 2; ++i) {
-		glGenBuffers(1,&(d_buffer[i].HighlightedPointsVBO));
-		glGenBuffers(1,&(d_buffer[i].NormalPointsVBO));
+		d_buffer[i].NormalTags = std::make_shared<GLVertexBufferObject>();
+		d_buffer[i].HighlightedTags = std::make_shared<GLVertexBufferObject>();
+		d_buffer[i].TagLabels = std::make_shared<GLVertexBufferObject>();
 
 		glGenBuffers(1,&(d_buffer[i].PBO));
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER,d_buffer[i].PBO);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER,d_workingSize.width*d_workingSize.height,0,GL_STREAM_DRAW);
-		d_buffer[i].TagLabels = std::make_shared<GLTextRenderer>(d_vgaFont,
-		                                                         d_workingSize,
-		                                                         cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
-		                                                         cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
 	}
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
 }
@@ -255,6 +265,11 @@ void GLUserInterface::UploadTexture(const DrawBuffer & buffer) {
 void GLUserInterface::InitGLData() {
 	DLOG(INFO) << "[GLUserInterface]: InitGLData";
 
+	GLuint VAO;
+	glGenVertexArrays(1,&VAO);
+	glBindVertexArray(VAO);
+
+
 	d_vgaFont = GLAsciiFontAtlas::VGAFont();
 	d_dataRenderer = std::make_shared<GLTextRenderer>(d_vgaFont,
 	                                                  d_workingSize,
@@ -266,40 +281,21 @@ void GLUserInterface::InitGLData() {
 
 	glClearColor(0.0f,0.0f,0.0f,1.0f);
 
-	GLuint VAO;
-	glGenVertexArrays(1,&VAO);
-	glBindVertexArray(VAO);
 
 	d_frameProgram = ShaderUtils::CompileProgram(std::string(frame_vertexshader,frame_vertexshader+frame_vertexshader_size),
 	                                             std::string(frame_fragmentshader,frame_fragmentshader+frame_fragmentshader_size));
-
-	static const GLfloat frameData[] = {
-	                                    -1.0f, -1.0f,
-	                                    1.0f, -1.0f,
-	                                    1.0f,  1.0f,
-	                                    1.0f,  1.0f,
-	                                    -1.0f,  1.0f,
-	                                    -1.0f,  -1.0f,
-	};
-
-	glGenBuffers(1,&d_frameVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, d_frameVBO);
-	glBufferData(GL_ARRAY_BUFFER,sizeof(frameData),frameData,GL_STATIC_DRAW);
+	d_frameVBO = std::make_shared<GLVertexBufferObject>();
 
 
-	static const GLfloat frameUVData[] = {
-	                                      0.0f, 1.0f,
-	                                      1.0f, 1.0f,
-	                                      1.0f,  0.0f,
-	                                      1.0f,  0.0f,
-	                                      0.0f,  0.0f,
-	                                      0.0f,  1.0f,
-	};
-
-	glGenBuffers(1,&d_frameTBO);
-	glBindBuffer(GL_ARRAY_BUFFER, d_frameTBO);
-	glBufferData(GL_ARRAY_BUFFER,sizeof(frameUVData),frameUVData,GL_DYNAMIC_DRAW);
-
+	GLVertexBufferObject::Matrix frameData(6,4);
+	frameData <<
+		-1.0f, -1.0f, 0.0f, 1.0f,
+		+1.0f, -1.0f, 1.0f, 1.0f,
+		+1.0f, +1.0f, 1.0f,  0.0f,
+		+1.0f, +1.0f, 1.0f,  0.0f,
+		-1.0f, +1.0f, 0.0f,  0.0f,
+		-1.0f, -1.0f, 0.0f,  1.0f;
+	d_frameVBO->Upload(frameData,2,2,0);
 
 	glGenTextures(1,&d_frameTexture);
 
@@ -320,18 +316,19 @@ void GLUserInterface::InitGLData() {
 	auto gSize = d_vgaFont->TotalGlyphSize();
 	size_t cols = OVERLAY_COLS + 2;
 	size_t rows = OVERLAY_ROWS + 2;
-	GLfloat overlayData[] = {
-	                         gSize.width * 1.0f,gSize.height * 1.0f,
-	                         gSize.width * (1.0f + cols),gSize.height * 1.0f,
-	                         gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
-	                         gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
-	                         gSize.width * 1.0f,gSize.height * (1.0f + rows),
-	                         gSize.width * 1.0f,gSize.height * 1.0f,
-	};
+	GLVertexBufferObject::Matrix overlayData(6,2);
 
-	glGenBuffers(1,&d_dataOverlayVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, d_dataOverlayVBO);
-	glBufferData(GL_ARRAY_BUFFER,sizeof(overlayData),overlayData,GL_STATIC_DRAW);
+	overlayData <<
+		gSize.width * 1.0f,gSize.height * 1.0f,
+		gSize.width * (1.0f + cols),gSize.height * 1.0f,
+		gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
+		gSize.width * (1.0f + cols),gSize.height * (1.0f + rows),
+		gSize.width * 1.0f,gSize.height * (1.0f + rows),
+		gSize.width * 1.0f,gSize.height * 1.0f;
+
+	d_dataOverlayPBO = std::make_shared<GLVertexBufferObject>();
+
+	d_dataOverlayPBO->Upload(overlayData,2,0,0);
 
 	glUseProgram(d_primitiveProgram);
 
@@ -360,30 +357,7 @@ void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,d_workingSize.height,d_workingSize.width,0,GL_RED,GL_UNSIGNED_BYTE,0);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
 
-	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, d_frameVBO);
-	glVertexAttribPointer(0,
-	                      2,
-	                      GL_FLOAT,
-	                      GL_FALSE,
-	                      0,
-	                      (void*)0);
-
-	glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, d_frameTBO);
-	glVertexAttribPointer(1,
-	                      2,
-	                      GL_FLOAT,
-	                      GL_FALSE,
-	                      0,
-	                      (void*)0);
-
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
-
+	d_frameVBO->Render(GL_TRIANGLES);
 }
 
 std::string FormatTagID(uint32_t tagID) {
@@ -392,39 +366,56 @@ std::string FormatTagID(uint32_t tagID) {
 	return oss.str();
 }
 
+
+void GLUserInterface::UploadMatrix(GLuint programID,
+                                   const std::string & name,
+                                   const Eigen::Matrix3f & matrix) {
+	auto matID = glGetUniformLocation(programID,name.c_str());
+	glUniformMatrix3fv(matID,1,GL_FALSE,matrix.data());
+}
+
+void GLUserInterface::UploadColor(GLuint programID,
+                                  const std::string & name,
+                                  const cv::Vec3f & color) {
+	auto colorID = glGetUniformLocation(programID,name.c_str());
+	glUniform3fv(colorID,1,&color[0]);
+}
+
+void GLUserInterface::UploadColor(GLuint programID,
+                                  const std::string & name,
+                                  const cv::Vec4f & color) {
+	auto colorID = glGetUniformLocation(programID,name.c_str());
+	glUniform4fv(colorID,1,&color[0]);
+}
+
+
 void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
 		return;
 	}
 	std::vector<std::pair<std::string,cv::Point>> tagLabels;
-	std::vector<GLfloat> pointData;
-	size_t nPoints = std::max(buffer.Data.HighlightedIndexes.size(),buffer.Data.NormalIndexes.size());
-	tagLabels.reserve(buffer.Data.HighlightedIndexes.size() + buffer.Data.NormalIndexes.size());
-	pointData.reserve(2*nPoints);
+	GLVertexBufferObject::Matrix points(std::max(buffer.Data.HighlightedIndexes.size(),buffer.Data.NormalIndexes.size()),2);
+
+	size_t i = -1;
 	for ( const auto hIndex : buffer.Data.HighlightedIndexes ) {
 		const auto & t = buffer.Frame.Message->tags(hIndex);
-		pointData.push_back(t.x());
-		pointData.push_back(t.y());
-		tagLabels.push_back(std::make_pair(FormatTagID(t.id()),cv::Point(t.x(),t.y())));
+		points.block<1,2>(++i,0) = Eigen::Vector2f(t.x(),t.y());
+		//TODO compile text
 	}
 
-	glBindBuffer(GL_ARRAY_BUFFER,buffer.HighlightedPointsVBO);
-	glBufferData(GL_ARRAY_BUFFER,sizeof(GLfloat) * pointData.size(),&pointData[0],GL_DYNAMIC_DRAW);
+	buffer.HighlightedTags->Upload(points.block(0,0,i+1,2),2,0,0);
 
-	pointData.clear();
+
+	i = -1;
 	for ( const auto nIndex : buffer.Data.NormalIndexes ) {
 		const auto & t = buffer.Frame.Message->tags(nIndex);
-		pointData.push_back(t.x());
-		pointData.push_back(t.y());
-		tagLabels.push_back(std::make_pair(FormatTagID(t.id()),cv::Point(t.x(),t.y())));
+		points.block<1,2>(++i,0) = Eigen::Vector2f(t.x(),t.y());
+		//TODO compile text
 	}
+	buffer.NormalTags->Upload(points.block(0,0,i+1,2),2,0,0);
 
-	glBindBuffer(GL_ARRAY_BUFFER,buffer.NormalPointsVBO);
-	glBufferData(GL_ARRAY_BUFFER,sizeof(GLfloat) * pointData.size(),&pointData[0],GL_DYNAMIC_DRAW);
-
-	buffer.TagLabels->Compile(tagLabels,cv::Size(buffer.Frame.Message->width(),
-	                                             buffer.Frame.Message->height()));
 }
+
 
 void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
@@ -432,44 +423,19 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	}
 	glUseProgram(d_pointProgram);
 
-	GLuint scaleID = glGetUniformLocation(d_pointProgram,"scaleMat");
 	Eigen::Matrix3f scaleMat;
 	scaleMat <<  2.0f / float(buffer.Frame.Message->width()),0,-1.0f,
 		0, -2.0f / float(buffer.Frame.Message->height()),1.0f,
 		0.0f,0.0f,0.0f;
+	UploadMatrix(d_pointProgram,"scaleMat",scaleMat);
 
-	glUniformMatrix3fv(scaleID,1,GL_FALSE,scaleMat.data());
-
-	GLuint colorID = glGetUniformLocation(d_pointProgram,"circleColor");
-	glUniform3f(colorID,0.0f,1.0f,1.0f);
+	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(0.0f,1.0f,1.0f));
 	glPointSize(18.0f);
+	buffer.HighlightedTags->Render(GL_POINTS);
 
-	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, buffer.HighlightedPointsVBO);
-	glVertexAttribPointer(0,
-	                      2,
-	                      GL_FLOAT,
-	                      GL_FALSE,
-	                      0,
-	                      (void*)0);
-
-	glDrawArrays(GL_POINTS,0,buffer.Data.HighlightedIndexes.size());
-
-	glUniform3f(colorID,1.0f,0.0f,0.0f);
 	glPointSize(9.0f);
-
-	glBindBuffer(GL_ARRAY_BUFFER, buffer.NormalPointsVBO);
-	glVertexAttribPointer(0,
-	                      2,
-	                      GL_FLOAT,
-	                      GL_FALSE,
-	                      0,
-	                      (void*)0);
-
-	glDrawArrays(GL_POINTS,0,buffer.Data.NormalIndexes.size());
-
-	glDisableVertexAttribArray(0);
-
+	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(1.0f,0.0f,0.0f));
+	buffer.NormalTags->Render(GL_POINTS);
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
@@ -496,37 +462,27 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	auto colorID = glGetUniformLocation(d_primitiveProgram,"primitiveColor");
 	glUniform4f(colorID,0.0f,0.1f,0.2f,0.7f);
 
+	d_dataOverlayPBO->Render(GL_TRIANGLES);
 
-	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, d_dataOverlayVBO);
-	glVertexAttribPointer(0,
-	                      2,
-	                      GL_FLOAT,
-	                      GL_FALSE,
-	                      0,
-	                      (void*)0);
-	glDrawArrays(GL_TRIANGLES,0,6);
-	glDisableVertexAttribArray(0);
-
-	auto gsize = d_vgaFont->TotalGlyphSize();
+	// auto gsize = d_vgaFont->TotalGlyphSize();
 
 
-	std::ostringstream oss;
-	oss << buffer.Frame.FrameDropped
-	    << " (" << std::fixed << std::setprecision(2)
-	    << (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
+	// std::ostringstream oss;
+	// oss << buffer.Frame.FrameDropped
+	//     << " (" << std::fixed << std::setprecision(2)
+	//     << (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
 
-	d_dataRenderer->Compile({
-	                         {printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)),cv::Point(gsize.width,1*gsize.height)},
-			{printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()),cv::Point(gsize.width,3*gsize.height)},
-			{printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()),cv::Point(gsize.width,4*gsize.height)},
-			{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
-			{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
-			{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
+	// d_dataRenderer->Compile({
+	//                          {printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)),cv::Point(gsize.width,1*gsize.height)},
+	// 		{printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()),cv::Point(gsize.width,3*gsize.height)},
+	// 		{printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()),cv::Point(gsize.width,4*gsize.height)},
+	// 		{printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS),cv::Point(gsize.width,6*gsize.height)},
+	// 		{printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed),cv::Point(gsize.width,7*gsize.height)},
+	// 		{printLine("Frame Dropped",OVERLAY_COLS,oss.str()),cv::Point(gsize.width,8*gsize.height)},
 
-		},d_workingSize);
-	d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
-	                                d_workingSize));
+	// 	},d_workingSize);
+	// d_dataRenderer->Render(cv::Rect(cv::Point(-2*gsize.width,-2*gsize.height),
+	//                                 d_workingSize));
 
 }
 
@@ -543,8 +499,7 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
-	buffer.TagLabels->Render(cv::Rect(cv::Point(-50,-50),cv::Size(buffer.Frame.Message->width(),
-	                                                          buffer.Frame.Message->height())));
+	DrawLabels(buffer);
 	DrawInformations(buffer);
 
 	glfwSwapBuffers(d_window.get());

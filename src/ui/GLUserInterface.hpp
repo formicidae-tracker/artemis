@@ -8,7 +8,7 @@
 #include "UserInterface.hpp"
 
 #include "GLTextRenderer.hpp"
-
+#include "GLVertexBufferObject.hpp"
 
 namespace fort {
 namespace artemis {
@@ -33,11 +33,11 @@ private:
 	static GLFWwindowPtr OpenWindow(const cv::Size & size);
 
 	struct DrawBuffer {
-		FrameToDisplay      Frame;
-		DataToDisplay       Data;
-		GLuint              PBO;
-		GLuint              NormalPointsVBO,HighlightedPointsVBO;
-		GLTextRenderer::Ptr TagLabels;
+		FrameToDisplay            Frame;
+		DataToDisplay             Data;
+		cv::Size                  TrackingSize;
+		GLuint                    PBO;
+		GLVertexBufferObject::Ptr NormalTags,HighlightedTags,TagLabels;
 	};
 
 
@@ -62,6 +62,20 @@ private:
 	void DrawLabels(const DrawBuffer & buffer);
 	void DrawInformations(const DrawBuffer & buffer);
 
+
+	static void UploadMatrix(GLuint programID,
+	                         const std::string & name,
+	                         const Eigen::Matrix3f & matrix);
+
+	static void UploadColor(GLuint programID,
+	                        const std::string & name,
+	                        const cv::Vec3f & color);
+
+	static void UploadColor(GLuint programID,
+	                        const std::string & name,
+	                        const cv::Vec4f & color);
+
+
 	DrawBuffer     d_buffer[2];
 	size_t         d_index;
 
@@ -71,8 +85,9 @@ private:
 
 	GLAsciiFontAtlas::Ptr d_vgaFont;
 	GLTextRenderer::Ptr   d_dataRenderer;
-	GLuint d_frameVBO,d_frameTBO,d_frameProgram,d_frameTexture,
-		d_pointProgram,d_pointVBO,d_dataOverlayVBO,d_primitiveProgram;
+	GLVertexBufferObject::Ptr d_frameVBO,d_dataOverlayPBO;
+	GLuint d_frameProgram,d_frameTexture,
+		d_pointProgram,d_primitiveProgram;
 
 	const static size_t OVERLAY_COLS = 30;
 	const static size_t OVERLAY_ROWS = 8;

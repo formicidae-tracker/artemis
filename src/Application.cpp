@@ -55,6 +55,7 @@ void Application::InitGoogleLogging(const std::string & applicationName,
 		FLAGS_log_dir = options.LogDir.c_str();
 	}
 	FLAGS_stderrthreshold = 0; // maybe we should need less log
+	FLAGS_colorlogtostderr = true; // maybe we should need less log
 	::google::InitGoogleLogging(applicationName.c_str());
 	::google::InstallFailureSignalHandler();
 }

@@ -74,6 +74,7 @@ set(SRC_FILES utils/Defer.cpp
 	          ImageTextRenderer.cpp
 	          ui/UserInterface.cpp
 	          ui/StubUserInterface.cpp
+	          ui/GLVertexBufferObject.cpp
 	          ui/GLUserInterface.cpp
 	          ui/ShaderUtils.cpp
 	          ui/shaders_data.c
@@ -105,6 +106,7 @@ set(HDR_FILES utils/Defer.hpp
 	          ImageTextRenderer.hpp
 	          ui/UserInterface.hpp
 	          ui/StubUserInterface.hpp
+	          ui/GLVertexBufferObject.hpp
 	          ui/GLUserInterface.hpp
 	          ui/ShaderUtils.hpp
 	          ui/shaders_data.h
