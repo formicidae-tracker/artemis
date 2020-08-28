@@ -3,6 +3,8 @@
 
 uniform vec4 primitiveColor;
 
+out vec4 color;
+
 void main(){
-	gl_FragColor = primitiveColor;
+	color = primitiveColor;
 }

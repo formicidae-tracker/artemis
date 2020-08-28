@@ -24,7 +24,8 @@ public:
 	void Upload(const Matrix & data,
 	            size_t d_vertexSize,
 	            size_t d_texelSize,
-	            size_t d_colorSize);
+	            size_t d_colorSize,
+	            bool staticUpload = false);
 
 	void Render(GLenum type) const;
 

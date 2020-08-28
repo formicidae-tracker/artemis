@@ -68,6 +68,7 @@ if(NOT freetype-gl_POPULATED)
 	set(freetype-gl_BUILD_DEMOS OFF CACHE INTERNAL "")
 	set(freetype-gl_BUILD_APIDOC OFF CACHE INTERNAL "")
 	set(freetype-gl_BUILD_MAKEFONT OFF CACHE INTERNAL "")
+	set(freetype-gl_BUILD_TESTS OFF CACHE INTERNAL "")
 
 	FetchContent_Populate(freetype-gl)
 	add_subdirectory(${freetype-gl_SOURCE_DIR} ${freetype-gl_BINARY_DIR})

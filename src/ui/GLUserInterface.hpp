@@ -91,6 +91,7 @@ private:
 
 	const cv::Size d_workingSize,d_fullSize;
 	cv::Size       d_windowSize,d_viewSize;
+	float          d_currentScale;
 	cv::Rect       d_ROI;
 
 	std::shared_ptr<GLFont> d_labelFont,d_overlayFont;

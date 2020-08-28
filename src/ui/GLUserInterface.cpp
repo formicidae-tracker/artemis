@@ -78,7 +78,8 @@ GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
 	, d_index(0)
 	, d_workingSize(workingResolution)
 	, d_fullSize(fullSize)
-	, d_windowSize(workingResolution) {
+	, d_windowSize(workingResolution)
+	, d_currentScale(1.0) {
 
 #ifdef IMPLEMENT_GLFW_GET_ERROR
 	glfwSetErrorCallback(&GLFWErrorCallback);
@@ -289,16 +290,16 @@ void GLUserInterface::InitGLData() {
 
 	GLVertexBufferObject::Matrix frameData(6,4);
 	frameData <<
-		-1.0f, -1.0f, 0.0f, 1.0f,
-		+1.0f, -1.0f, 1.0f, 1.0f,
-		+1.0f, +1.0f, 1.0f,  0.0f,
-		+1.0f, +1.0f, 1.0f,  0.0f,
-		-1.0f, +1.0f, 0.0f,  0.0f,
-		-1.0f, -1.0f, 0.0f,  1.0f;
-	d_frameVBO->Upload(frameData,2,2,0);
+		0.0f               , 0.0f                , 0.0f, 0.0f,
+		d_workingSize.width, 0.0f                , 1.0f, 0.0f,
+		d_workingSize.width, d_workingSize.height, 1.0f, 1.0f,
+		d_workingSize.width, d_workingSize.height, 1.0f, 1.0f,
+		0.0f               , d_workingSize.height, 0.0f, 1.0f,
+		0.0f               , 0.0f                , 0.0f, 0.0f;
+
+	d_frameVBO->Upload(frameData,2,2,0,true);
 
 	glGenTextures(1,&d_frameTexture);
-
 	glBindTexture(GL_TEXTURE_2D, d_frameTexture);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -316,7 +317,6 @@ void GLUserInterface::InitGLData() {
 	                                            std::string(font_fragmentshader,font_fragmentshader+font_fragmentshader_size));
 	size_t l = LABEL_FONT_SIZE;
 	size_t o = OVERLAY_FONT_SIZE;
-
 
 	d_overlayFont =  std::make_shared<GLFont>("Free Mono",o,512);
 	d_boxOverlayVBO = std::make_shared<GLVertexBufferObject>();
@@ -347,10 +347,30 @@ void GLUserInterface::InitGLData() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	d_ROI = cv::Rect(cv::Point(d_fullSize.width/4,
+	                           d_fullSize.height/2),
+	                 cv::Size(d_fullSize.width/2,
+	                          d_fullSize.height/2));
 }
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glUseProgram(d_frameProgram);
+
+	Eigen::Matrix3f scaleMat;
+	scaleMat <<
+		2.0f / float(d_workingSize.width),  0.0f                              , -1.0f,
+		0.0f                             , -2.0f / float(d_workingSize.height), +1.0f,
+		0.0f                             ,  0.0f                              ,  0.0f;
+	if ( d_ROI != buffer.Frame.CurrentROI ) {
+		// we upscale the internal fullsize frame ourselves, in the
+		// future the process task will give us the correct ROI.
+		float actualFactor = float(d_fullSize.width) / float(d_ROI.width);
+		scaleMat.block<2,2>(0,0) *= actualFactor;
+		// TODO: fix offset computation to lie correctly on the
+		scaleMat.block<2,1>(0,2) -= 2.0f * actualFactor * Eigen::Vector2f(float(d_ROI.x)/float(d_fullSize.width),
+		                                                                  -float(d_ROI.y)/float(d_fullSize.height));
+	}
+	UploadMatrix(d_frameProgram,"scaleMat",scaleMat);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D,d_frameTexture);
@@ -439,15 +459,27 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	scaleMat <<  2.0f / float(buffer.Frame.Message->width()),0,-1.0f,
 		0, -2.0f / float(buffer.Frame.Message->height()),1.0f,
 		0.0f,0.0f,0.0f;
+	float actualFactor = 1.0;
+	if ( d_ROI.size() != d_fullSize ) {
+		// TODO clean !!!!
+		// we upscale the internal fullsize frame ourselves, in the
+		// future the process task will give us the correct ROI.
+		actualFactor = float(d_fullSize.width) / float(d_ROI.width);
+		scaleMat.block<2,2>(0,0) *= actualFactor;
+		// TODO: fix offset computation to lie correctly on the
+		scaleMat.block<2,1>(0,2) -= 2.0f * actualFactor * Eigen::Vector2f(float(d_ROI.x)/float(d_fullSize.width),
+		                                                                  -float(d_ROI.y)/float(d_fullSize.height));
+	}
+
 	UploadMatrix(d_pointProgram,"scaleMat",scaleMat);
 
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(0.0f,1.0f,1.0f));
-	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor );
+	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor * actualFactor);
 	buffer.HighlightedTags->Render(GL_POINTS);
 
 	glPointSize(float(NORMAL_POINT_SIZE) * factor);
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(1.0f,0.0f,0.0f));
-	buffer.NormalTags->Render(GL_POINTS);
+	buffer.NormalTags->Render(GL_POINTS * actualFactor);
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {

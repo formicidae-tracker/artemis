@@ -7,7 +7,9 @@ uniform sampler2D fontSampler;
 uniform vec4 foreground;
 uniform vec4 background;
 
+out vec4 color;
+
 void main(){
 	float value = texture(fontSampler,UV).r;
-	gl_FragColor = mix(background,foreground,value);
+	color = mix(background,foreground,value);
 }

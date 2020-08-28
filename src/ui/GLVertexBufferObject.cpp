@@ -20,7 +20,8 @@ void GLVertexBufferObject::Clear() {
 void GLVertexBufferObject::Upload(const Matrix & data,
                                   size_t vertexSize,
                                   size_t texelSize,
-                                  size_t colorSize) {
+                                  size_t colorSize,
+                                  bool staticUpload ) {
 	if ( vertexSize + texelSize + colorSize != data.cols() ) {
 
 		throw std::invalid_argument("Data (rows:"
@@ -42,7 +43,7 @@ void GLVertexBufferObject::Upload(const Matrix & data,
 	d_colorSize = colorSize;
 
 	glBindBuffer(GL_ARRAY_BUFFER,d_ID);
-	glBufferData(GL_ARRAY_BUFFER,sizeof(float)*data.rows()*data.cols(),data.data(),GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER,sizeof(float)*data.rows()*data.cols(),data.data(),staticUpload ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER,0);
 
 }

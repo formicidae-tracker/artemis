@@ -5,8 +5,9 @@ in vec2 UV;
 
 uniform sampler2D frameSampler;
 
+out vec4 color;
+
 void main(){
 	float value = texture(frameSampler,UV).r;
-	gl_FragColor.rgb = vec3(value,value,value);
-	gl_FragColor.a = 1.0;
+	color = vec4(value,value,value,1.0);
 }
