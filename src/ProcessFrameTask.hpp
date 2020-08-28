@@ -62,6 +62,7 @@ private :
 	                    const ApriltagOptions & options);
 	void SetUpCataloguing(const ProcessOptions & options);
 	void SetUpUserInterface(const cv::Size & workingresolution,
+	                        const cv::Size & fullresolution,
 	                        const DisplayOptions & options);
 	void SetUpPoolObjects(const cv::Size & workingResolution);
 
@@ -132,7 +133,7 @@ private :
 	Time                              d_nextAntCatalog;
 	std::set<uint32_t>                d_exportedID;
 
-	UserInterface::Zoom d_wantedZoom;
+	cv::Rect            d_wantedROI;
 	size_t              d_frameDropped;
 	size_t              d_frameProcessed;
 	Time                d_start;

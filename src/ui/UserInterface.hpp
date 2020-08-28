@@ -17,33 +17,25 @@ namespace artemis {
 
 class UserInterface {
 public:
-
-	struct Zoom {
-		double    Scale;
-		cv::Point Center;
-	};
-
-
 	struct FrameToDisplay {
 		std::shared_ptr<cv::Mat>              Full,Zoomed;
 		std::shared_ptr<hermes::FrameReadout> Message;
 
-		Zoom CurrentZoom;
+		cv::Rect CurrentROI;
 
 		//Other data
 		Time       FrameTime;
 		double     FPS;
 		size_t     FrameProcessed;
 		size_t     FrameDropped;
-
 	};
 
-	typedef tbb::concurrent_queue<Zoom> ZoomChannel;
-	typedef std::shared_ptr<ZoomChannel> ZoomChannelPtr;
+	typedef tbb::concurrent_queue<cv::Rect> ROIChannel;
+	typedef std::shared_ptr<ROIChannel> ROIChannelPtr;
 
 	UserInterface(const cv::Size & workingResolution,
 	              const DisplayOptions & options,
-	              const ZoomChannelPtr & zoomChannel);
+	              const ROIChannelPtr & zoomChannel);
 
 
 	virtual void PollEvents() = 0;
@@ -53,20 +45,20 @@ public:
 protected:
 	struct DataToDisplay {
 		std::vector<size_t> HighlightedIndexes,NormalIndexes;
-		bool                DisplayROI;
 	};
 
 	virtual void UpdateFrame(const FrameToDisplay & frame,
 	                         const DataToDisplay & data) = 0;
 
-	void ZoomChanged(const Zoom & zoom);
+	void ROIChanged(const cv::Rect & roi);
 	void ToggleHighlight(uint32_t tagID);
-	void SetROIDisplay(bool displayROI);
+
+
 
 	DataToDisplay ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> & m);
 
 private:
-	ZoomChannelPtr     d_zoomChannel;
+	ROIChannelPtr      d_roiChannel;
 	std::set<uint32_t> d_highlighted;
 	bool               d_displayROI;
 };

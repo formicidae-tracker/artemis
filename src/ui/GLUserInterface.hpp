@@ -18,8 +18,9 @@ class GLFont;
 class GLUserInterface : public UserInterface {
 public:
 	GLUserInterface(const cv::Size & workingResolution,
+	                const cv::Size & fullResolution,
 	                const DisplayOptions & options,
-	                const ZoomChannelPtr & zoomChannel);
+	                const ROIChannelPtr & roiChannel);
 
 	virtual ~GLUserInterface();
 
@@ -83,15 +84,14 @@ private:
 	                const cv::Vec4f & forgeround,
 	                const cv::Vec4f & background);
 
-	float WindowScaleFactor(const DrawBuffer & buffer) const;
-
+	float FullToWindowScaleFactor() const;
 
 	DrawBuffer     d_buffer[2];
 	size_t         d_index;
 
-	const cv::Size d_workingSize;
+	const cv::Size d_workingSize,d_fullSize;
 	cv::Size       d_windowSize,d_viewSize;
-	Zoom           d_zoom;
+	cv::Rect       d_ROI;
 
 	std::shared_ptr<GLFont> d_labelFont,d_overlayFont;
 	cv::Size                d_overlayGlyphSize;

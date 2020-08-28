@@ -17,15 +17,16 @@ class UserInterfaceTask : public Task {
 public:
 
 	UserInterfaceTask(const cv::Size & workingResolution,
+	                  const cv::Size & fullResolution,
 	                  const DisplayOptions & options);
 
 	virtual ~UserInterfaceTask();
 
 	void Run() override;
 
-	const UserInterface::Zoom & DefaultZoom() const;
+	const cv::Rect & DefaultROI() const;
 
-	UserInterface::Zoom UpdateZoom(const UserInterface::Zoom & previous);
+	cv::Rect UpdateROI(const cv::Rect & previous);
 
 	void QueueFrame(const UserInterface::FrameToDisplay &  toDisplay);
 
@@ -35,10 +36,10 @@ private:
 	tbb::concurrent_queue<UserInterface::FrameToDisplay> d_displayQueue;
 
 	std::unique_ptr<UserInterface>        d_ui;
-	const cv::Size                        d_workingResolution;
+	const cv::Size                        d_workingResolution,d_fullResolution;
 	const DisplayOptions                  d_options;
-	const UserInterface::Zoom             d_defaultZoom;
-	UserInterface::ZoomChannelPtr         d_zoomChannel;
+	const cv::Rect                        d_defaultROI;
+	UserInterface::ROIChannelPtr          d_roiChannel;
 
 };
 

@@ -5,8 +5,8 @@ namespace artemis {
 
 UserInterface::UserInterface(const cv::Size & workingResolution,
                              const DisplayOptions & options,
-                             const ZoomChannelPtr & zoomChannel)
-	: d_zoomChannel(zoomChannel)
+                             const ROIChannelPtr & roiChannel)
+	: d_roiChannel(roiChannel)
 	, d_highlighted(options.Highlighted.begin(),
 	                options.Highlighted.end())
 	,d_displayROI(options.DisplayROI) {
@@ -22,19 +22,14 @@ void UserInterface::ToggleHighlight(uint32_t tagID) {
 }
 
 
-void UserInterface::SetROIDisplay(bool displayROI) {
-	d_displayROI = displayROI;
-}
 
-
-void UserInterface::ZoomChanged(const Zoom & zoom) {
-	d_zoomChannel->push(zoom);
+void UserInterface::ROIChanged(const cv::Rect & roi) {
+	d_roiChannel->push(roi);
 }
 
 UserInterface::DataToDisplay
 UserInterface::ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> & m ) {
 	DataToDisplay data;
-	data.DisplayROI = d_displayROI;
 	data.HighlightedIndexes.clear();
 	data.NormalIndexes.clear();
 	if ( !m ) {

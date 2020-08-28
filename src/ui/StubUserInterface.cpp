@@ -8,8 +8,8 @@ namespace artemis {
 
 StubUserInterface::StubUserInterface(const cv::Size & workingResolution,
                                      const DisplayOptions & options,
-                                     const ZoomChannelPtr & zoomChannel)
-	: UserInterface(workingResolution,options,zoomChannel) {
+                                     const ROIChannelPtr & roiChannel)
+	: UserInterface(workingResolution,options,roiChannel) {
 }
 
 void StubUserInterface::PollEvents() {

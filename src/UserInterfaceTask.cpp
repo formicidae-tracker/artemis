@@ -10,13 +10,13 @@ namespace artemis {
 
 
 UserInterfaceTask::UserInterfaceTask(const cv::Size & workingResolution,
+                                     const cv::Size & fullResolution,
                                      const DisplayOptions & options)
 	: d_workingResolution(workingResolution)
+	, d_fullResolution(fullResolution)
 	, d_options(options)
-	, d_defaultZoom({1.0,
-	                 cv::Point(workingResolution.width/2,
-	                           workingResolution.height/2)}) \
-	, d_zoomChannel(std::make_shared<UserInterface::ZoomChannel>()) {
+	, d_defaultROI(cv::Point(0,0),fullResolution)
+	, d_roiChannel(std::make_shared<UserInterface::ROIChannel>()) {
 	// UI not initialized here to ensure that it is initialized from
 	// the working thread (i.e. once the task is spawned in Run())
 }
@@ -28,7 +28,7 @@ UserInterfaceTask::~UserInterfaceTask() {
 void UserInterfaceTask::Run()  {
 	LOG(INFO) << "[UserInterfaceTask]: Initialize OpenGL";
 
-	d_ui = std::make_unique<GLUserInterface>(d_workingResolution,d_options,d_zoomChannel);
+	d_ui = std::make_unique<GLUserInterface>(d_workingResolution,d_fullResolution,d_options,d_roiChannel);
 
 	LOG(INFO) << "[UserInterfaceTask]: Started";
 
@@ -52,13 +52,13 @@ void UserInterfaceTask::Run()  {
 }
 
 
-const UserInterface::Zoom & UserInterfaceTask::DefaultZoom() const {
-	return d_defaultZoom;
+const cv::Rect & UserInterfaceTask::DefaultROI() const {
+	return d_defaultROI;
 }
 
-UserInterface::Zoom UserInterfaceTask::UpdateZoom(const UserInterface::Zoom & previous) {
-	UserInterface::Zoom previous_ = previous;
-	while ( d_zoomChannel->try_pop(previous_) == true ) {
+cv::Rect UserInterfaceTask::UpdateROI(const cv::Rect & previous) {
+	cv::Rect previous_ = previous;
+	while ( d_roiChannel->try_pop(previous_) == true ) {
 	}
 	return previous_;
 }

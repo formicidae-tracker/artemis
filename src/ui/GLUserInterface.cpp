@@ -70,12 +70,14 @@ namespace artemis {
 
 
 GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
+                                 const cv::Size & fullSize,
                                  const DisplayOptions & options,
-                                 const ZoomChannelPtr & zoomChannel)
-	: UserInterface(workingResolution,options,zoomChannel)
+                                 const ROIChannelPtr & roiChannel)
+	: UserInterface(workingResolution,options,roiChannel)
 	, d_window(nullptr,[](GLFWwindow*){})
 	, d_index(0)
 	, d_workingSize(workingResolution)
+	, d_fullSize(fullSize)
 	, d_windowSize(workingResolution) {
 
 #ifdef IMPLEMENT_GLFW_GET_ERROR
@@ -229,11 +231,6 @@ void GLUserInterface::Draw() {
 	Draw(currentBuffer);
 }
 
-bool operator==(const UserInterface::Zoom & a,
-                const UserInterface::Zoom & b) {
-	return a.Scale == b.Scale && a.Center == b.Center;
-}
-
 void GLUserInterface::InitPBOs() {
 	DLOG(INFO) << "[GLUserInterface]: initialiazing PBOs";
 	for ( size_t i = 0; i < 2; ++i) {
@@ -251,7 +248,7 @@ void GLUserInterface::InitPBOs() {
 void GLUserInterface::UploadTexture(const DrawBuffer & buffer) {
 	std::shared_ptr<cv::Mat> toUpload = buffer.Frame.Full;
 	if ( buffer.Frame.Zoomed
-	     && d_zoom == buffer.Frame.CurrentZoom ) {
+	     && d_ROI == buffer.Frame.CurrentROI ) {
 		toUpload = buffer.Frame.Zoomed;
 	}
 
@@ -399,7 +396,7 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
 		return;
 	}
-	float factor = 1.0 / WindowScaleFactor(buffer);
+	float factor = 1.0 / FullToWindowScaleFactor();
 	std::vector<GLFont::PositionedText> tagLabels;
 	GLVertexBufferObject::Matrix points(std::max(buffer.Data.HighlightedIndexes.size(),buffer.Data.NormalIndexes.size()),2);
 	tagLabels.reserve(buffer.Data.HighlightedIndexes.size() + buffer.Data.NormalIndexes.size());
@@ -427,12 +424,9 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	                         tagLabels.cend());
 }
 
-float GLUserInterface::WindowScaleFactor(const DrawBuffer & buffer) const {
-	if ( buffer.TrackingSize == cv::Size(0,0) ) {
-		throw std::logic_error("No tracking size");
-	}
-	return std::min(float(d_windowSize.width)/float(buffer.TrackingSize.width),
-	                float(d_windowSize.height)/float(buffer.TrackingSize.height));
+float GLUserInterface::FullToWindowScaleFactor() const {
+	return std::min(float(d_windowSize.width)/float(d_fullSize.width),
+	                float(d_windowSize.height)/float(d_fullSize.height));
 }
 
 void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
@@ -440,7 +434,7 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 		return;
 	}
 	glUseProgram(d_pointProgram);
-	auto factor = WindowScaleFactor(buffer);
+	auto factor = FullToWindowScaleFactor();
 	Eigen::Matrix3f scaleMat;
 	scaleMat <<  2.0f / float(buffer.Frame.Message->width()),0,-1.0f,
 		0, -2.0f / float(buffer.Frame.Message->height()),1.0f,
@@ -460,7 +454,7 @@ void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
 	RenderText(*buffer.TagLabels,
 	           *d_labelFont,
 	           cv::Rect(cv::Point(NORMAL_POINT_SIZE * 1.2,
-	                              NORMAL_POINT_SIZE * 1.2 +float(LABEL_FONT_SIZE) / WindowScaleFactor(buffer)),
+	                              NORMAL_POINT_SIZE * 1.2 +float(LABEL_FONT_SIZE) / FullToWindowScaleFactor()),
 	                    buffer.TrackingSize),
 	           cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
 	           cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
@@ -552,7 +546,7 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 		return;
 	}
 
-	if ( d_zoom.Scale != 1.0 && !(buffer.Frame.CurrentZoom == d_zoom) ) {
+	if ( d_ROI != buffer.Frame.CurrentROI ) {
 		// TODO: update UV coordinates
 	}
 	glClear( GL_COLOR_BUFFER_BIT);

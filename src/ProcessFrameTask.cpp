@@ -27,7 +27,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
 
 	SetUpDetection(inputResolution,options.Apriltag);
-	SetUpUserInterface(workingResolution,options.Display);
+	SetUpUserInterface(workingResolution,inputResolution,options.Display);
 	SetUpVideoOutputTask(options.VideoOutput,context,options.General.LegacyMode);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects(workingResolution);
@@ -78,11 +78,13 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 }
 
 void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
+                                          const cv::Size & fullResolution,
                                           const DisplayOptions & options) {
 	d_userInterface = std::make_shared<artemis::UserInterfaceTask>(workingResolution,
+	                                                               fullResolution,
 	                                                               options);
 
-	d_wantedZoom = d_userInterface->DefaultZoom();
+	d_wantedROI = d_userInterface->DefaultROI();
 }
 
 void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
@@ -332,18 +334,14 @@ void ProcessFrameTask::ExportROI(const cv::Mat & image,
 void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
                                     const std::shared_ptr<hermes::FrameReadout> & m) {
 
-	d_wantedZoom = d_userInterface->UpdateZoom(d_wantedZoom);
+	d_wantedROI = d_userInterface->UpdateROI(d_wantedROI);
 
 	std::shared_ptr<cv::Mat> zoomed;
 
-	if ( d_wantedZoom.Scale != 1.0 ) {
+	if ( d_wantedROI.size() != frame->ToCV().size() ) {
 		zoomed = d_grayImagePool.Get();
 		cv::Size size = frame->ToCV().size();
-		cv::resize(cv::Mat(frame->ToCV(),GetROIAt(d_wantedZoom.Center.x,
-		                                          d_wantedZoom.Center.y,
-		                                          cv::Size(size.width / d_wantedZoom.Scale,
-		                                                   size.height / d_wantedZoom.Scale),
-		                                          size)),
+		cv::resize(cv::Mat(frame->ToCV(),d_wantedROI),
 		           *zoomed,zoomed->size(),
 		           0,0,cv::INTER_NEAREST);
 	}
@@ -351,7 +349,7 @@ void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
 	d_userInterface->QueueFrame({.Full = d_downscaled,
 	                             .Zoomed = zoomed,
 	                             .Message = m,
-	                             .CurrentZoom = d_wantedZoom,
+	                             .CurrentROI = d_wantedROI,
 	                             .FrameTime = frame->Time(),
 	                             .FPS = CurrentFPS(frame->Time()),
 	                             .FrameProcessed = d_frameProcessed,

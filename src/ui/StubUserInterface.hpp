@@ -10,7 +10,7 @@ public:
 
 	StubUserInterface(const cv::Size & workingResolution,
 	                  const DisplayOptions & options,
-	                  const ZoomChannelPtr & zoomChannel);
+	                  const ROIChannelPtr & roiChannel);
 
 	void PollEvents() override;
 
