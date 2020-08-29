@@ -203,26 +203,30 @@ void GLUserInterface::Zoom(int increment) {
 	const static float scaleIncrement = 0.5; //increments by 25%
 	int maxScaleFactor = std::ceil( ( float(d_fullSize.height) / 400.0f - 1.0f) / scaleIncrement);
 	d_currentScaleFactor = std::min(std::max(d_currentScaleFactor + increment,0),maxScaleFactor);
-	float maxScale = ( 1.0f + scaleIncrement * maxScaleFactor);
 	float scale = 1.0 / ( 1.0f + scaleIncrement * d_currentScaleFactor );
-	DLOG(WARNING) << "max scale factor is " << maxScaleFactor << " which is " << 100.0f * maxScale  <<  " which is " << d_fullSize.height / maxScale ;
 	cv::Size wantedSize = cv::Size(d_fullSize.width * scale,d_fullSize.height * scale) ;
 
-	d_ROI = GetROICenteredAt(d_currentPOI,wantedSize,d_fullSize);
-	d_currentPOI = cv::Point(d_ROI.x + + d_ROI.width/2,d_ROI.y + d_ROI.height/2);
-	ComputeProjection(d_ROI,d_roiProjection);
-	Draw();
+	UpdateROI(GetROICenteredAt(d_currentPOI,wantedSize,d_fullSize));
+
 }
 
 void GLUserInterface::Displace(const Eigen::Vector2f & offset ) {
 	d_currentPOI.x += offset.x() / d_roiProjection(0,0);
 	d_currentPOI.y += offset.y() / d_roiProjection(1,1);
-	d_ROI = GetROICenteredAt(d_currentPOI,d_ROI.size(),d_fullSize);
-	d_currentPOI = cv::Point(d_ROI.x + + d_ROI.width/2,d_ROI.y + d_ROI.height/2);
-	ComputeProjection(d_ROI,d_roiProjection);
-	Draw();
+	UpdateROI(GetROICenteredAt(d_currentPOI,d_ROI.size(),d_fullSize));
 }
 
+void GLUserInterface::UpdateROI(const cv::Rect & ROI) {
+	auto & buffer = d_buffer[d_index];
+	d_ROI = ROI;
+	d_currentPOI = cv::Point(d_ROI.x + + d_ROI.width/2,d_ROI.y + d_ROI.height/2);
+	ComputeProjection(d_ROI,d_roiProjection);
+	if ( buffer.FullUploaded == false ) {
+		UploadTexture(buffer);
+	}
+	Draw();
+	ROIChanged(d_ROI);
+}
 
 void GLUserInterface::OnText(unsigned int codepoint) {
 }
@@ -282,7 +286,7 @@ void GLUserInterface::UpdateFrame(const FrameToDisplay & frame,
 	} else {
 		buffer.TrackingSize = cv::Size(frame.Message->width(),frame.Message->height());
 	}
-	d_index = (d_index + 1 )%2;
+	d_index = (d_index + 1 ) % 2;
 	Draw();
 }
 
@@ -344,11 +348,13 @@ void GLUserInterface::InitPBOs() {
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
 }
 
-void GLUserInterface::UploadTexture(const DrawBuffer & buffer) {
+void GLUserInterface::UploadTexture(DrawBuffer & buffer) {
 	std::shared_ptr<cv::Mat> toUpload = buffer.Frame.Full;
+	buffer.FullUploaded = true;
 	if ( buffer.Frame.Zoomed
 	     && d_ROI == buffer.Frame.CurrentROI ) {
 		toUpload = buffer.Frame.Zoomed;
+		buffer.FullUploaded = false;
 	}
 
 	if ( !toUpload ) {

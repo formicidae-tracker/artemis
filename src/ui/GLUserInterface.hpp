@@ -39,6 +39,7 @@ private:
 		FrameToDisplay            Frame;
 		DataToDisplay             Data;
 		cv::Size                  TrackingSize;
+		bool                      FullUploaded;
 		GLuint                    PBO;
 		GLVertexBufferObject::Ptr NormalTags,HighlightedTags,TagLabels;
 	};
@@ -59,11 +60,13 @@ private:
 
 	void Zoom(int increment);
 	void Displace(const Eigen::Vector2f & offset);
+	void UpdateROI(const cv::Rect & ROI);
+
 
 	void ComputeViewport();
 
 	void Draw();
-	void UploadTexture(const DrawBuffer & buffer);
+	void UploadTexture(DrawBuffer & buffer);
 	void UploadPoints(DrawBuffer & buffer);
 
 	void Draw(const DrawBuffer & buffer);
