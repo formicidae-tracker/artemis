@@ -218,6 +218,7 @@ void GLUserInterface::OnSizeChanged(int width,int height) {
 
 	d_windowSize = cv::Size(width,height);
 	ComputeViewport();
+	ComputeProjection(cv::Rect(cv::Point(0,0),d_viewSize),d_viewProjection);
 	Draw();
 }
 
@@ -290,12 +291,12 @@ void GLUserInterface::InitGLData() {
 
 	GLVertexBufferObject::Matrix frameData(6,4);
 	frameData <<
-		0.0f               , 0.0f                , 0.0f, 0.0f,
-		d_workingSize.width, 0.0f                , 1.0f, 0.0f,
-		d_workingSize.width, d_workingSize.height, 1.0f, 1.0f,
-		d_workingSize.width, d_workingSize.height, 1.0f, 1.0f,
-		0.0f               , d_workingSize.height, 0.0f, 1.0f,
-		0.0f               , 0.0f                , 0.0f, 0.0f;
+		0.0f            , 0.0f             , 0.0f, 0.0f,
+		d_fullSize.width, 0.0f             , 1.0f, 0.0f,
+		d_fullSize.width, d_fullSize.height, 1.0f, 1.0f,
+		d_fullSize.width, d_fullSize.height, 1.0f, 1.0f,
+		0.0f            , d_fullSize.height, 0.0f, 1.0f,
+		0.0f            , 0.0f             , 0.0f, 0.0f;
 
 	d_frameVBO->Upload(frameData,2,2,0,true);
 
@@ -332,14 +333,6 @@ void GLUserInterface::InitGLData() {
 
 	glUseProgram(d_primitiveProgram);
 
-	Eigen::Matrix3f scaleMat;
-	scaleMat << 2.0 / float(d_workingSize.width), 0.0f , -1.0f,
-		0.0f, -2.0 / float(d_workingSize.height), 1.0f,
-		0.0f,0.0f,0.0f;
-
-	auto scaleID = glGetUniformLocation(d_primitiveProgram,"scaleMat");
-	glUniformMatrix3fv(scaleID,1,GL_FALSE,scaleMat.data());
-
 
 	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l,512);
 
@@ -347,30 +340,39 @@ void GLUserInterface::InitGLData() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	d_ROI = cv::Rect(cv::Point(d_fullSize.width/4,
-	                           d_fullSize.height/2),
-	                 cv::Size(d_fullSize.width/2,
-	                          d_fullSize.height/2));
+	// d_ROI = cv::Rect(cv::Point(d_fullSize.width/4,
+	//                            d_fullSize.height/2),
+	//                  cv::Size(d_fullSize.width/2,
+	//                           d_fullSize.height/2));
+
+	d_ROI = cv::Rect(cv::Point(0,0),d_fullSize);
+
+	ComputeProjection(cv::Rect(cv::Point(0,0),d_fullSize),d_fullProjection);
+	ComputeProjection(d_ROI,d_roiProjection);
+	ComputeProjection(cv::Rect(cv::Point(0,0),d_viewSize),d_viewProjection);
+}
+
+void GLUserInterface::ComputeProjection(const cv::Rect & roi, Eigen::Matrix3f & res) {
+	res <<
+		2.0f / float(roi.width),  0.0f                     , -1.0f - 2.0f * float(roi.x) / float(roi.width),
+		0.0f                   , -2.0f / float(roi.height) ,  1.0f + 2.0f * float(roi.y) / float(roi.height),
+		0.0f                   ,  0.0f                     ,  0.0f;
+}
+
+void GLUserInterface::UpdateProjections() {
+
 }
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glUseProgram(d_frameProgram);
 
-	Eigen::Matrix3f scaleMat;
-	scaleMat <<
-		2.0f / float(d_workingSize.width),  0.0f                              , -1.0f,
-		0.0f                             , -2.0f / float(d_workingSize.height), +1.0f,
-		0.0f                             ,  0.0f                              ,  0.0f;
-	if ( d_ROI != buffer.Frame.CurrentROI ) {
-		// we upscale the internal fullsize frame ourselves, in the
-		// future the process task will give us the correct ROI.
-		float actualFactor = float(d_fullSize.width) / float(d_ROI.width);
-		scaleMat.block<2,2>(0,0) *= actualFactor;
-		// TODO: fix offset computation to lie correctly on the
-		scaleMat.block<2,1>(0,2) -= 2.0f * actualFactor * Eigen::Vector2f(float(d_ROI.x)/float(d_fullSize.width),
-		                                                                  -float(d_ROI.y)/float(d_fullSize.height));
+	if ( d_ROI == buffer.Frame.CurrentROI ) {
+		// we use an higher resolution zoomed frame, we therefore use the full ROI projection
+		UploadMatrix(d_frameProgram,"scaleMat",d_fullProjection);
+	} else {
+		UploadMatrix(d_frameProgram,"scaleMat",d_roiProjection);
 	}
-	UploadMatrix(d_frameProgram,"scaleMat",scaleMat);
+
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D,d_frameTexture);
@@ -455,39 +457,28 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	}
 	glUseProgram(d_pointProgram);
 	auto factor = FullToWindowScaleFactor();
-	Eigen::Matrix3f scaleMat;
-	scaleMat <<  2.0f / float(buffer.Frame.Message->width()),0,-1.0f,
-		0, -2.0f / float(buffer.Frame.Message->height()),1.0f,
-		0.0f,0.0f,0.0f;
-	float actualFactor = 1.0;
 	if ( d_ROI.size() != d_fullSize ) {
-		// TODO clean !!!!
-		// we upscale the internal fullsize frame ourselves, in the
-		// future the process task will give us the correct ROI.
-		actualFactor = float(d_fullSize.width) / float(d_ROI.width);
-		scaleMat.block<2,2>(0,0) *= actualFactor;
-		// TODO: fix offset computation to lie correctly on the
-		scaleMat.block<2,1>(0,2) -= 2.0f * actualFactor * Eigen::Vector2f(float(d_ROI.x)/float(d_fullSize.width),
-		                                                                  -float(d_ROI.y)/float(d_fullSize.height));
+		factor *= float(d_fullSize.width) / float(d_ROI.width);
 	}
 
-	UploadMatrix(d_pointProgram,"scaleMat",scaleMat);
+	UploadMatrix(d_pointProgram,"scaleMat",d_roiProjection);
 
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(0.0f,1.0f,1.0f));
-	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor * actualFactor);
+	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor);
 	buffer.HighlightedTags->Render(GL_POINTS);
 
 	glPointSize(float(NORMAL_POINT_SIZE) * factor);
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(1.0f,0.0f,0.0f));
-	buffer.NormalTags->Render(GL_POINTS * actualFactor);
+	buffer.NormalTags->Render(GL_POINTS);
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
+	auto labelROI = cv::Rect(cv::Point(d_ROI.x - NORMAL_POINT_SIZE * 0.7,
+	                                   d_ROI.y - float(LABEL_FONT_SIZE) / FullToWindowScaleFactor()),
+	                         d_ROI.size());
 	RenderText(*buffer.TagLabels,
 	           *d_labelFont,
-	           cv::Rect(cv::Point(NORMAL_POINT_SIZE * 1.2,
-	                              NORMAL_POINT_SIZE * 1.2 +float(LABEL_FONT_SIZE) / FullToWindowScaleFactor()),
-	                    buffer.TrackingSize),
+	           labelROI,
 	           cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
 	           cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
 }
@@ -512,18 +503,12 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 
 	UploadColor(d_primitiveProgram,"primitiveColor",cv::Vec4f(0.0f,0.1f,0.2f,0.7f));
 
-	Eigen::Matrix3f scaleMat;
-	scaleMat <<
-		float(2.0) / float(d_viewSize.width), 0.0f                                  , -1.0f,
-		0.0f                                , -float(2.0) / float(d_viewSize.height),  1.0f,
-		0.0f                                , 0.0f                                  , 0.0f;
-	UploadMatrix(d_primitiveProgram,"scaleMat",scaleMat);
+	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
 
 	std::ostringstream oss;
 	oss << buffer.Frame.FrameDropped
 	    << " (" << std::fixed << std::setprecision(2)
 	    << 100.0f * (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
-
 
 	std::vector<GLFont::PositionedText> texts
 		= {
@@ -578,9 +563,6 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 		return;
 	}
 
-	if ( d_ROI != buffer.Frame.CurrentROI ) {
-		// TODO: update UV coordinates
-	}
 	glClear( GL_COLOR_BUFFER_BIT);
 
 	DrawMovieFrame(buffer);
@@ -600,12 +582,9 @@ void GLUserInterface::RenderText(const GLVertexBufferObject & buffer,
 	glUseProgram(d_fontProgram);
 	UploadColor(d_fontProgram,"foreground",foreground);
 	UploadColor(d_fontProgram,"background",background);
-	Eigen::Matrix3f scaleMat;
-	scaleMat <<
-		2.0f/ float(roi.width), 0.0f                     , -1.0f + float(roi.x) / float(roi.width),
-		0.0f                  , -2.0f / float(roi.height), 1.0f - float(roi.y) / float(roi.height),
-		0.0f                  , 0.0f                     , 0.0f;
-	UploadMatrix(d_fontProgram,"scaleMat",scaleMat);
+	Eigen::Matrix3f projection;
+	ComputeProjection(roi,projection);
+	UploadMatrix(d_fontProgram,"scaleMat",projection);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D,font.TextureID());

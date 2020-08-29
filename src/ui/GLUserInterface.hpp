@@ -84,6 +84,9 @@ private:
 	                const cv::Vec4f & forgeround,
 	                const cv::Vec4f & background);
 
+	static void ComputeProjection(const cv::Rect & roi,Eigen::Matrix3f & res);
+	void UpdateProjections();
+
 	float FullToWindowScaleFactor() const;
 
 	DrawBuffer     d_buffer[2];
@@ -93,6 +96,8 @@ private:
 	cv::Size       d_windowSize,d_viewSize;
 	float          d_currentScale;
 	cv::Rect       d_ROI;
+
+	Eigen::Matrix3f d_fullProjection,d_viewProjection,d_roiProjection;
 
 	std::shared_ptr<GLFont> d_labelFont,d_overlayFont;
 	cv::Size                d_overlayGlyphSize;
