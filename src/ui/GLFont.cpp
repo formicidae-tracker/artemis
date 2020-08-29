@@ -84,18 +84,25 @@ std::tuple<float,float,float,float>
 GLFont::RenderTextInMatrix(Eigen::Block<GLVertexBufferObject::Matrix> & block,
                            double scalingFactor,
                            const PositionedText & text) {
+
 	using namespace Eigen;
 	Vector2f pos(text.second.x,text.second.y);
 
 	Vector2f bottomLeft(pos),topRight(pos);
 	float margin = -1.0;
-
+	float advanceY = d_font->ascender - d_font->descender + d_font->linegap;
 	for ( 	size_t i = 0; i < text.first.size(); ++i ) {
+		if ( text.first[i] == '\n' ) {
+			pos.x() = text.second.x;
+			pos.y() += advanceY;
+			continue;
+		}
 
 		auto glyph = texture_font_get_glyph(d_font,&(text.first[i]));
 		if (glyph == NULL ) {
 			continue;
 		}
+
 
 		Vector2f p0 = pos + scalingFactor * Vector2f(glyph->offset_x,-glyph->offset_y);
 		Vector2f p1 = p0 + scalingFactor * Vector2f(glyph->width,glyph->height);
@@ -114,6 +121,7 @@ GLFont::RenderTextInMatrix(Eigen::Block<GLVertexBufferObject::Matrix> & block,
 			p1.x(), p0.y(),s1.x(),s0.y();
 
 		pos.x() += scalingFactor * glyph->advance_x;
+
 		margin = std::max(margin, glyph->advance_x);
 	}
 	margin *= scalingFactor * 0.25;

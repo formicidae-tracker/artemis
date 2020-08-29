@@ -486,13 +486,13 @@ void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
 template <typename T>
 std::string printLine(const std::string & label, size_t size,const T & value) {
 	std::ostringstream oss;
-	oss << label << ":"
+	oss << " " << label << ":"
 	    << std::setw(size - label.size() -1)
 	    << std::setfill(' ')
 	    << std::right
 	    << std::fixed
 	    << std::setprecision(2)
-	    << value;
+	    << value << " ";
 	return oss.str();
 }
 
@@ -505,36 +505,25 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 
 	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
 
-	std::ostringstream oss;
-	oss << buffer.Frame.FrameDropped
+	std::ostringstream dropOss;
+	dropOss << buffer.Frame.FrameDropped
 	    << " (" << std::fixed << std::setprecision(2)
 	    << 100.0f * (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
+	std::ostringstream oss;
+	oss << printLine("",OVERLAY_COLS,"") << std::endl
+	    << printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)) << std::endl
+	    << std::endl
+	    << printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()) << std::endl
+	    << printLine("Quads",OVERLAY_COLS,buffer.Frame.Message->quads()) << std::endl
+	    << std::endl
+	    << printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS) << std::endl
+	    << printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed) << std::endl
+	    << printLine("Frame Dropped",OVERLAY_COLS,dropOss.str()) << std::endl
+	    << printLine("",OVERLAY_COLS,"");
 
-	std::vector<GLFont::PositionedText> texts
-		= {
-		   {printLine(" ",OVERLAY_COLS," ") + " ",
-		    cv::Point(d_overlayGlyphSize.width,1*d_overlayGlyphSize.height)},
-		   {printLine(" Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)) + " ",
-		    cv::Point(d_overlayGlyphSize.width,2*d_overlayGlyphSize.height)},
-		   {printLine(" Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()) + " ",
-		    cv::Point(d_overlayGlyphSize.width,4*d_overlayGlyphSize.height)},
-		   {printLine(" Quads",OVERLAY_COLS,buffer.Frame.Message->quads()) + " ",
-		    cv::Point(d_overlayGlyphSize.width,5*d_overlayGlyphSize.height)},
-		   {printLine(" FPS",OVERLAY_COLS,buffer.Frame.FPS) + " ",
-		    cv::Point(d_overlayGlyphSize.width,7*d_overlayGlyphSize.height)},
-		   {printLine(" Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed) + " ",
-		    cv::Point(d_overlayGlyphSize.width,8*d_overlayGlyphSize.height)},
-		   {printLine(" Frame Dropped",OVERLAY_COLS,oss.str()) + " ",
-		    cv::Point(d_overlayGlyphSize.width,9*d_overlayGlyphSize.height)},
-		   {printLine(" ",OVERLAY_COLS," ") + " ",
-		    cv::Point(d_overlayGlyphSize.width,10*d_overlayGlyphSize.height)},
-	};
-
-	auto bBox = d_overlayFont->UploadTexts(*d_textOverlayVBO,
-	                                       1.0,
-	                                       texts.cbegin(),
-	                                       texts.cend());
-
+	auto bBox = d_overlayFont->UploadText(*d_textOverlayVBO,
+	                                      1.0,
+	                                      {oss.str(),cv::Point(10,10)});
 
 	GLVertexBufferObject::Matrix boxData(6,2);
 	boxData <<
