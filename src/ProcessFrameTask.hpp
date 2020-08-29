@@ -75,10 +75,6 @@ private :
 	void Detect(const Frame::Ptr & frame,
 	            hermes::FrameReadout & m);
 
-	static cv::Rect GetROIAt(int x, int y,
-	                         const cv::Size & roiSize,
-	                         const cv::Size & bound);
-
 	void ResetExportedID(const Time & time);
 
 	std::vector<std::tuple<uint32_t,double,double>> FindUnexportedID(const hermes::FrameReadout & m);

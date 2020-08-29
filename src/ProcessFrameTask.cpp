@@ -15,6 +15,8 @@
 
 #include <glog/logging.h>
 
+#include "Utils.hpp"
+
 namespace fort {
 namespace artemis {
 
@@ -300,19 +302,6 @@ ProcessFrameTask::FindUnexportedID(const hermes::FrameReadout & m) {
 }
 
 
-cv::Rect ProcessFrameTask::GetROIAt(int x, int y,
-                                    const cv::Size & roiSize,
-                                    const cv::Size & bound) {
-	x = std::clamp(x - roiSize.width / 2,
-	               0,
-	               bound.width - roiSize.width);
-
-	y = std::clamp(y - roiSize.height / 2,
-	               0,
-	               bound.height - roiSize.height);
-
-	return cv::Rect(cv::Point2d(x,y),roiSize);
-}
 
 void ProcessFrameTask::ExportROI(const cv::Mat & image,
                                  uint64_t frameID,
@@ -324,10 +313,10 @@ void ProcessFrameTask::ExportROI(const cv::Mat & image,
 	oss << d_options.NewAntOutputDir << "/ant_" << tagID << "_" << frameID << ".png";
 	cv::imwrite(oss.str(),
 	            cv::Mat(image,
-	                    GetROIAt(x,y,
-	                             cv::Size(d_options.NewAntROISize,
-	                                      d_options.NewAntROISize),
-	                             image.size())));
+	                    GetROICenteredAt({int(x),int(y)},
+	                                     cv::Size(d_options.NewAntROISize,
+	                                              d_options.NewAntROISize),
+	                                     image.size())));
 }
 
 

@@ -16,6 +16,7 @@
 
 #include "GLFont.hpp"
 
+#include "../Utils.hpp"
 
 #if (GLFW_VERSION_MAJOR * 100 + GLFW_VERSION_MINOR) < 303
 #define IMPLEMENT_GLFW_GET_ERROR 1
@@ -68,7 +69,6 @@ namespace artemis {
 #endif // IMPLEMENT_GLFW_GET_ERROR
 
 
-
 GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
                                  const cv::Size & fullSize,
                                  const DisplayOptions & options,
@@ -79,7 +79,8 @@ GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
 	, d_workingSize(workingResolution)
 	, d_fullSize(fullSize)
 	, d_windowSize(workingResolution)
-	, d_currentScale(1.0) {
+	, d_currentScaleFactor(0)
+	, d_currentPOI(fullSize.width/2,fullSize.height/2) {
 
 #ifdef IMPLEMENT_GLFW_GET_ERROR
 	glfwSetErrorCallback(&GLFWErrorCallback);
@@ -144,7 +145,103 @@ void GLUserInterface::SetWindowCallback() {
 		                          static_cast<GLUserInterface*>(glfwGetWindowUserPointer(w))->OnSizeChanged(width,height);
 	                          });
 
+	glfwSetKeyCallback(d_window.get(),
+	                   [](GLFWwindow * w, int key, int scancode, int action, int mods) {
+		                   static_cast<GLUserInterface*>(glfwGetWindowUserPointer(w))->OnKey(key,scancode,action,mods);
+	                   });
+
+
+	glfwSetCharCallback(d_window.get(),
+	                    [](GLFWwindow * w, unsigned int codepoint) {
+		                    static_cast<GLUserInterface*>(glfwGetWindowUserPointer(w))->OnText(codepoint);
+	                    });
+
+	glfwSetCursorPosCallback(d_window.get(),
+	                         [](GLFWwindow * w, double xpos, double ypos) {
+		                         static_cast<GLUserInterface*>(glfwGetWindowUserPointer(w))->OnMouseMove(xpos,ypos);
+	                           });
+
+
+
+	glfwSetMouseButtonCallback(d_window.get(),
+	                           [](GLFWwindow * w, int button, int action, int mods) {
+		                           static_cast<GLUserInterface*>(glfwGetWindowUserPointer(w))->OnMouseInput(button,action,mods);
+	                           });
+
+	glfwSetScrollCallback(d_window.get(),
+	                      [](GLFWwindow * w,double xOffset, double yOffset) {
+		                      static_cast<GLUserInterface*>(glfwGetWindowUserPointer(w))->OnScroll(xOffset,yOffset);
+	                      });
+
 }
+
+void GLUserInterface::OnKey(int key, int scancode, int action, int mods) {
+	if ( action != GLFW_PRESS ) {
+		return;
+	}
+
+	static std::map<std::pair<int,int>,std::function<void()>> actions
+		= {
+		   {{GLFW_KEY_UP,0},[this](){ Displace({0.0f,0.2f}); }},
+		   {{GLFW_KEY_DOWN,0},[this](){ Displace({0.0f,-0.2f});  }},
+		   {{GLFW_KEY_LEFT,0},[this](){ Displace({-0.2f,0.0f}); }},
+		   {{GLFW_KEY_RIGHT,0},[this](){ Displace({0.2f,0.0f});  }},
+		   {{GLFW_KEY_I,0},[this](){ Zoom(+1); }},
+		   {{GLFW_KEY_O,0},[this](){ Zoom(-1); }},
+		   {{GLFW_KEY_I,GLFW_MOD_SHIFT},[this](){ Zoom(2000); }},
+		   {{GLFW_KEY_O,GLFW_MOD_SHIFT},[this](){ Zoom(-this->d_currentScaleFactor); }},
+	};
+	auto fi = actions.find({key,mods});
+	if ( fi == actions.end() ) {
+		return;
+	}
+	fi->second();
+
+}
+
+void GLUserInterface::Zoom(int increment) {
+	const static float scaleIncrement = 0.5; //increments by 25%
+	int maxScaleFactor = std::ceil( ( float(d_fullSize.height) / 400.0f - 1.0f) / scaleIncrement);
+	d_currentScaleFactor = std::min(std::max(d_currentScaleFactor + increment,0),maxScaleFactor);
+	float maxScale = ( 1.0f + scaleIncrement * maxScaleFactor);
+	float scale = 1.0 / ( 1.0f + scaleIncrement * d_currentScaleFactor );
+	DLOG(WARNING) << "max scale factor is " << maxScaleFactor << " which is " << 100.0f * maxScale  <<  " which is " << d_fullSize.height / maxScale ;
+	cv::Size wantedSize = cv::Size(d_fullSize.width * scale,d_fullSize.height * scale) ;
+
+	d_ROI = GetROICenteredAt(d_currentPOI,wantedSize,d_fullSize);
+	d_currentPOI = cv::Point(d_ROI.x + + d_ROI.width/2,d_ROI.y + d_ROI.height/2);
+	ComputeProjection(d_ROI,d_roiProjection);
+	Draw();
+}
+
+void GLUserInterface::Displace(const Eigen::Vector2f & offset ) {
+	d_currentPOI.x += offset.x() / d_roiProjection(0,0);
+	d_currentPOI.y += offset.y() / d_roiProjection(1,1);
+	d_ROI = GetROICenteredAt(d_currentPOI,d_ROI.size(),d_fullSize);
+	d_currentPOI = cv::Point(d_ROI.x + + d_ROI.width/2,d_ROI.y + d_ROI.height/2);
+	ComputeProjection(d_ROI,d_roiProjection);
+	Draw();
+}
+
+
+void GLUserInterface::OnText(unsigned int codepoint) {
+}
+
+
+void GLUserInterface::OnMouseMove(double x, double y) {
+
+}
+
+
+void GLUserInterface::OnMouseInput(int button, int action, int mods) {
+
+}
+
+
+void GLUserInterface::OnScroll(double xOffset,double yOffset) {
+
+}
+
 
 void GLUserInterface::InitContext() {
 	DLOG(INFO) << "[GLUserInterface]: Making context current";
@@ -305,8 +402,8 @@ void GLUserInterface::InitGLData() {
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	d_pointProgram = ShaderUtils::CompileProgram(std::string(primitive_vertexshader,primitive_vertexshader+primitive_vertexshader_size),
 	                                             std::string(circle_fragmentshader,circle_fragmentshader+circle_fragmentshader_size));
@@ -340,11 +437,6 @@ void GLUserInterface::InitGLData() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	// d_ROI = cv::Rect(cv::Point(d_fullSize.width/4,
-	//                            d_fullSize.height/2),
-	//                  cv::Size(d_fullSize.width/2,
-	//                           d_fullSize.height/2));
-
 	d_ROI = cv::Rect(cv::Point(0,0),d_fullSize);
 
 	ComputeProjection(cv::Rect(cv::Point(0,0),d_fullSize),d_fullProjection);
@@ -356,12 +448,9 @@ void GLUserInterface::ComputeProjection(const cv::Rect & roi, Eigen::Matrix3f & 
 	res <<
 		2.0f / float(roi.width),  0.0f                     , -1.0f - 2.0f * float(roi.x) / float(roi.width),
 		0.0f                   , -2.0f / float(roi.height) ,  1.0f + 2.0f * float(roi.y) / float(roi.height),
-		0.0f                   ,  0.0f                     ,  0.0f;
+		0.0f                   ,  0.0f                     ,  1.0f;
 }
 
-void GLUserInterface::UpdateProjections() {
-
-}
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glUseProgram(d_frameProgram);

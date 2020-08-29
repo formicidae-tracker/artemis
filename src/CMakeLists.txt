@@ -80,6 +80,7 @@ set(SRC_FILES utils/Defer.cpp
 	          ui/shaders_data.c
 	          fonts/fonts_data.c
 	          ui/GLFont.cpp
+	          Utils.cpp
 	          main.cpp
 	          )
 
@@ -112,6 +113,7 @@ set(HDR_FILES utils/Defer.hpp
 	          fonts/fonts_data.h
 	          ui/GLFont.hpp
 	          Application.hpp
+	          Utils.hpp
 	          )
 
 
