@@ -63,7 +63,7 @@ private :
 	void SetUpCataloguing(const ProcessOptions & options);
 	void SetUpUserInterface(const cv::Size & workingresolution,
 	                        const cv::Size & fullresolution,
-	                        const DisplayOptions & options);
+	                        const Options & options);
 	void SetUpPoolObjects(const cv::Size & workingResolution);
 
 

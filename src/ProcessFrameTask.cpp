@@ -29,7 +29,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
 
 	SetUpDetection(inputResolution,options.Apriltag);
-	SetUpUserInterface(workingResolution,inputResolution,options.Display);
+	SetUpUserInterface(workingResolution,inputResolution,options);
 	SetUpVideoOutputTask(options.VideoOutput,context,options.General.LegacyMode);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects(workingResolution);
@@ -81,7 +81,7 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 
 void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
                                           const cv::Size & fullResolution,
-                                          const DisplayOptions & options) {
+                                          const Options & options) {
 	d_userInterface = std::make_shared<artemis::UserInterfaceTask>(workingResolution,
 	                                                               fullResolution,
 	                                                               options);

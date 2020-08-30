@@ -71,7 +71,7 @@ namespace artemis {
 
 GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
                                  const cv::Size & fullSize,
-                                 const DisplayOptions & options,
+                                 const Options & options,
                                  const ROIChannelPtr & roiChannel)
 	: UserInterface(workingResolution,options,roiChannel)
 	, d_window(nullptr,[](GLFWwindow*){})

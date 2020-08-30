@@ -7,7 +7,7 @@ namespace fort {
 namespace artemis {
 
 StubUserInterface::StubUserInterface(const cv::Size & workingResolution,
-                                     const DisplayOptions & options,
+                                     const Options & options,
                                      const ROIChannelPtr & roiChannel)
 	: UserInterface(workingResolution,options,roiChannel) {
 }

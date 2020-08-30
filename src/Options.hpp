@@ -35,7 +35,6 @@ struct DisplayOptions {
 	DisplayOptions();
 
 	std::vector<uint32_t> Highlighted;
-	bool                  DisplayROI;
 
 	void PopulateParser( options::FlagParser & parser);
 	void FinishParse();

@@ -1,15 +1,21 @@
 #include "UserInterface.hpp"
 
+#include "../utils/StringManipulation.hpp"
+
 namespace fort {
 namespace artemis {
 
 UserInterface::UserInterface(const cv::Size & workingResolution,
-                             const DisplayOptions & options,
+                             const Options & options,
                              const ROIChannelPtr & roiChannel)
 	: d_roiChannel(roiChannel)
-	, d_highlighted(options.Highlighted.begin(),
-	                options.Highlighted.end())
-	,d_displayROI(options.DisplayROI) {
+	, d_highlighted(options.Display.Highlighted.begin(),
+	                options.Display.Highlighted.end())
+	, d_watermark(options.General.TestMode ? "TEST MODE" : "")
+	, d_displayROI(options.General.TestMode == true)
+	, d_displayLabels(true)
+	, d_displayHelp(false)
+	, d_displayOverlay(true)  {
 
 }
 
@@ -52,6 +58,84 @@ UserInterface::ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> 
 void UserInterface::PushFrame(const FrameToDisplay & frame) {
 	UpdateFrame(frame,ComputeDataToDisplay(frame.Message));
 }
+
+
+void UserInterface::ToggleROIDisplay()  {
+	d_displayROI = !d_displayROI;
+}
+
+void UserInterface::ToggleLabelDisplay() {
+	d_displayLabels = !d_displayLabels;
+}
+
+void UserInterface::ToggleDisplayHelp() {
+	d_displayHelp = !d_displayHelp;
+}
+
+void UserInterface::ToggleDisplayOverlay() {
+	d_displayOverlay = !d_displayOverlay;
+}
+
+bool UserInterface::DisplayROI() const {
+	return d_prompt.empty() && d_displayROI;
+}
+
+bool UserInterface::DisplayLabels() const {
+	return d_prompt.empty() && d_displayROI == false && d_displayLabels;
+}
+
+bool UserInterface::DisplayHelp() const {
+	return d_prompt.empty() && d_displayHelp;
+}
+
+bool UserInterface::DisplayOverlay() const {
+	return d_prompt.empty() && d_displayHelp == false && d_displayOverlay;
+}
+
+const std::string & UserInterface::Watermark() const {
+	return d_watermark;
+}
+
+std::string UserInterface::PromptAndValue() const {
+	return d_prompt + d_value;
+}
+
+void UserInterface::EnterHighlightPrompt() {
+	d_value.clear();
+	std::ostringstream prompt;
+	if ( d_highlighted.empty() ) {
+		prompt << "No highlighted tags" << std::endl;
+	} else {
+		prompt << "highlighted tags:" << std::endl;
+		for ( const auto & t : d_highlighted ) {
+			prompt << " * 0x" << std::hex << std::setfill('0') << std::setw(3) << t << std::endl;
+		}
+	}
+	prompt << "Toggle Highlighting for TagID : ";
+	d_prompt = prompt.str();
+}
+
+void UserInterface::LeaveHighlightPrompt() {
+	base::TrimSpaces(d_value);
+	if ( base::HasPrefix(d_value,"0x") == true ) {
+		std::istringstream iss;
+		uint32_t h;
+		iss >> std::hex >> h;
+		if ( iss.good() == true ) {
+			ToggleHighlight(h);
+		}
+	}
+	d_value.clear();
+	d_prompt.clear();
+}
+
+void UserInterface::AppendPromptValue( char c ) {
+	if ( c  == '\n' ) {
+		LeaveHighlightPrompt();
+	}
+	d_value += c;
+}
+
 
 
 } // namespace artemis

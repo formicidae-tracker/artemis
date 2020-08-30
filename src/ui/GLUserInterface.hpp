@@ -19,7 +19,7 @@ class GLUserInterface : public UserInterface {
 public:
 	GLUserInterface(const cv::Size & workingResolution,
 	                const cv::Size & fullResolution,
-	                const DisplayOptions & options,
+	                const Options & options,
 	                const ROIChannelPtr & roiChannel);
 
 	virtual ~GLUserInterface();

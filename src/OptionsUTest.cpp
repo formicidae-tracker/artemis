@@ -19,7 +19,6 @@ TEST_F(OptionsUTest,DefaultValues) {
 	EXPECT_EQ(options.General.LegacyMode,false);
 
 	EXPECT_TRUE(options.Display.Highlighted.empty());
-	EXPECT_FALSE(options.Display.DisplayROI);
 
 
 	EXPECT_EQ(options.Network.Host,"");
@@ -120,11 +119,6 @@ TEST_F(OptionsUTest,TestParse) {
 				    EXPECT_EQ(options.Display.Highlighted[0],1);
 				    EXPECT_EQ(options.Display.Highlighted[1],0x0ae);
 			    }
-		    }},
-
-		   {{"artemis","--display-roi"},
-		    [](const Options & options) {
-			    EXPECT_EQ(options.Display.DisplayROI,true);
 		    }},
 
 		   {{"artemis","--frame-stride", "33"},

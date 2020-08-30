@@ -34,7 +34,7 @@ public:
 	typedef std::shared_ptr<ROIChannel> ROIChannelPtr;
 
 	UserInterface(const cv::Size & workingResolution,
-	              const DisplayOptions & options,
+	              const Options & options,
 	              const ROIChannelPtr & zoomChannel);
 
 
@@ -52,15 +52,35 @@ protected:
 
 	void ROIChanged(const cv::Rect & roi);
 	void ToggleHighlight(uint32_t tagID);
+	void ToggleROIDisplay();
+	void ToggleLabelDisplay();
+	void ToggleDisplayHelp();
+	void ToggleDisplayOverlay();
+
+	std::string PromptAndValue() const;
+	void EnterHighlightPrompt();
+	void LeaveHighlightPrompt();
+	void AppendPromptValue( char c );
 
 
+
+	bool DisplayROI() const;
+	bool DisplayLabels() const;
+	bool DisplayHelp() const;
+	bool DisplayOverlay() const;
+	const std::string & Watermark() const;
 
 	DataToDisplay ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> & m);
 
 private:
 	ROIChannelPtr      d_roiChannel;
 	std::set<uint32_t> d_highlighted;
+	const std::string  d_watermark;
+	std::string        d_prompt,d_value;
 	bool               d_displayROI;
+	bool               d_displayLabels;
+	bool               d_displayHelp;
+	bool               d_displayOverlay;
 };
 
 

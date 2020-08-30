@@ -18,7 +18,7 @@ public:
 
 	UserInterfaceTask(const cv::Size & workingResolution,
 	                  const cv::Size & fullResolution,
-	                  const DisplayOptions & options);
+	                  const Options & options);
 
 	virtual ~UserInterfaceTask();
 
@@ -35,11 +35,11 @@ public:
 private:
 	tbb::concurrent_queue<UserInterface::FrameToDisplay> d_displayQueue;
 
-	std::unique_ptr<UserInterface>        d_ui;
-	const cv::Size                        d_workingResolution,d_fullResolution;
-	const DisplayOptions                  d_options;
-	const cv::Rect                        d_defaultROI;
-	UserInterface::ROIChannelPtr          d_roiChannel;
+	std::unique_ptr<UserInterface> d_ui;
+	const cv::Size                 d_workingResolution,d_fullResolution;
+	const Options                  d_options;
+	const cv::Rect                 d_defaultROI;
+	UserInterface::ROIChannelPtr   d_roiChannel;
 
 };
 

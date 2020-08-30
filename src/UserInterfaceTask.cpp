@@ -11,7 +11,7 @@ namespace artemis {
 
 UserInterfaceTask::UserInterfaceTask(const cv::Size & workingResolution,
                                      const cv::Size & fullResolution,
-                                     const DisplayOptions & options)
+                                     const Options & options)
 	: d_workingResolution(workingResolution)
 	, d_fullResolution(fullResolution)
 	, d_options(options)
