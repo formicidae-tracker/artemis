@@ -7,73 +7,13 @@ cmake_minimum_required(VERSION 3.11)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
+include(FetchGoogleTest)
+include(FetchFortTags)
+include(FetchFortHermes)
+include(FetchBoostAsio)
+include(FetchFreetypeGL)
+
 set(CMAKE_CXX_STANDARD 17)
-
-include(FetchContent)
-FetchContent_Declare(googletest
-                     GIT_REPOSITORY https://github.com/google/googletest.git
-                     GIT_TAG        release-1.8.1
-                     )
-
-FetchContent_Declare(fort-tags
-                     GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
-                     GIT_TAG        v1.3.1)
-
-FetchContent_Declare(hermes
-                     GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
-                     GIT_TAG        v0.4.0)
-
-FetchContent_Declare(boost-asio
-                     GIT_REPOSITORY https://github.com/boostorg/asio
-                     GIT_TAG        boost-1.74.0)
-
-FetchContent_Declare(freetype-gl
-                     GIT_REPOSITORY https://github.com/rougier/freetype-gl
-                     GIT_TAG        1a8c007f3fe7b1441f9e5616bc23d7455f4b07dd)
-
-
-FetchContent_GetProperties(googletest)
-if(NOT googletest_POPULATED)
-	FetchContent_Populate(googletest)
-	add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif(NOT googletest_POPULATED)
-
-
-FetchContent_GetProperties(fort-tags)
-if(NOT fort-tags_POPULATED)
-	FetchContent_Populate(fort-tags)
-	add_subdirectory(${fort-tags_SOURCE_DIR} ${fort-tags_BINARY_DIR})
-endif(NOT fort-tags_POPULATED)
-
-FetchContent_GetProperties(hermes)
-if(NOT hermes_POPULATED)
-	FetchContent_Populate(hermes)
-	add_subdirectory(${hermes_SOURCE_DIR} ${hermes_BINARY_DIR})
-endif(NOT hermes_POPULATED)
-set(HERMES_INCLUDE_DIRS ${hermes_SOURCE_DIR}/src ${hermes_BINARY_DIR}/src)
-
-FetchContent_GetProperties(boost-asio)
-if(NOT boost-asio_POPULATED)
-	FetchContent_Populate(boost-asio)
-endif(NOT boost-asio_POPULATED)
-set(boost-asio_INCLUDE_DIRS ${boost-asio_SOURCE_DIR}/include)
-
-
-set(OpenGL_PREFERENCE GLVND)
-FetchContent_GetProperties(freetype-gl)
-if(NOT freetype-gl_POPULATED)
-
-	set(freetype-gl_WITH_GLEW ON CACHE INTERNAL "")
-	set(freetype-gl_USE_VAO ON CACHE INTERNAL "")
-	set(freetype-gl_BUILD_DEMOS OFF CACHE INTERNAL "")
-	set(freetype-gl_BUILD_APIDOC OFF CACHE INTERNAL "")
-	set(freetype-gl_BUILD_MAKEFONT OFF CACHE INTERNAL "")
-	set(freetype-gl_BUILD_TESTS OFF CACHE INTERNAL "")
-
-	FetchContent_Populate(freetype-gl)
-	add_subdirectory(${freetype-gl_SOURCE_DIR} ${freetype-gl_BINARY_DIR})
-endif(NOT freetype-gl_POPULATED)
-set(FREETYPE_GL_INCLUDE_DIRS ${freetype-gl_SOURCE_DIR})
 
 
 option(EURESYS_FRAMEGRABBER_SUPPORT "Add support for Euresys Framegrabber" On)
@@ -87,41 +27,46 @@ if(EURESYS_FRAMEGRABBER_SUPPORT)
 	find_package(EGrabber REQUIRED)
 endif(EURESYS_FRAMEGRABBER_SUPPORT)
 
+fetch_google_test(VERSION release-1.8.1)
+fetch_fort_tags(VERSION v1.3.1)
+fetch_fort_hermes(VERSION v0.4.0)
+fetch_boost_asio(VERSION boost-1.74.0)
+fetch_freetype_gl(VERSION 1a8c007f3fe7b1441f9e5616bc23d7455f4b07dd)
+
+
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
+set(OpenGL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(GLEW REQUIRED)
+find_package(Protobuf 3.3.0 REQUIRED)
 
 pkg_check_modules(TBB tbb REQUIRED)
-pkg_check_modules(FONTCONFIG fontconfig freetype2 REQUIRED)
 
-find_package(Protobuf 3.3.0 REQUIRED)
+pkg_check_modules(FONTCONFIG fontconfig freetype2 REQUIRED)
 
 
 add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(${EGRABBER_INCLUDE_DIRS}
-                    ${boost-asio_INCLUDE_DIRS}
-	                ${GLOG_INCLUDE_DIRS}
-	                ${OpenCV_INCLUDE_DIRS}
+                    ${GLOG_INCLUDE_DIRS}
+                    ${OpenCV_INCLUDE_DIRS}
+                    ${EIGEN3_INCLUDE_DIRS}
+                    ${OPENGL_INCLUDE_DIRS}
+                    # GLFW uses target properties
+                    ${GLEW_INCLUDE_DIRS}
+                    ${PROTOBUF_INCLUDE_DIRS}
 	                ${TBB_INCLUDE_DIRS}
-	                ${gflags_INCLUDE_DIRS}
-	                ${EIGEN3_INCLUDE_DIRS}
-	                ${HERMES_INCLUDE_DIRS}
-	                ${APRILTAG_INCLUDE_DIRS}
-	                ${GLEW_INCLUDE_DIRS}
+                    ${FONTCONFIG_INCLUDE_DIRS}
+                    ${FORT_TAGS_INCLUDE_DIRS}
+                    ${FORT_HERMES_INCLUDE_DIRS}
+                    ${BOOST_ASIO_INCLUDE_DIRS}
 	                ${FREETYPE_GL_INCLUDE_DIRS}
-	                ${FONTCONFIG_INCLUDE_DIRS}
-	                ${fort-tags_SOURCE_DIR}/include
-	                ${googletest_SOURCE_DIR}/googlemock/include
-	                ${googletest_SOURCE_DIR}/googletest/include
 	                )
 
-
-include(GoogleTest)
 include(EnableMakeCheck)
 enable_testing()
 enable_make_check()
