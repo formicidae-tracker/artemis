@@ -100,12 +100,17 @@ void GeneralOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("fetch-resolution",PrintResolution,"Print the camera resolution");
 	parser.AddFlag("version",PrintVersion,"Print version");
 	parser.AddFlag("log-output-dir",LogDir,"Directory to put logs in");
-	parser.AddFlag("stub-image-path", StubImagePath, "Use a stub image instead of an actual framegrabber");
+	parser.AddFlag("stub-image-path", stubImagePaths, "Use a stub image instead of an actual framegrabber");
 	parser.AddFlag("test-mode",TestMode,"Test mode, adds an overlay detection drawing and statistics");
 	parser.AddFlag("legacy-mode",LegacyMode,"Uses a legacy mode data output for ants cataloging and video output display. The data will be convertible to the data expected by the former Keller's group tracking system");
 }
 
-void GeneralOptions::FinishParse() {}
+void GeneralOptions::FinishParse() {
+	base::SplitString(stubImagePaths.cbegin(),
+	                  stubImagePaths.cend(),
+	                  ",",
+	                  std::back_inserter<std::vector<std::string>>(StubImagePaths));
+}
 
 
 NetworkOptions::NetworkOptions()

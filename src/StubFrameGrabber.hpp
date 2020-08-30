@@ -27,7 +27,7 @@ private :
 
 class StubFrameGrabber : public FrameGrabber {
 public :
-	StubFrameGrabber(const std::string & path,
+	StubFrameGrabber(const std::vector<std::string> & paths,
 	                 double FPS);
 
 	virtual ~StubFrameGrabber();
@@ -40,10 +40,10 @@ public :
 private:
 	typedef std::chrono::high_resolution_clock clock;
 	typedef clock::time_point time;
-	cv::Mat           d_image;
-	uint64_t          d_ID,d_timestamp;
-	Time              d_last;
-	Duration          d_period;
+	std::vector<cv::Mat> d_images;
+	uint64_t             d_ID,d_timestamp;
+	Time                 d_last;
+	Duration             d_period;
 };
 
 

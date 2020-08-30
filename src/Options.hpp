@@ -24,10 +24,12 @@ struct GeneralOptions {
 	bool        PrintResolution;
 
 	std::string LogDir;
-	std::string StubImagePath;
+	std::vector<std::string> StubImagePaths;
 
 	bool        TestMode;
 	bool        LegacyMode;
+
+	std::string stubImagePaths;
 };
 
 

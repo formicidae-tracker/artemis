@@ -43,14 +43,19 @@ const cv::Mat & StubFrame::ToCV() {
 }
 
 
-StubFrameGrabber::StubFrameGrabber(const std::string & path,
+StubFrameGrabber::StubFrameGrabber(const std::vector<std::string> & paths,
                                    double FPS)
 	: d_ID(0)
 	, d_timestamp(0)
 	, d_period(1.0e9 / FPS) {
-	d_image = cv::imread(path,0);
-	if ( d_image.data == NULL ) {
-		throw std::runtime_error("Could not load '" + path + "'");
+	for ( const auto & p : paths ) {
+		d_images.push_back(cv::imread(p,0));
+		if ( d_images.back().data == NULL ) {
+			throw std::runtime_error("Could not load '" + p + "'");
+		}
+		if ( d_images.back().size() != d_images[0].size() ) {
+			throw std::runtime_error("'" + paths[0] + "' and '" + p + "' have different sizes");
+		}
 	}
 }
 
@@ -65,7 +70,7 @@ void StubFrameGrabber::Stop() {
 }
 
 cv::Size StubFrameGrabber::Resolution() const {
-	return d_image.size();
+	return d_images.front().size();
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {
@@ -74,7 +79,7 @@ Frame::Ptr StubFrameGrabber::NextFrame() {
 		usleep(toWait.Microseconds());
 	}
 
-	Frame::Ptr res = std::make_shared<StubFrame>(d_image,d_ID);
+	Frame::Ptr res = std::make_shared<StubFrame>(d_images[d_ID % d_images.size()],d_ID);
 	d_ID += 1;
 	d_last = res->Time();
 	return res;

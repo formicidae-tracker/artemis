@@ -14,7 +14,7 @@ TEST_F(OptionsUTest,DefaultValues) {
 	EXPECT_EQ(options.General.PrintVersion,false);
 	EXPECT_EQ(options.General.PrintResolution,false);
 	EXPECT_EQ(options.General.LogDir,"");
-	EXPECT_EQ(options.General.StubImagePath,"");
+	EXPECT_TRUE(options.General.StubImagePaths.empty());
 	EXPECT_EQ(options.General.TestMode,false);
 	EXPECT_EQ(options.General.LegacyMode,false);
 
@@ -76,9 +76,14 @@ TEST_F(OptionsUTest,TestParse) {
 		    [](const Options & options) {
 			    EXPECT_EQ(options.General.LogDir,"foo");
 		    }},
-		   {{"artemis","--stub-image-path","foo"},
+		   {{"artemis","--stub-image-path","foo,bar,baz"},
 		    [](const Options & options) {
-			    EXPECT_EQ(options.General.StubImagePath,"foo");
+			    EXPECT_EQ(options.General.StubImagePaths.size(),3);
+			    if ( options.General.StubImagePaths.size() == 3 ) {
+				    EXPECT_EQ(options.General.StubImagePaths[0],"foo");
+				    EXPECT_EQ(options.General.StubImagePaths[1],"bar");
+				    EXPECT_EQ(options.General.StubImagePaths[2],"baz");
+			    }
 		    }},
 		   {{"artemis","--test-mode"},
 		    [](const Options & options) {

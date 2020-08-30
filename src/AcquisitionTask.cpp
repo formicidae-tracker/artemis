@@ -13,17 +13,17 @@
 namespace fort {
 namespace artemis {
 
-FrameGrabber::Ptr AcquisitionTask::LoadFrameGrabber(const std::string & stubImagePath,
+FrameGrabber::Ptr AcquisitionTask::LoadFrameGrabber(const std::vector<std::string> & stubImagePaths,
                                                     const CameraOptions & options) {
 #ifndef FORCE_STUB_FRAMEGRABBER_ONLY
-	if (stubImagePath.empty() ) {
+	if (stubImagePaths.empty() ) {
 		static Euresys::EGenTL egentl;
 		return std::make_shared<EuresysFrameGrabber>(egentl,options);
 	} else {
-	  return std::make_shared<StubFrameGrabber>(stubImagePath,options.FPS);
+		return std::make_shared<StubFrameGrabber>(stubImagePaths,options.FPS);
 	}
 #else
-	return std::make_shared<StubFrameGrabber>(stubImagePath,options.FPS);
+	return std::make_shared<StubFrameGrabber>(stubImagePaths,options.FPS);
 #endif
 }
 
