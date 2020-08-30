@@ -471,10 +471,10 @@ void GLUserInterface::InitGLData() {
 	glUseProgram(d_primitiveProgram);
 
 
-	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l,512);
+	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l * 2.0f,512);
 
 	if ( Watermark().empty() == false ) {
-		d_watermarkFont = std::make_shared<GLFont>("Ubuntu Bold",48,412);
+		d_watermarkFont = std::make_shared<GLFont>("Ubuntu Bold",48,512);
 		d_watermarkVBO = std::make_shared<GLVertexBufferObject>();
 	}
 
@@ -581,7 +581,7 @@ void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	buffer.NormalTags->Upload(points.block(0,0,i+1,2),2,0,0);
 
 	d_labelFont->UploadTexts(*buffer.TagLabels,
-	                         factor,
+	                         factor / 2.0f,
 	                         tagLabels.cbegin(),
 	                         tagLabels.cend());
 }
