@@ -31,6 +31,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.c ${CMAKE_
                                                          "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/circle.fragmentshader
                                                          "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.vertexshader
                                                          "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.fragmentshader
+                                                         "-I" ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/roi.fragmentshader
 
 
                    DEPENDS resourcify
@@ -41,6 +42,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.c ${CMAKE_
                            ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.vertexshader
                            ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.fragmentshader
                            ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.fragmentshader
+                           ${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/roi.fragmentshader
                            )
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data.c ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data.h

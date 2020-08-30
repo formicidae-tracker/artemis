@@ -78,6 +78,7 @@ private:
 	void DrawWatermark();
 	void DrawHelp();
 	void DrawPrompt();
+	void DrawROI(const DrawBuffer & buffer);
 
 	static void UploadMatrix(GLuint programID,
 	                         const std::string & name,
@@ -90,6 +91,10 @@ private:
 	static void UploadColor(GLuint programID,
 	                        const std::string & name,
 	                        const cv::Vec4f & color);
+
+	static void UploadFloat(GLuint programID,
+	                        const std::string & name,
+	                        float f);
 
 	void RenderText(const GLVertexBufferObject & buffer,
 	                const GLFont & font,
@@ -124,7 +129,9 @@ private:
 		d_boxOverlayVBO,d_textOverlayVBO,
 		d_watermarkVBO,d_helpVBO,d_promptVBO;
 	GLuint d_frameProgram,d_frameTexture,
-		d_pointProgram,d_primitiveProgram, d_fontProgram;
+		d_pointProgram,d_primitiveProgram, d_fontProgram, d_roiProgram;
+
+	const size_t d_ROISize;
 
 	static const cv::Vec4f OVERLAY_GLYPH_FOREGROUND;
 	static const cv::Vec4f OVERLAY_GLYPH_BACKGROUND;

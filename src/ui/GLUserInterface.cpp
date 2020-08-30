@@ -80,7 +80,8 @@ GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
 	, d_fullSize(fullSize)
 	, d_windowSize(workingResolution)
 	, d_currentScaleFactor(0)
-	, d_currentPOI(fullSize.width/2,fullSize.height/2) {
+	, d_currentPOI(fullSize.width/2,fullSize.height/2)
+	, d_ROISize(options.Process.NewAntROISize){
 
 #ifdef IMPLEMENT_GLFW_GET_ERROR
 	glfwSetErrorCallback(&GLFWErrorCallback);
@@ -287,6 +288,9 @@ GLUserInterface::~GLUserInterface() {
 	d_boxOverlayVBO.reset();
 	d_textOverlayVBO.reset();
 	d_frameVBO.reset();
+	d_watermarkVBO.reset();
+	d_helpVBO.reset();
+	d_promptVBO.reset();
 	for(size_t i = 0; i <2 ; ++i) {
 		d_buffer[i].NormalTags.reset();
 		d_buffer[i].HighlightedTags.reset();
@@ -444,6 +448,9 @@ void GLUserInterface::InitGLData() {
 
 	d_fontProgram = ShaderUtils::CompileProgram(std::string(font_vertexshader,font_vertexshader+font_vertexshader_size),
 	                                            std::string(font_fragmentshader,font_fragmentshader+font_fragmentshader_size));
+
+	d_roiProgram = ShaderUtils::CompileProgram(std::string(primitive_vertexshader,primitive_vertexshader+primitive_vertexshader_size),
+	                                             std::string(roi_fragmentshader,roi_fragmentshader+roi_fragmentshader_size));
 	size_t l = LABEL_FONT_SIZE;
 	size_t o = OVERLAY_FONT_SIZE;
 
@@ -539,6 +546,13 @@ void GLUserInterface::UploadColor(GLuint programID,
 	glUniform4fv(colorID,1,&color[0]);
 }
 
+void GLUserInterface::UploadFloat(GLuint programID,
+                                  const std::string & name,
+                                  float f) {
+	auto fID = glGetUniformLocation(programID,name.c_str());
+	glUniform1f(fID,f);
+}
+
 
 void GLUserInterface::UploadPoints(DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
@@ -577,6 +591,28 @@ float GLUserInterface::FullToWindowScaleFactor() const {
 	                float(d_windowSize.height)/float(d_fullSize.height));
 }
 
+void GLUserInterface::DrawROI(const DrawBuffer & buffer) {
+	if (!buffer.Frame.Message || DisplayROI() == false ) {
+		return;
+	}
+	glUseProgram(d_roiProgram);
+	auto factor = FullToWindowScaleFactor();
+	if ( d_ROI.size() != d_fullSize ) {
+		factor *= float(d_fullSize.width) / float(d_ROI.width);
+	}
+	auto floatPointSize = float(d_ROISize) * factor;
+
+
+	UploadMatrix(d_roiProgram,"scaleMat",d_roiProjection);
+
+	UploadColor(d_roiProgram,"boxColor",cv::Vec3f(0.0f,1.0f,1.0f));
+	glPointSize(floatPointSize);
+	UploadFloat(d_roiProgram,"lineWidth", 3.0f * 2.0f / floatPointSize);
+	buffer.HighlightedTags->Render(GL_POINTS);
+	UploadColor(d_roiProgram,"boxColor",cv::Vec3f(1.0f,0.0f,0.0f));
+	buffer.NormalTags->Render(GL_POINTS);
+}
+
 void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	if ( !buffer.Frame.Message ) {
 		return;
@@ -586,7 +622,6 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 	if ( d_ROI.size() != d_fullSize ) {
 		factor *= float(d_fullSize.width) / float(d_ROI.width);
 	}
-
 	UploadMatrix(d_pointProgram,"scaleMat",d_roiProjection);
 
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(0.0f,1.0f,1.0f));
@@ -679,6 +714,7 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
+	DrawROI(buffer);
 	DrawLabels(buffer);
 	DrawWatermark();
 	DrawInformations(buffer);
@@ -723,8 +759,8 @@ void GLUserInterface::DrawWatermark() {
 	           cv::Rect(cv::Point(d_watermarkBox.width/2 - d_viewSize.width/2 ,
 	                              d_watermarkBox.height/2 - d_viewSize.height/2),
 	                    d_viewSize),
-	           cv::Vec4f(0.8f,0.2f,0.2f,1.0f),
-	           cv::Vec4f(0.8f,0.2f,0.2f,0.0f));
+	           cv::Vec4f(0.8f,0.8f,0.2f,0.5f),
+	           cv::Vec4f(0.8f,0.8f,0.2f,0.0f));
 
 }
 

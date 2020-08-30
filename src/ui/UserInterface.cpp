@@ -13,7 +13,7 @@ UserInterface::UserInterface(const cv::Size & workingResolution,
 	                options.Display.Highlighted.end())
 	, d_watermark(options.General.TestMode ? "TEST MODE" : "")
 	, d_displayROI(options.General.TestMode == true)
-	, d_displayLabels(true)
+	, d_displayLabels(false)
 	, d_displayHelp(false)
 	, d_displayOverlay(true)  {
 

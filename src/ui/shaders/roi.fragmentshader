@@ -1,0 +1,13 @@
+// -*- mode: glsl -*-
+#version 330 core
+
+uniform vec3 boxColor;
+uniform float lineWidth;
+out vec4 color;
+
+void main(){
+	vec2 p = 2.0 * gl_PointCoord - 1.0;
+	float dist = max(abs(p.x),abs(p.y));
+	color.rbg = boxColor;
+	color.a = smoothstep(1.0- 1.05 *lineWidth,1.0-lineWidth,dist);
+}
