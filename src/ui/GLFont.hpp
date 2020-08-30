@@ -36,7 +36,8 @@ public :
 	                     double scalingFactor,
 	                     const Iter & begin,
 	                     const Iter & end) {
-		Eigen::Vector2f topLeft(std::numeric_limits<float>::max(),std::numeric_limits<float>::max()),bottomRight(0.0f,0.0f);
+		Eigen::Vector2f topLeft(std::numeric_limits<float>::max(),std::numeric_limits<float>::max()),
+			bottomRight(std::numeric_limits<float>::min(),std::numeric_limits<float>::min());
 
 		auto totalQuads = std::accumulate(begin,end,
 		                                  size_t(0),

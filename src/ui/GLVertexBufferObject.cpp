@@ -17,6 +17,19 @@ void GLVertexBufferObject::Clear() {
 	d_elementSize = 0;
 }
 
+void GLVertexBufferObject::UploadRect(const cv::Rect & bBox, bool staticUpload) {
+	GLVertexBufferObject::Matrix boxData(6,2);
+	boxData <<
+		bBox.x             , bBox.y              ,
+		bBox.x + bBox.width, bBox.y              ,
+		bBox.x             , bBox.y + bBox.height,
+		bBox.x             , bBox.y + bBox.height,
+		bBox.x + bBox.width, bBox.y              ,
+		bBox.x + bBox.width, bBox.y + bBox.height;
+
+	Upload(boxData,2,0,0,staticUpload);
+}
+
 void GLVertexBufferObject::Upload(const Matrix & data,
                                   size_t vertexSize,
                                   size_t texelSize,

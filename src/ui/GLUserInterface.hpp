@@ -75,7 +75,9 @@ private:
 	void DrawPoints(const DrawBuffer & buffer);
 	void DrawLabels(const DrawBuffer & buffer);
 	void DrawInformations(const DrawBuffer & buffer);
-
+	void DrawWatermark();
+	void DrawHelp();
+	void DrawPrompt();
 
 	static void UploadMatrix(GLuint programID,
 	                         const std::string & name,
@@ -95,6 +97,9 @@ private:
 	                const cv::Vec4f & forgeround,
 	                const cv::Vec4f & background);
 
+	static void ComputeRectVertices(GLVertexBufferObject::Matrix & mat,
+	                         const cv::Rect & rect);
+
 	static void ComputeProjection(const cv::Rect & roi,Eigen::Matrix3f & res);
 	void UpdateProjections();
 
@@ -111,13 +116,21 @@ private:
 
 	Eigen::Matrix3f d_fullProjection,d_viewProjection,d_roiProjection;
 
-	std::shared_ptr<GLFont> d_labelFont,d_overlayFont;
+	std::shared_ptr<GLFont> d_labelFont,d_overlayFont,d_watermarkFont;
 	cv::Size                d_overlayGlyphSize;
+	cv::Rect                d_watermarkBox;
 
-	GLVertexBufferObject::Ptr d_frameVBO,d_boxOverlayVBO,d_textOverlayVBO;
+	GLVertexBufferObject::Ptr d_frameVBO,
+		d_boxOverlayVBO,d_textOverlayVBO,
+		d_watermarkVBO,d_helpVBO,d_promptVBO;
 	GLuint d_frameProgram,d_frameTexture,
 		d_pointProgram,d_primitiveProgram, d_fontProgram;
 
+	static const cv::Vec4f OVERLAY_GLYPH_FOREGROUND;
+	static const cv::Vec4f OVERLAY_GLYPH_BACKGROUND;
+	static const cv::Vec4f OVERLAY_BACKGROUND;
+	static const cv::Vec4f LABEL_FOREGROUND;
+	static const cv::Vec4f LABEL_BACKGROUND;
 
 	const static size_t OVERLAY_COLS = 30;
 	const static size_t OVERLAY_ROWS = 8;

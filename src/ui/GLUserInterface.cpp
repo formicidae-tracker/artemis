@@ -176,6 +176,14 @@ void GLUserInterface::SetWindowCallback() {
 }
 
 void GLUserInterface::OnKey(int key, int scancode, int action, int mods) {
+	if ( PromptAndValue().empty() == false ) {
+		if ( action == GLFW_PRESS && mods == 0 && key == GLFW_KEY_ENTER ) {
+			LeaveHighlightPrompt();
+			Draw();
+		}
+		return;
+	}
+
 	if ( action != GLFW_PRESS ) {
 		return;
 	}
@@ -190,6 +198,12 @@ void GLUserInterface::OnKey(int key, int scancode, int action, int mods) {
 		   {{GLFW_KEY_O,0},[this](){ Zoom(-1); }},
 		   {{GLFW_KEY_I,GLFW_MOD_SHIFT},[this](){ Zoom(2000); }},
 		   {{GLFW_KEY_O,GLFW_MOD_SHIFT},[this](){ Zoom(-this->d_currentScaleFactor); }},
+		   {{GLFW_KEY_H,0}, [this]() { ToggleDisplayHelp(); Draw(); }},
+		   {{GLFW_KEY_R,0}, [this]() { ToggleDisplayROI(); Draw(); }},
+		   {{GLFW_KEY_D,0}, [this]() { ToggleDisplayOverlay(); Draw(); }},
+		   {{GLFW_KEY_L,0}, [this]() { ToggleDisplayLabels(); Draw(); }},
+		   {{GLFW_KEY_T,0}, [this]() { EnterHighlightPrompt(); Draw(); }},
+
 	};
 	auto fi = actions.find({key,mods});
 	if ( fi == actions.end() ) {
@@ -229,6 +243,17 @@ void GLUserInterface::UpdateROI(const cv::Rect & ROI) {
 }
 
 void GLUserInterface::OnText(unsigned int codepoint) {
+	if ( PromptAndValue().empty()
+	     || ( Value().empty() && codepoint == 't') ) {
+		return;
+	}
+
+
+	if ( codepoint < 255 ) {
+		AppendPromptValue(codepoint);
+		Draw();
+	}
+
 }
 
 
@@ -422,9 +447,11 @@ void GLUserInterface::InitGLData() {
 	size_t l = LABEL_FONT_SIZE;
 	size_t o = OVERLAY_FONT_SIZE;
 
-	d_overlayFont =  std::make_shared<GLFont>("Free Mono",o,512);
+	d_overlayFont =  std::make_shared<GLFont>("Ubuntu Mono",o,512);
 	d_boxOverlayVBO = std::make_shared<GLVertexBufferObject>();
 	d_textOverlayVBO = std::make_shared<GLVertexBufferObject>();
+	d_helpVBO = std::make_shared<GLVertexBufferObject>();
+	d_promptVBO = std::make_shared<GLVertexBufferObject>();
 
 	d_overlayGlyphSize = d_overlayFont->UploadText(*d_textOverlayVBO,
 	                                               1.0,
@@ -439,6 +466,10 @@ void GLUserInterface::InitGLData() {
 
 	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l,512);
 
+	if ( Watermark().empty() == false ) {
+		d_watermarkFont = std::make_shared<GLFont>("Ubuntu Bold",48,412);
+		d_watermarkVBO = std::make_shared<GLVertexBufferObject>();
+	}
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -568,14 +599,17 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer & buffer ) {
+	if ( DisplayLabels() == false ) {
+		return;
+	}
 	auto labelROI = cv::Rect(cv::Point(d_ROI.x - NORMAL_POINT_SIZE * 0.7,
-	                                   d_ROI.y - float(LABEL_FONT_SIZE) / FullToWindowScaleFactor()),
+	                                   d_ROI.y - NORMAL_POINT_SIZE * 0.7),
 	                         d_ROI.size());
 	RenderText(*buffer.TagLabels,
 	           *d_labelFont,
 	           labelROI,
-	           cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
-	           cv::Vec4f(0.0f,0.0f,0.0f,1.0f));
+	           LABEL_FOREGROUND,
+	           LABEL_BACKGROUND);
 }
 
 template <typename T>
@@ -592,11 +626,13 @@ std::string printLine(const std::string & label, size_t size,const T & value) {
 }
 
 void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
-
+	if ( DisplayOverlay() == false ) {
+		return;
+	}
 
 	glUseProgram(d_primitiveProgram);
 
-	UploadColor(d_primitiveProgram,"primitiveColor",cv::Vec4f(0.0f,0.1f,0.2f,0.7f));
+	UploadColor(d_primitiveProgram,"primitiveColor",OVERLAY_BACKGROUND);
 
 	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
 
@@ -605,7 +641,7 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	    << " (" << std::fixed << std::setprecision(2)
 	    << 100.0f * (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
 	std::ostringstream oss;
-	oss << printLine("",OVERLAY_COLS,"") << std::endl
+	oss << std::string(OVERLAY_COLS+2, '|') << std::endl
 	    << printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)) << std::endl
 	    << std::endl
 	    << printLine("Tags",OVERLAY_COLS,buffer.Frame.Message->tags_size()) << std::endl
@@ -614,29 +650,21 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	    << printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS) << std::endl
 	    << printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed) << std::endl
 	    << printLine("Frame Dropped",OVERLAY_COLS,dropOss.str()) << std::endl
-	    << printLine("",OVERLAY_COLS,"");
+	    << std::string(OVERLAY_COLS+2,'|');
 
 	auto bBox = d_overlayFont->UploadText(*d_textOverlayVBO,
 	                                      1.0,
-	                                      {oss.str(),cv::Point(10,10)});
+	                                      {oss.str(),cv::Point(0,-4)});
 
-	GLVertexBufferObject::Matrix boxData(6,2);
-	boxData <<
-		bBox.x             , bBox.y              ,
-		bBox.x + bBox.width, bBox.y              ,
-		bBox.x             , bBox.y + bBox.height,
-		bBox.x             , bBox.y + bBox.height,
-		bBox.x + bBox.width, bBox.y              ,
-		bBox.x + bBox.width, bBox.y + bBox.height;
-	d_boxOverlayVBO->Upload(boxData,2,0,0);
+	d_boxOverlayVBO->UploadRect(bBox);
 	d_boxOverlayVBO->Render(GL_TRIANGLES);
 
 	RenderText(*d_textOverlayVBO,
 	           *d_overlayFont,
 	           cv::Rect(cv::Point(0,0),
 	                    d_viewSize),
-	           cv::Vec4f(1.0f,1.0f,1.0f,1.0f),
-	           cv::Vec4f(1.0f,1.0f,1.0f,0.0f));
+	           OVERLAY_GLYPH_FOREGROUND,
+	           OVERLAY_GLYPH_BACKGROUND);
 
 
 }
@@ -652,7 +680,10 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
 	DrawLabels(buffer);
+	DrawWatermark();
 	DrawInformations(buffer);
+	DrawHelp();
+	DrawPrompt();
 
 	glfwSwapBuffers(d_window.get());
 }
@@ -676,6 +707,107 @@ void GLUserInterface::RenderText(const GLVertexBufferObject & buffer,
 
 	buffer.Render(GL_TRIANGLES);
 }
+
+void GLUserInterface::DrawWatermark() {
+	if ( !d_watermarkVBO ) {
+		return;
+	}
+
+	d_watermarkBox = d_watermarkFont->UploadText(*d_watermarkVBO,
+	                                             2.0f,
+	                                             {Watermark(),{0,0}});
+
+
+	RenderText(*d_watermarkVBO,
+	           *d_watermarkFont,
+	           cv::Rect(cv::Point(d_watermarkBox.width/2 - d_viewSize.width/2 ,
+	                              d_watermarkBox.height/2 - d_viewSize.height/2),
+	                    d_viewSize),
+	           cv::Vec4f(0.8f,0.2f,0.2f,1.0f),
+	           cv::Vec4f(0.8f,0.2f,0.2f,0.0f));
+
+}
+
+template <typename T>
+std::string Centered(const T & t, size_t nChars) {
+	std::ostringstream oss;
+	oss << t;
+	if ( oss.str().size() >= nChars ) {
+		return oss.str();
+	}
+	int left = (nChars - oss.str().size()) / 2;
+	return std::string(left,' ') + oss.str() + std::string(' ',nChars - oss.str().size() - left);
+}
+
+void GLUserInterface::DrawHelp() {
+	if ( DisplayHelp() == false ) {
+		return;
+	}
+
+	const static size_t COLS = 50;
+	std::ostringstream help;
+	help << std::string(COLS+2,'|') << std::endl
+	     << Centered("-- Artemis User Interface Commands --",COLS+2) << std::endl
+	     << std::endl
+	     << printLine("<T>",COLS,"Enters prompt to modify tag highlights") << std::endl
+	     << printLine("<R>",COLS,"Toggles displays of new ant ROI") << std::endl
+	     << printLine("<L>",COLS,"Toggles displays of tag labels") << std::endl
+		 << printLine("<D>",COLS,"Toggles displays of data overlay") << std::endl
+	     << printLine("<I>",COLS,"Zooms In") << std::endl
+	     << printLine("<O>",COLS,"Zooms Out") << std::endl
+	     << printLine("<Shift+I>",COLS,"Maximum Zoom IN") << std::endl
+	     << printLine("<Shift+O>",COLS,"Zooms Out") << std::endl
+	     << std::string(COLS+2,'|') ;
+
+	auto box = d_overlayFont->UploadText(*d_helpVBO,
+	                                     1.0f,
+	                                     {help.str(),{0,0}});
+
+	box.x = (d_viewSize.width - box.width)/2;
+	box.y = (d_viewSize.height - box.height)/2 - box.y;
+	glUseProgram(d_primitiveProgram);
+	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
+	UploadColor(d_primitiveProgram,"primitiveColor",OVERLAY_BACKGROUND);
+	d_boxOverlayVBO->UploadRect(box);
+	d_boxOverlayVBO->Render(GL_TRIANGLES);
+
+	RenderText(*d_helpVBO,
+	           *d_overlayFont,
+	           cv::Rect(cv::Point(-box.x,-box.y),
+	                    d_viewSize),
+	           OVERLAY_GLYPH_FOREGROUND,
+	           OVERLAY_GLYPH_BACKGROUND);
+
+}
+
+void GLUserInterface::DrawPrompt() {
+	if ( PromptAndValue().empty() == true ) {
+		return;
+	}
+	glUseProgram(d_primitiveProgram);
+	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
+	UploadColor(d_primitiveProgram,"primitiveColor",OVERLAY_BACKGROUND);
+	d_boxOverlayVBO->UploadRect(cv::Rect({0,0},d_viewSize));
+	d_boxOverlayVBO->Render(GL_TRIANGLES);
+
+	d_overlayFont->UploadText(*d_promptVBO,
+	                          1.0f,
+	                          {PromptAndValue(),{10,10}});
+
+	RenderText(*d_promptVBO,
+	           *d_overlayFont,
+	           cv::Rect({0,0},d_viewSize),
+	           OVERLAY_GLYPH_FOREGROUND,
+	           OVERLAY_GLYPH_BACKGROUND);
+
+
+}
+
+const cv::Vec4f GLUserInterface::OVERLAY_GLYPH_FOREGROUND = cv::Vec4f(1.0f,1.0f,1.0f,1.0f);
+const cv::Vec4f GLUserInterface::OVERLAY_GLYPH_BACKGROUND = cv::Vec4f(1.0f,1.0f,1.0f,0.0f);
+const cv::Vec4f GLUserInterface::OVERLAY_BACKGROUND = cv::Vec4f(0.05,0.1f,0.2f,0.7f);
+const cv::Vec4f GLUserInterface::LABEL_FOREGROUND = cv::Vec4f(1.0f,1.0f,1.0f,1.0f);
+const cv::Vec4f GLUserInterface::LABEL_BACKGROUND = cv::Vec4f(0.0f,0.0f,0.0f,1.0f);
 
 
 

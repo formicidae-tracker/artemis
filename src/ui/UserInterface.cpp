@@ -60,11 +60,11 @@ void UserInterface::PushFrame(const FrameToDisplay & frame) {
 }
 
 
-void UserInterface::ToggleROIDisplay()  {
+void UserInterface::ToggleDisplayROI()  {
 	d_displayROI = !d_displayROI;
 }
 
-void UserInterface::ToggleLabelDisplay() {
+void UserInterface::ToggleDisplayLabels() {
 	d_displayLabels = !d_displayLabels;
 }
 
@@ -81,7 +81,10 @@ bool UserInterface::DisplayROI() const {
 }
 
 bool UserInterface::DisplayLabels() const {
-	return d_prompt.empty() && d_displayROI == false && d_displayLabels;
+	return d_prompt.empty()
+		&& d_displayROI == false
+		&& d_displayHelp == false
+		&& d_displayLabels;
 }
 
 bool UserInterface::DisplayHelp() const {
@@ -99,6 +102,11 @@ const std::string & UserInterface::Watermark() const {
 std::string UserInterface::PromptAndValue() const {
 	return d_prompt + d_value;
 }
+
+const std::string & UserInterface::Value() const {
+	return d_value;
+}
+
 
 void UserInterface::EnterHighlightPrompt() {
 	d_value.clear();

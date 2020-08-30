@@ -52,8 +52,8 @@ protected:
 
 	void ROIChanged(const cv::Rect & roi);
 	void ToggleHighlight(uint32_t tagID);
-	void ToggleROIDisplay();
-	void ToggleLabelDisplay();
+	void ToggleDisplayROI();
+	void ToggleDisplayLabels();
 	void ToggleDisplayHelp();
 	void ToggleDisplayOverlay();
 
@@ -61,7 +61,7 @@ protected:
 	void EnterHighlightPrompt();
 	void LeaveHighlightPrompt();
 	void AppendPromptValue( char c );
-
+	const std::string & Value() const;
 
 
 	bool DisplayROI() const;

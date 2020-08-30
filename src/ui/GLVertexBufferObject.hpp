@@ -5,6 +5,8 @@
 
 #include <Eigen/Core>
 
+#include <opencv2/core.hpp>
+
 #include <memory>
 
 namespace fort {
@@ -20,6 +22,9 @@ public:
 	virtual ~GLVertexBufferObject();
 
 	void Clear();
+
+	void UploadRect(const cv::Rect & rect,
+	                bool staticUpload = false);
 
 	void Upload(const Matrix & data,
 	            size_t d_vertexSize,

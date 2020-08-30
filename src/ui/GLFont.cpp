@@ -44,7 +44,7 @@ GLFont::GLFont(const std::string & fontname, size_t fontSize, size_t textureSize
 	d_font = texture_font_new_from_file(d_atlas,fontSize,fontfile.c_str());
 
 	//load all ASCII char
-	static std::string asciiChar = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%&*(){}[]_-+=?<>,.";
+	static std::string asciiChar = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%&*(){}[]_-+=?<>,.:";
 	texture_font_load_glyphs(d_font,asciiChar.c_str());
 
 	glGenTextures(1,&d_atlas->id);
@@ -86,11 +86,12 @@ GLFont::RenderTextInMatrix(Eigen::Block<GLVertexBufferObject::Matrix> & block,
                            const PositionedText & text) {
 
 	using namespace Eigen;
-	Vector2f pos(text.second.x,text.second.y);
+	float advanceY = d_font->ascender - d_font->descender + d_font->linegap;
+	Vector2f pos(text.second.x,text.second.y + d_font->ascender);
 
 	Vector2f bottomLeft(pos),topRight(pos);
 	float margin = -1.0;
-	float advanceY = d_font->ascender - d_font->descender + d_font->linegap;
+
 	for ( 	size_t i = 0; i < text.first.size(); ++i ) {
 		if ( text.first[i] == '\n' ) {
 			pos.x() = text.second.x;
