@@ -9,5 +9,5 @@ void main(){
 	vec2 p = 2.0 * gl_PointCoord - 1.0;
 	float dist = max(abs(p.x),abs(p.y));
 	color.rbg = boxColor;
-	color.a = smoothstep(1.0- 1.05 *lineWidth,1.0-lineWidth,dist);
+	color.a = 0.7 * smoothstep(1.0- 1.05 *lineWidth,1.0-lineWidth,dist) + 0.1;
 }
