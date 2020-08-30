@@ -126,10 +126,11 @@ void UserInterface::EnterHighlightPrompt() {
 void UserInterface::LeaveHighlightPrompt() {
 	base::TrimSpaces(d_value);
 	if ( base::HasPrefix(d_value,"0x") == true ) {
-		std::istringstream iss;
+
+		std::istringstream iss(d_value);
 		uint32_t h;
 		iss >> std::hex >> h;
-		if ( iss.good() == true ) {
+		if ( iss.fail() == false ) {
 			ToggleHighlight(h);
 		}
 	}
