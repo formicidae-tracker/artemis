@@ -52,10 +52,19 @@ bool Application::InterceptCommand(const Options & options ) {
 void Application::InitGoogleLogging(const std::string & applicationName,
                        const GeneralOptions & options) {
 	if ( options.LogDir.empty() == false ) {
+		// likely runned by leto and we are saving data to dedicated
+		// files. So we do not need as much log to stderr, and no
+		// color.
 		FLAGS_log_dir = options.LogDir.c_str();
+		FLAGS_stderrthreshold = 2;
+		FLAGS_colorlogtostderr = false; // maybe we should need less log
+	} else {
+		// we output all logs, and likely we are not beeing runned by
+		// leto, so we output everything with colors.
+		FLAGS_stderrthreshold = 0;
+		FLAGS_colorlogtostderr = true;
 	}
-	FLAGS_stderrthreshold = 0; // maybe we should need less log
-	FLAGS_colorlogtostderr = true; // maybe we should need less log
+
 	::google::InitGoogleLogging(applicationName.c_str());
 	::google::InstallFailureSignalHandler();
 }
