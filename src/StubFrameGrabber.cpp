@@ -48,6 +48,9 @@ StubFrameGrabber::StubFrameGrabber(const std::vector<std::string> & paths,
 	: d_ID(0)
 	, d_timestamp(0)
 	, d_period(1.0e9 / FPS) {
+	if ( paths.empty() == true ) {
+		throw std::invalid_argument("No paths given to StubFrameGrabber");
+	}
 	for ( const auto & p : paths ) {
 		d_images.push_back(cv::imread(p,0));
 		if ( d_images.back().data == NULL ) {

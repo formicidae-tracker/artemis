@@ -100,7 +100,7 @@ void GeneralOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("fetch-resolution",PrintResolution,"Print the camera resolution");
 	parser.AddFlag("version",PrintVersion,"Print version");
 	parser.AddFlag("log-output-dir",LogDir,"Directory to put logs in");
-	parser.AddFlag("stub-image-path", stubImagePaths, "Use a stub image instead of an actual framegrabber");
+	parser.AddFlag("stub-image-paths", stubImagePaths, "Use a suite of stub images instead of an actual framegrabber");
 	parser.AddFlag("test-mode",TestMode,"Test mode, adds an overlay detection drawing and statistics");
 	parser.AddFlag("legacy-mode",LegacyMode,"Uses a legacy mode data output for ants cataloging and video output display. The data will be convertible to the data expected by the former Keller's group tracking system");
 }
@@ -194,8 +194,8 @@ void CameraOptions::PopulateParser(options::FlagParser & parser)  {
 	parser.AddFlag("camera-fps",FPS,"Camera FPS to use");
 	parser.AddFlag("camera-slave-width",SlaveWidth,"Camera Width argument for slave mode");
 	parser.AddFlag("camera-slave-height",SlaveHeight,"Camera Height argument for slave mode");
-	parser.AddFlag("camera-strobe-us",d_strobeDuration,"Camera Strobe Length in us");
-	parser.AddFlag("camera-strobe-delay-us",d_strobeDelay,"Camera Strobe Delay in us, negative value allowed");
+	parser.AddFlag("camera-strobe",d_strobeDuration,"Camera Strobe duration");
+	parser.AddFlag("camera-strobe-delay",d_strobeDelay,"Camera Strobe delay");
 }
 
 void CameraOptions::FinishParse() {
@@ -301,15 +301,6 @@ void Options::Validate() {
 	}
 #endif
 
-
-	if ( Network.Host.empty() == false
-	     && Apriltag.Family == fort::tags::Family::Undefined ) {
-		throw std::runtime_error("Connection to '"
-		                         + Network.Host
-		                         + ":"
-		                         + std::to_string(Network.Port)
-		                         + " requested but no family selected");
-	}
 
 
 }

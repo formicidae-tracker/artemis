@@ -76,7 +76,7 @@ TEST_F(OptionsUTest,TestParse) {
 		    [](const Options & options) {
 			    EXPECT_EQ(options.General.LogDir,"foo");
 		    }},
-		   {{"artemis","--stub-image-path","foo,bar,baz"},
+		   {{"artemis","--stub-image-paths","foo,bar,baz"},
 		    [](const Options & options) {
 			    EXPECT_EQ(options.General.StubImagePaths.size(),3);
 			    if ( options.General.StubImagePaths.size() == 3 ) {
@@ -162,12 +162,12 @@ TEST_F(OptionsUTest,TestParse) {
 			    EXPECT_DOUBLE_EQ(options.Camera.FPS,12.45);
 		    }},
 
-		   {{"artemis","--camera-strobe-us", "1245us"},
+		   {{"artemis","--camera-strobe", "1245us"},
 		    [](const Options & options) {
 			    EXPECT_EQ(options.Camera.StrobeDuration,1245 * Duration::Microsecond);
 		    }},
 
-		   {{"artemis","--camera-strobe-delay-us", "-12us"},
+		   {{"artemis","--camera-strobe-delay", "-12us"},
 		    [](const Options & options) {
 			    EXPECT_EQ(options.Camera.StrobeDelay,-12 * Duration::Microsecond);
 		    }},
