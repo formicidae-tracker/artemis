@@ -56,7 +56,7 @@ void Application::InitGoogleLogging(char * applicationName,
 		// files. So we do not need as much log to stderr, and no
 		// color.
 		FLAGS_log_dir = options.LogDir.c_str();
-		FLAGS_stderrthreshold = 2;
+		FLAGS_stderrthreshold = 3;
 		FLAGS_colorlogtostderr = false; // maybe we should need less log
 	} else {
 		// we output all logs, and likely we are not beeing runned by
