@@ -16,9 +16,9 @@ public:
 	};
 
 	static cv::Rect RenderText(cv::Mat & image,
-	                    const std::string & text,
-	                    const cv::Point & position,
-	                    TextAlignement align = LEFT_ALIGNED);
+	                           const std::string & text,
+	                           const cv::Point & position,
+	                           TextAlignement align = LEFT_ALIGNED);
 
 private :
 	typedef uint8_t FontChar[16];
