@@ -79,6 +79,7 @@ void VideoOutputTask::OverlayData(cv::Mat & frame,
 	if ( d_legacyMode == true ) {
 		OverlayFrameNumber(frame,frameID);
 		OverlayLegacyTime(frame,time);
+		return;
 	}
 	OverlayTime(frame,time);
 }

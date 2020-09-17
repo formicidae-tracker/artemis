@@ -29,8 +29,8 @@ cv::Rect ImageTextRenderer::RenderText(cv::Mat & image,
                                        TextAlignement align) {
 	switch(align) {
 	case CENTERED:
-		return RenderTextAt(image,text,cv::Point(position.x - TextWidth(text)/2),
-		                                         position.y);
+		return RenderTextAt(image,text,cv::Point(position.x - TextWidth(text)/2,
+		                                         position.y));
 	case RIGHT_ALIGNED:
 		return RenderTextAt(image,text,cv::Point(position.x - TextWidth(text),
 		                                         position.y));
