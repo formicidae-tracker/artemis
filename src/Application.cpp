@@ -49,8 +49,8 @@ bool Application::InterceptCommand(const Options & options ) {
 }
 
 
-void Application::InitGoogleLogging(const std::string & applicationName,
-                       const GeneralOptions & options) {
+void Application::InitGoogleLogging(char * applicationName,
+                                    const GeneralOptions & options) {
 	if ( options.LogDir.empty() == false ) {
 		// likely runned by leto and we are saving data to dedicated
 		// files. So we do not need as much log to stderr, and no
@@ -64,8 +64,7 @@ void Application::InitGoogleLogging(const std::string & applicationName,
 		FLAGS_stderrthreshold = 0;
 		FLAGS_colorlogtostderr = true;
 	}
-
-	::google::InitGoogleLogging(applicationName.c_str());
+	::google::InitGoogleLogging(applicationName);
 	::google::InstallFailureSignalHandler();
 }
 
