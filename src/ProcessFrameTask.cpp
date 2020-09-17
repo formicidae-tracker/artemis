@@ -26,13 +26,13 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	: d_options(options.Process)
 	, d_maximumThreads(cv::getNumThreads()) {
 	d_actualThreads = d_maximumThreads;
-	auto workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
+	d_workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
 
 	SetUpDetection(inputResolution,options.Apriltag);
-	SetUpUserInterface(workingResolution,inputResolution,options);
+	SetUpUserInterface(d_workingResolution,inputResolution,options);
 	SetUpVideoOutputTask(options.VideoOutput,context,options.General.LegacyMode);
 	SetUpCataloguing(options.Process);
-	SetUpPoolObjects(workingResolution);
+	SetUpPoolObjects();
 }
 
 
@@ -89,15 +89,15 @@ void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
 	d_wantedROI = d_userInterface->DefaultROI();
 }
 
-void ProcessFrameTask::SetUpPoolObjects(const cv::Size & workingResolution) {
+void ProcessFrameTask::SetUpPoolObjects() {
 	d_grayImagePool.Reserve(GrayscaleImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	                        workingResolution.width,
-	                        workingResolution.height,
+	                        d_workingResolution.width,
+	                        d_workingResolution.height,
 	                        CV_8UC1);
 
 	d_rgbImagePool.Reserve(RGBImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	                       workingResolution.width,
-	                       workingResolution.height,
+	                       d_workingResolution.width,
+	                       d_workingResolution.height,
 	                       CV_8UC3);
 }
 
@@ -156,7 +156,7 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr & frame ) {
 		return;
 	}
 	d_downscaled = d_grayImagePool.Get();
-	cv::resize(frame->ToCV(),*d_downscaled,d_downscaled->size(),0,0,cv::INTER_NEAREST);
+	cv::resize(frame->ToCV(),*d_downscaled,d_workingResolution,0,0,cv::INTER_NEAREST);
 
 	if ( d_videoOutput ) {
 		auto converted = d_rgbImagePool.Get();
@@ -331,7 +331,7 @@ void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
 		zoomed = d_grayImagePool.Get();
 		cv::Size size = frame->ToCV().size();
 		cv::resize(cv::Mat(frame->ToCV(),d_wantedROI),
-		           *zoomed,zoomed->size(),
+		           *zoomed,d_workingResolution,
 		           0,0,cv::INTER_NEAREST);
 	}
 

@@ -64,7 +64,7 @@ private :
 	void SetUpUserInterface(const cv::Size & workingresolution,
 	                        const cv::Size & fullresolution,
 	                        const Options & options);
-	void SetUpPoolObjects(const cv::Size & workingResolution);
+	void SetUpPoolObjects();
 
 
 	void ProcessFrameMandatory(const Frame::Ptr & frame );
@@ -129,6 +129,7 @@ private :
 	Time                              d_nextAntCatalog;
 	std::set<uint32_t>                d_exportedID;
 
+	cv::Size            d_workingResolution;
 	cv::Rect            d_wantedROI;
 	size_t              d_frameDropped;
 	size_t              d_frameProcessed;
