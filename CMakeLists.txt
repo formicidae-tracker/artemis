@@ -29,7 +29,7 @@ endif(EURESYS_FRAMEGRABBER_SUPPORT)
 
 fetch_google_test(VERSION release-1.8.1)
 fetch_fort_tags(VERSION v1.3.1)
-fetch_fort_hermes(VERSION v0.4.0)
+fetch_fort_hermes(VERSION v0.4.1)
 fetch_boost_asio(VERSION boost-1.74.0)
 fetch_freetype_gl(VERSION 1a8c007f3fe7b1441f9e5616bc23d7455f4b07dd)
 
