@@ -512,7 +512,7 @@ void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glUniform1i(d_frameTexture, 0);
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,buffer.PBO);
-	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,d_workingSize.height,d_workingSize.width,0,GL_RED,GL_UNSIGNED_BYTE,0);
+	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,d_workingSize.width,d_workingSize.height,0,GL_RED,GL_UNSIGNED_BYTE,0);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
 
 	d_frameVBO->Render(GL_TRIANGLES);

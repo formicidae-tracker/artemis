@@ -91,13 +91,13 @@ void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
 
 void ProcessFrameTask::SetUpPoolObjects() {
 	d_grayImagePool.Reserve(GrayscaleImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	                        d_workingResolution.width,
 	                        d_workingResolution.height,
+	                        d_workingResolution.width,
 	                        CV_8UC1);
 
 	d_rgbImagePool.Reserve(RGBImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	                       d_workingResolution.width,
 	                       d_workingResolution.height,
+	                       d_workingResolution.width,
 	                       CV_8UC3);
 }
 
