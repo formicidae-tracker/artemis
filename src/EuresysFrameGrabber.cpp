@@ -57,7 +57,8 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 
 		setInteger<RemoteModule>("Width",options.SlaveWidth);
 		setInteger<RemoteModule>("Height",options.SlaveHeight);
-
+		d_width = options.SlaveWidth;
+		d_height = options.SlaveHeight;
 	}
 
 
