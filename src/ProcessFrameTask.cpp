@@ -156,7 +156,9 @@ void ProcessFrameTask::Run() {
 		ProcessFrameMandatory(frame);
 
 		if ( d_frameQueue.size() > 0 ) {
-			DropFrame(frame);
+			if ( ShouldProcess(frame->ID()) == true ) {
+				DropFrame(frame);
+			}
 			continue;
 		}
 
