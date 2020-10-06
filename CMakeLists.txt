@@ -1,6 +1,6 @@
 cmake_policy(SET CMP0048 NEW)
 
-project(artemis VERSION 0.4.1
+project(artemis VERSION 0.4.2
                 LANGUAGES C CXX)
 
 cmake_minimum_required(VERSION 3.11)
