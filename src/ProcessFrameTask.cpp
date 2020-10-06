@@ -34,6 +34,16 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects();
 	SetUpConnection(options.Network,context);
+
+
+	std::string ids,prefix;
+	for ( const auto & id : options.Process.FrameID ) {
+		ids += prefix + std::to_string(id);
+		prefix = ",";
+	}
+	LOG(INFO) << "Processing IDs: " << ids;
+	LOG(INFO) << "Processing Stride: " << options.Process.FrameStride;
+
 }
 
 
