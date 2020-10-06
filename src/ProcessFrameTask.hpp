@@ -66,6 +66,8 @@ private :
 	                        const Options & options);
 	void SetUpPoolObjects();
 
+	void SetUpConnection(const NetworkOptions & options, boost::asio::io_context & context);
+
 
 	void ProcessFrameMandatory(const Frame::Ptr & frame );
 	void ProcessFrame(const Frame::Ptr & frame);

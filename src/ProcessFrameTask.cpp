@@ -33,6 +33,7 @@ ProcessFrameTask::ProcessFrameTask(const Options & options,
 	SetUpVideoOutputTask(options.VideoOutput,context,options.General.LegacyMode);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects();
+	SetUpConnection(options.Network,context);
 }
 
 
@@ -77,6 +78,12 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 	d_nextFrameExport = d_nextAntCatalog.Add(10 * Duration::Second);
 
 	d_fullFrameExport = std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
+}
+
+
+void ProcessFrameTask::SetUpConnection(const NetworkOptions & options,
+									   boost::asio::io_context & context) {
+	d_connection = Connection::Create(context,options.Host,options.Port,5*Duration::Second);
 }
 
 void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
