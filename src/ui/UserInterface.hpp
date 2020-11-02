@@ -31,7 +31,10 @@ public:
 	};
 
 	typedef tbb::concurrent_queue<cv::Rect> ROIChannel;
+	typedef tbb::concurrent_queue<uint32_t> IDToggleChannel;
+
 	typedef std::shared_ptr<ROIChannel> ROIChannelPtr;
+
 
 	UserInterface(const cv::Size & workingResolution,
 	              const Options & options,
@@ -41,6 +44,8 @@ public:
 	virtual void PollEvents() = 0;
 
 	void PushFrame(const FrameToDisplay & frame);
+
+	IDToggleChannel & HighlightsChannel();
 
 protected:
 	struct DataToDisplay {
@@ -81,6 +86,7 @@ private:
 	bool               d_displayLabels;
 	bool               d_displayHelp;
 	bool               d_displayOverlay;
+	IDToggleChannel    d_highlightsChannel;
 };
 
 

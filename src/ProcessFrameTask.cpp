@@ -16,6 +16,7 @@
 #include <glog/logging.h>
 
 #include "Utils.hpp"
+#include <filesystem>
 
 namespace fort {
 namespace artemis {
@@ -217,6 +218,8 @@ void ProcessFrameTask::ProcessFrame(const Frame::Ptr & frame) {
 
 		CatalogAnt(frame,*m);
 
+		ExportMovie(frame,*m);
+
 		ExportFullFrame(frame);
 
 		++d_frameProcessed;
@@ -276,6 +279,60 @@ void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
 	cv::setNumThreads(d_actualThreads);
 	d_nextFrameExport = frame->Time().Add(d_options.ImageRenewPeriod);
 }
+
+
+ProcessFrameTask::TagMovieData::TagMovieData()
+	: Export(false)
+	, FrameID(0) {
+}
+
+void ProcessFrameTask::ExportMovie(const Frame::Ptr & frame,
+                                   const hermes::FrameReadout & m) {
+	uint32_t id;
+	while ( d_userInterface->IDToggled(id) == true ) {
+		d_movieExports[id].Export ^= true;
+	}
+
+	if ( d_options.NewAntOutputDir.empty() ) {
+		return;
+	}
+
+	std::vector<fort::hermes::Tag> toExport;
+
+	for ( const auto & t: m.tags() ) {
+		if (d_movieExports[t.id()].Export == false ) {
+			continue;
+		}
+		toExport.push_back(t);
+	}
+
+	tbb::parallel_for(std::size_t(0),
+	                  toExport.size(),
+	                  [this,&toExport,&frame] ( std::size_t index) {
+
+		                  const auto & t = toExport[index];
+		                  std::ostringstream oss;
+		                  auto & frameID = d_movieExports[t.id()].FrameID;
+		                  oss << d_options.NewAntOutputDir
+		                      << "/movies/tag_"
+		                      << std::setfill('0') << std::setw(4) << t.id()
+		                      << "/frame_"
+		                      << std::setfill('0') << std::setw(6) << (frameID++)
+		                      << ".png";
+
+		                  std::filesystem::path filepath(oss.str());
+		                  std::filesystem::create_directories(filepath.parent_path());
+
+		                  cv::imwrite(filepath.string(),
+		                              cv::Mat(frame->ToCV(),
+		                                      GetROICenteredAt({int(t.x()),int(t.y())},
+		                                                       cv::Size(d_options.NewAntROISize,
+		                                                                d_options.NewAntROISize),
+		                                                       frame->ToCV().size())));
+	                  });
+
+}
+
 
 
 void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,

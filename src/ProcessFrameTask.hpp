@@ -136,6 +136,18 @@ private :
 	size_t              d_frameDropped;
 	size_t              d_frameProcessed;
 	Time                d_start;
+
+
+	struct TagMovieData {
+		TagMovieData();
+		bool Export;
+		uint32_t FrameID;
+	};
+
+	void ExportMovie(const Frame::Ptr & frame,
+	                 const hermes::FrameReadout & ro);
+
+	std::map<uint32_t,TagMovieData> d_movieExports;
 };
 
 } // namespace artemis

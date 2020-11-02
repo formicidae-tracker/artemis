@@ -17,6 +17,10 @@ UserInterface::UserInterface(const cv::Size & workingResolution,
 	, d_displayHelp(false)
 	, d_displayOverlay(true)  {
 
+	for ( const auto & id : d_highlighted ) {
+		d_highlightsChannel.push(id);
+	}
+
 }
 
 void UserInterface::ToggleHighlight(uint32_t tagID) {
@@ -25,6 +29,7 @@ void UserInterface::ToggleHighlight(uint32_t tagID) {
 	} else {
 		d_highlighted.erase(tagID);
 	}
+	d_highlightsChannel.push(tagID);
 }
 
 
@@ -143,6 +148,10 @@ void UserInterface::AppendPromptValue( char c ) {
 		LeaveHighlightPrompt();
 	}
 	d_value += c;
+}
+
+UserInterface::IDToggleChannel & UserInterface::HighlightsChannel() {
+	return d_highlightsChannel;
 }
 
 

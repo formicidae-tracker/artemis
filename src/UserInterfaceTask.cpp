@@ -71,6 +71,13 @@ void UserInterfaceTask::CloseQueue() {
 	d_displayQueue.push({.Full = nullptr });
 }
 
+bool UserInterfaceTask::IDToggled(uint32_t & tagID) const {
+	if ( ! d_ui ) {
+		return false;
+	}
+	return d_ui->HighlightsChannel().try_pop(tagID);
+}
+
 
 
 } // namespace artemis

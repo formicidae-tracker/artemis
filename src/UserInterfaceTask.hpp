@@ -32,6 +32,8 @@ public:
 
 	void CloseQueue();
 
+	bool IDToggled(uint32_t & tagID) const;
+
 private:
 	tbb::concurrent_queue<UserInterface::FrameToDisplay> d_displayQueue;
 
