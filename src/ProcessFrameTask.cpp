@@ -354,14 +354,25 @@ void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
 		           0,0,cv::INTER_NEAREST);
 	}
 
-	d_userInterface->QueueFrame({.Full = d_downscaled,
-	                             .Zoomed = zoomed,
-	                             .Message = m,
-	                             .CurrentROI = d_wantedROI,
-	                             .FrameTime = frame->Time(),
-	                             .FPS = CurrentFPS(frame->Time()),
-	                             .FrameProcessed = d_frameProcessed,
-	                             .FrameDropped = d_frameDropped});
+	UserInterface::FrameToDisplay toDisplay =
+		{.Full = d_downscaled,
+		 .Zoomed = zoomed,
+		 .Message = m,
+		 .CurrentROI = d_wantedROI,
+		 .FrameTime = frame->Time(),
+		 .FPS = CurrentFPS(frame->Time()),
+		 .FrameProcessed = d_frameProcessed,
+		 .FrameDropped = d_frameDropped,
+		 .VideoOutputProcessed = -1UL,
+		 .VideoOutputDropped = -1UL,
+		};
+
+	if ( d_videoOutput != nullptr ) {
+		toDisplay.VideoOutputProcessed = d_videoOutput->FrameProcessed();
+		toDisplay.VideoOutputDropped = d_videoOutput->FrameDropped();
+	}
+
+	d_userInterface->QueueFrame(toDisplay);
 }
 
 

@@ -28,6 +28,8 @@ public:
 		double     FPS;
 		size_t     FrameProcessed;
 		size_t     FrameDropped;
+		size_t     VideoOutputProcessed;
+		size_t     VideoOutputDropped;
 	};
 
 	typedef tbb::concurrent_queue<cv::Rect> ROIChannel;
