@@ -39,7 +39,7 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 		setString<DeviceModule>("ExposureReadoutOverlap","True");
 		DLOG(INFO) << "AcquisitionFrameRate: " << options.FPS;
 		setInteger<DeviceModule>("CycleMinimumPeriod",1e6/(2*options.FPS));
-		setString<DeviceModule>("CxpLinkConfiguration","CXP6_X4");
+
 		setString<DeviceModule>("CxpTriggerMessageFormat","Toggle");
 
 		setInteger<DeviceModule>("ExposureTime",6000);

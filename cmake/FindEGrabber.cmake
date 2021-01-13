@@ -2,6 +2,7 @@ find_path(EGRABBER_INCLUDE_DIR EGrabber.h
 	      PATH_SUFFIXES include
 	      PATHS /usr/local/opt/euresys/coaxlink
 	            /opt/euresys/coaxlink
+	            /opt/euresys/egrabber
 	            )
 
 mark_as_advanced(EGRABBER_INCLUDE_DIR)
