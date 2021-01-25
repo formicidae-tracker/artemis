@@ -30,6 +30,9 @@ public:
 	void CloseQueue();
 
 
+	size_t FrameProcessed() const;
+
+	size_t FrameDropped() const;
 
 private :
 	void OverlayData(cv::Mat & frame,
@@ -66,6 +69,8 @@ private :
 	bool       d_done;
 	const bool d_addHeader;
 	const bool d_legacyMode;
+
+	std::atomic<size_t> d_frameProcessed,d_frameDropped;
 
 	std::vector<uint64_t> d_headerData;
 };

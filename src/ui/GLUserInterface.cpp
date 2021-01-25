@@ -676,6 +676,17 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	    << " (" << std::fixed << std::setprecision(2)
 	    << 100.0f * (buffer.Frame.FrameDropped / float(buffer.Frame.FrameDropped + buffer.Frame.FrameProcessed) ) << "%)";
 	std::ostringstream oss;
+	std::ostringstream videoDropOss;
+	if ( buffer.Frame.VideoOutputProcessed == -1 ) {
+		videoDropOss << "No Video Output";
+	} else {
+		// we may have not yet processed or dropped any frame
+		size_t totalVideo = std::max(1LU,buffer.Frame.VideoOutputProcessed + buffer.Frame.VideoOutputDropped);
+		videoDropOss << buffer.Frame.VideoOutputDropped
+		             << " (" << std::fixed << std::setprecision(2)
+		             << 100.0f * float(buffer.Frame.VideoOutputDropped) / float(totalVideo) << "%)";
+	}
+
 	oss << std::string(OVERLAY_COLS+2, '|') << std::endl
 	    << printLine("Time",OVERLAY_COLS,buffer.Frame.FrameTime.Round(Duration::Millisecond)) << std::endl
 	    << std::endl
@@ -685,6 +696,7 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	    << printLine("FPS",OVERLAY_COLS,buffer.Frame.FPS) << std::endl
 	    << printLine("Frame Processed",OVERLAY_COLS,buffer.Frame.FrameProcessed) << std::endl
 	    << printLine("Frame Dropped",OVERLAY_COLS,dropOss.str()) << std::endl
+	    << printLine("Video Dropped",OVERLAY_COLS,videoDropOss.str()) << std::endl
 	    << std::string(OVERLAY_COLS+2,'|');
 
 	auto bBox = d_overlayFont->UploadText(*d_textOverlayVBO,
