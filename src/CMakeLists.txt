@@ -129,6 +129,7 @@ set(UTEST_SRC_FILES main-check.cpp
 	                OptionsUTest.cpp
 	                TaskUTest.cpp
 	                ObjectPoolUTest.cpp
+					UtilsUTest.cpp
 	                )
 
 set(UTEST_HDR_FILES utils/DeferUTest.hpp
@@ -140,6 +141,7 @@ set(UTEST_HDR_FILES utils/DeferUTest.hpp
 	                OptionsUTest.hpp
 	                TaskUTest.hpp
 	                ObjectPoolUTest.hpp
+					UtilsUTest.hpp
 	                )
 
 if(EGrabber_FOUND)

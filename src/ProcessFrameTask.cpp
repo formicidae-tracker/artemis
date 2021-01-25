@@ -286,6 +286,7 @@ ProcessFrameTask::TagMovieData::TagMovieData()
 	, FrameID(0) {
 }
 
+
 void ProcessFrameTask::ExportMovie(const Frame::Ptr & frame,
                                    const hermes::FrameReadout & m) {
 	uint32_t id;
@@ -324,11 +325,10 @@ void ProcessFrameTask::ExportMovie(const Frame::Ptr & frame,
 		                  std::filesystem::create_directories(filepath.parent_path());
 
 		                  cv::imwrite(filepath.string(),
-		                              cv::Mat(frame->ToCV(),
-		                                      GetROICenteredAt({int(t.x()),int(t.y())},
-		                                                       cv::Size(d_options.NewAntROISize,
-		                                                                d_options.NewAntROISize),
-		                                                       frame->ToCV().size())));
+		                              GetROICenteredAtBlackBorder(frame->ToCV(),
+		                                                          {int(t.x()),int(t.y())},
+		                                                          cv::Size(d_options.NewAntROISize,
+		                                                                   d_options.NewAntROISize)));
 	                  });
 
 }
