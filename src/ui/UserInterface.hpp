@@ -38,7 +38,7 @@ public:
 	UserInterface(const cv::Size & workingResolution,
 	              const Options & options,
 	              const ROIChannelPtr & zoomChannel);
-
+	virtual ~UserInterface();
 
 	virtual void PollEvents() = 0;
 

@@ -19,6 +19,8 @@ UserInterface::UserInterface(const cv::Size & workingResolution,
 
 }
 
+UserInterface::~UserInterface(){}
+
 void UserInterface::ToggleHighlight(uint32_t tagID) {
 	if ( d_highlighted.count(tagID) == 0 ) {
 		d_highlighted.insert(tagID);

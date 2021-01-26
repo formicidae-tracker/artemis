@@ -22,7 +22,8 @@ UserInterfaceTask::UserInterfaceTask(const cv::Size & workingResolution,
 }
 
 UserInterfaceTask::~UserInterfaceTask() {
-
+	LOG(INFO) << "[UserInterfaceTask]: closing";
+	d_ui.reset();
 }
 
 void UserInterfaceTask::Run()  {

@@ -69,6 +69,21 @@ namespace artemis {
 #endif // IMPLEMENT_GLFW_GET_ERROR
 
 
+void debugGL(GLenum source,
+             GLenum type,
+             GLuint id,
+             GLenum severity,
+             GLsizei length,
+             const GLchar* message,
+             const void * userParam) {
+	LOG(INFO) << "source: " << source
+	          << " type: " << type
+	          << " id: " << id
+	          << " severity: " << severity
+	          << " message: " << message;
+}
+
+
 GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
                                  const cv::Size & fullSize,
                                  const Options & options,
@@ -108,10 +123,13 @@ GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
 		throw;
 	}
 
+	glEnable(GL_DEBUG_OUTPUT);
+	glDebugMessageCallback(&debugGL,NULL);
 	InitGLData();
 	SetWindowCallback();
 
 }
+
 
 GLUserInterface::GLFWwindowPtr GLUserInterface::OpenWindow(const cv::Size & size) {
 	DLOG(INFO) << "[GLUserInterface]: Opening window";
@@ -120,6 +138,7 @@ GLUserInterface::GLFWwindowPtr GLUserInterface::OpenWindow(const cv::Size & size
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 	glfwWindowHint(GLFW_MAXIMIZED,GLFW_TRUE);
 	auto window = glfwCreateWindow(size.width,
 	                               size.height,
@@ -177,6 +196,7 @@ void GLUserInterface::SetWindowCallback() {
 }
 
 void GLUserInterface::OnKey(int key, int scancode, int action, int mods) {
+	LOG(INFO) << "KeyPress";
 	if ( PromptAndValue().empty() == false ) {
 		if ( action == GLFW_PRESS && mods == 0 && key == GLFW_KEY_ENTER ) {
 			LeaveHighlightPrompt();
@@ -296,6 +316,8 @@ GLUserInterface::~GLUserInterface() {
 		d_buffer[i].HighlightedTags.reset();
 		d_buffer[i].TagLabels.reset();
 	}
+
+	LOG(INFO) << "glGetError: " << glGetError();
 
 	d_window.reset();
 	glfwTerminate();
@@ -479,6 +501,7 @@ void GLUserInterface::InitGLData() {
 	}
 
 	glEnable(GL_BLEND);
+
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	d_ROI = cv::Rect(cv::Point(0,0),d_fullSize);
