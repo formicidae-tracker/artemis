@@ -76,7 +76,9 @@ Connection::Connection(boost::asio::io_context & context,
 	, d_port(port)
 	, d_sending(false)
 	, d_reconnectPeriod(reconnectPeriod) {
-
+	if ( host.empty() ) {
+		throw std::invalid_argument("Connection: destination host cannot be empty");
+	}
 	d_bufferQueue.set_capacity(16);
 
 }
