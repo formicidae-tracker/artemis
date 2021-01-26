@@ -93,6 +93,9 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 
 void ProcessFrameTask::SetUpConnection(const NetworkOptions & options,
 									   boost::asio::io_context & context) {
+	if ( options.Host.empty() == true ) {
+		return;
+	}
 	d_connection = Connection::Create(context,options.Host,options.Port,5*Duration::Second);
 }
 
