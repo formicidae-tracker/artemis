@@ -582,7 +582,7 @@ void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glCheckError();
 	glBindTexture(GL_TEXTURE_2D,d_frameTexture);
 	glCheckError();
-	glUniform1i(d_frameTexture, 0);
+	// glUniform1i(d_frameTexture, 0);
 	glCheckError();
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,buffer.PBO);
@@ -810,7 +810,6 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 	}
 
 	glClear( GL_COLOR_BUFFER_BIT);
-	glCheckError();
 
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
@@ -833,7 +832,7 @@ void GLUserInterface::RenderText(const GLVertexBufferObject & buffer,
 	glUseProgram(d_fontProgram);
 	glCheckError();
 
-	//	UploadColor(d_fontProgram,"foreground",foreground);
+	UploadColor(d_fontProgram,"foreground",foreground);
 	UploadColor(d_fontProgram,"background",background);
 	Eigen::Matrix3f projection;
 	ComputeProjection(roi,projection);
