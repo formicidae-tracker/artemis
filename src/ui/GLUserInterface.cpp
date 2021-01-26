@@ -1,4 +1,3 @@
-
 #include <GL/glew.h>
 
 #include <GLFW/glfw3.h>
@@ -18,6 +17,8 @@
 
 #include "../Utils.hpp"
 
+
+
 #if (GLFW_VERSION_MAJOR * 100 + GLFW_VERSION_MINOR) < 303
 #define IMPLEMENT_GLFW_GET_ERROR 1
 #endif
@@ -26,6 +27,27 @@
 #include <mutex>
 #include <deque>
 #endif
+
+
+static void glCheckError_(const char *file, int line){
+    GLenum errorCode;
+    while ((errorCode = glGetError()) != GL_NO_ERROR)
+    {
+        std::string error;
+        switch (errorCode)
+        {
+            case GL_INVALID_ENUM:                  error = "INVALID_ENUM"; break;
+            case GL_INVALID_VALUE:                 error = "INVALID_VALUE"; break;
+            case GL_INVALID_OPERATION:             error = "INVALID_OPERATION"; break;
+            case GL_STACK_OVERFLOW:                error = "STACK_OVERFLOW"; break;
+            case GL_STACK_UNDERFLOW:               error = "STACK_UNDERFLOW"; break;
+            case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
+        }
+        std::cerr << error << " | " << file << " (" << line << ")" << std::endl;
+    }
+}
+#define glCheckError() glCheckError_(__FILE__, __LINE__)
 
 
 #define throw_glfw_error(ctx) do {	  \
@@ -67,6 +89,8 @@ namespace fort {
 namespace artemis {
 
 #endif // IMPLEMENT_GLFW_GET_ERROR
+
+
 
 
 void debugGL(GLenum source,
@@ -351,6 +375,7 @@ void GLUserInterface::ComputeViewport() {
 		           0,
 		           wantedWidth,
 		           d_windowSize.height);
+		glCheckError();
 		d_viewSize = cv::Size(wantedWidth,d_windowSize.height);
 	} else {
 		wantedWidth = d_windowSize.width;
@@ -361,6 +386,7 @@ void GLUserInterface::ComputeViewport() {
 		           (d_windowSize.height - wantedHeight) / 2,
 		           d_windowSize.width,
 		           wantedHeight);
+		glCheckError();
 		d_viewSize = cv::Size(d_windowSize.width,wantedHeight);
 	}
 }
@@ -393,10 +419,14 @@ void GLUserInterface::InitPBOs() {
 		d_buffer[i].TagLabels = std::make_shared<GLVertexBufferObject>();
 
 		glGenBuffers(1,&(d_buffer[i].PBO));
+		glCheckError();
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER,d_buffer[i].PBO);
+		glCheckError();
 		glBufferData(GL_PIXEL_UNPACK_BUFFER,d_workingSize.width*d_workingSize.height,0,GL_STREAM_DRAW);
+		glCheckError();
 	}
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+	glCheckError();
 }
 
 void GLUserInterface::UploadTexture(DrawBuffer & buffer) {
@@ -414,13 +444,18 @@ void GLUserInterface::UploadTexture(DrawBuffer & buffer) {
 
 	size_t frameSize = toUpload->cols * toUpload->rows;
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,buffer.PBO);
+	glCheckError();
 	glBufferData(GL_PIXEL_UNPACK_BUFFER,frameSize,0,GL_STREAM_DRAW);
+	glCheckError();
 	auto ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER,GL_WRITE_ONLY);
+	glCheckError();
 	if ( ptr != nullptr ) {
 		memcpy(ptr,toUpload->data,frameSize);
 		glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+		glCheckError();
 	}
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+	glCheckError();
 }
 
 void GLUserInterface::InitGLData() {
@@ -428,7 +463,9 @@ void GLUserInterface::InitGLData() {
 
 	GLuint VAO;
 	glGenVertexArrays(1,&VAO);
+	glCheckError();
 	glBindVertexArray(VAO);
+	glCheckError();
 
 
 	InitPBOs();
@@ -436,6 +473,7 @@ void GLUserInterface::InitGLData() {
 	ComputeViewport();
 
 	glClearColor(0.0f,0.0f,0.0f,1.0f);
+	glCheckError();
 
 
 	d_frameProgram = ShaderUtils::CompileProgram(std::string(frame_vertexshader,frame_vertexshader+frame_vertexshader_size),
@@ -455,12 +493,18 @@ void GLUserInterface::InitGLData() {
 	d_frameVBO->Upload(frameData,2,2,0,true);
 
 	glGenTextures(1,&d_frameTexture);
+	glCheckError();
 	glBindTexture(GL_TEXTURE_2D, d_frameTexture);
+	glCheckError();
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glCheckError();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glCheckError();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glCheckError();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glCheckError();
 
 	d_pointProgram = ShaderUtils::CompileProgram(std::string(primitive_vertexshader,primitive_vertexshader+primitive_vertexshader_size),
 	                                             std::string(circle_fragmentshader,circle_fragmentshader+circle_fragmentshader_size));
@@ -491,6 +535,7 @@ void GLUserInterface::InitGLData() {
 	size_t rows = OVERLAY_ROWS + 2;
 
 	glUseProgram(d_primitiveProgram);
+	glCheckError();
 
 
 	d_labelFont =  std::make_shared<GLFont>("Nimbus Mono,Bold",l * 2.0f,512);
@@ -501,8 +546,10 @@ void GLUserInterface::InitGLData() {
 	}
 
 	glEnable(GL_BLEND);
+	glCheckError();
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glCheckError();
 
 	d_ROI = cv::Rect(cv::Point(0,0),d_fullSize);
 
@@ -521,6 +568,7 @@ void GLUserInterface::ComputeProjection(const cv::Rect & roi, Eigen::Matrix3f & 
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 	glUseProgram(d_frameProgram);
+	glCheckError();
 
 	if ( d_ROI == buffer.Frame.CurrentROI ) {
 		// we use an higher resolution zoomed frame, we therefore use the full ROI projection
@@ -531,12 +579,18 @@ void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 
 
 	glActiveTexture(GL_TEXTURE0);
+	glCheckError();
 	glBindTexture(GL_TEXTURE_2D,d_frameTexture);
+	glCheckError();
 	glUniform1i(d_frameTexture, 0);
+	glCheckError();
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,buffer.PBO);
+	glCheckError();
 	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,d_workingSize.width,d_workingSize.height,0,GL_RED,GL_UNSIGNED_BYTE,0);
+	glCheckError();
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+	glCheckError();
 
 	d_frameVBO->Render(GL_TRIANGLES);
 }
@@ -553,6 +607,7 @@ void GLUserInterface::UploadMatrix(GLuint programID,
                                    const Eigen::Matrix3f & matrix) {
 	auto matID = glGetUniformLocation(programID,name.c_str());
 	glUniformMatrix3fv(matID,1,GL_FALSE,matrix.data());
+	glCheckError();
 }
 
 void GLUserInterface::UploadColor(GLuint programID,
@@ -560,6 +615,7 @@ void GLUserInterface::UploadColor(GLuint programID,
                                   const cv::Vec3f & color) {
 	auto colorID = glGetUniformLocation(programID,name.c_str());
 	glUniform3fv(colorID,1,&color[0]);
+	glCheckError();
 }
 
 void GLUserInterface::UploadColor(GLuint programID,
@@ -567,13 +623,15 @@ void GLUserInterface::UploadColor(GLuint programID,
                                   const cv::Vec4f & color) {
 	auto colorID = glGetUniformLocation(programID,name.c_str());
 	glUniform4fv(colorID,1,&color[0]);
+	glCheckError();
 }
 
 void GLUserInterface::UploadFloat(GLuint programID,
                                   const std::string & name,
                                   float f) {
 	auto fID = glGetUniformLocation(programID,name.c_str());
-	glUniform1f(fID,f);
+	//	glUniform1f(fID,f);
+	glCheckError();
 }
 
 
@@ -619,6 +677,7 @@ void GLUserInterface::DrawROI(const DrawBuffer & buffer) {
 		return;
 	}
 	glUseProgram(d_roiProgram);
+	glCheckError();
 	auto factor = FullToWindowScaleFactor();
 	if ( d_ROI.size() != d_fullSize ) {
 		factor *= float(d_fullSize.width) / float(d_ROI.width);
@@ -630,6 +689,7 @@ void GLUserInterface::DrawROI(const DrawBuffer & buffer) {
 
 	UploadColor(d_roiProgram,"boxColor",cv::Vec3f(0.0f,1.0f,1.0f));
 	glPointSize(floatPointSize);
+	glCheckError();
 	UploadFloat(d_roiProgram,"lineWidth", 3.0f * 2.0f / floatPointSize);
 	buffer.HighlightedTags->Render(GL_POINTS);
 	UploadColor(d_roiProgram,"boxColor",cv::Vec3f(1.0f,0.0f,0.0f));
@@ -641,6 +701,7 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 		return;
 	}
 	glUseProgram(d_pointProgram);
+	glCheckError();
 	auto factor = FullToWindowScaleFactor();
 	if ( d_ROI.size() != d_fullSize ) {
 		factor *= float(d_fullSize.width) / float(d_ROI.width);
@@ -649,9 +710,11 @@ void GLUserInterface::DrawPoints(const DrawBuffer & buffer) {
 
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(0.0f,1.0f,1.0f));
 	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor);
+	glCheckError();
 	buffer.HighlightedTags->Render(GL_POINTS);
 
 	glPointSize(float(NORMAL_POINT_SIZE) * factor);
+	glCheckError();
 	UploadColor(d_pointProgram,"circleColor",cv::Vec3f(1.0f,0.0f,0.0f));
 	buffer.NormalTags->Render(GL_POINTS);
 }
@@ -689,6 +752,7 @@ void GLUserInterface::DrawInformations(const DrawBuffer & buffer ) {
 	}
 
 	glUseProgram(d_primitiveProgram);
+	glCheckError();
 
 	UploadColor(d_primitiveProgram,"primitiveColor",OVERLAY_BACKGROUND);
 
@@ -746,6 +810,7 @@ void GLUserInterface::Draw(const DrawBuffer & buffer ) {
 	}
 
 	glClear( GL_COLOR_BUFFER_BIT);
+	glCheckError();
 
 	DrawMovieFrame(buffer);
 	DrawPoints(buffer);
@@ -766,15 +831,23 @@ void GLUserInterface::RenderText(const GLVertexBufferObject & buffer,
                                  const cv::Vec4f & foreground,
                                  const cv::Vec4f & background) {
 	glUseProgram(d_fontProgram);
-	UploadColor(d_fontProgram,"foreground",foreground);
+	glCheckError();
+
+	//	UploadColor(d_fontProgram,"foreground",foreground);
 	UploadColor(d_fontProgram,"background",background);
 	Eigen::Matrix3f projection;
 	ComputeProjection(roi,projection);
 	UploadMatrix(d_fontProgram,"scaleMat",projection);
 
 	glActiveTexture(GL_TEXTURE0);
+	glCheckError();
+
 	glBindTexture(GL_TEXTURE_2D,font.TextureID());
-	glUniform1i(font.TextureID(), 0);
+	glCheckError();
+
+	//	glUniform1i(font.TextureID(), 0);
+	glCheckError();
+
 
 	buffer.Render(GL_TRIANGLES);
 }
@@ -837,6 +910,7 @@ void GLUserInterface::DrawHelp() {
 	box.x = (d_viewSize.width - box.width)/2;
 	box.y = (d_viewSize.height - box.height)/2 - box.y;
 	glUseProgram(d_primitiveProgram);
+	glCheckError();
 	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
 	UploadColor(d_primitiveProgram,"primitiveColor",OVERLAY_BACKGROUND);
 	d_boxOverlayVBO->UploadRect(box);
@@ -856,6 +930,8 @@ void GLUserInterface::DrawPrompt() {
 		return;
 	}
 	glUseProgram(d_primitiveProgram);
+	glCheckError();
+
 	UploadMatrix(d_primitiveProgram,"scaleMat",d_viewProjection);
 	UploadColor(d_primitiveProgram,"primitiveColor",OVERLAY_BACKGROUND);
 	d_boxOverlayVBO->UploadRect(cv::Rect({0,0},d_viewSize));
