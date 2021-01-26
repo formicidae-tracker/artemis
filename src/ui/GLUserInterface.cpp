@@ -509,7 +509,7 @@ void GLUserInterface::DrawMovieFrame(const DrawBuffer & buffer) {
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D,d_frameTexture);
-	glUniform1i(d_frameTexture, 0);
+	//	glUniform1i(d_frameTexture, 0);
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,buffer.PBO);
 	glTexImage2D(GL_TEXTURE_2D,0,GL_R8,d_workingSize.width,d_workingSize.height,0,GL_RED,GL_UNSIGNED_BYTE,0);
@@ -751,7 +751,7 @@ void GLUserInterface::RenderText(const GLVertexBufferObject & buffer,
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D,font.TextureID());
-	glUniform1i(font.TextureID(), 0);
+	//	glUniform1i(font.TextureID(), 0);
 
 	buffer.Render(GL_TRIANGLES);
 }
