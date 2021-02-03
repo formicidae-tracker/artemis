@@ -317,11 +317,12 @@ void ProcessFrameTask::ExportMovie(const Frame::Ptr & frame,
 		                  const auto & t = toExport[index];
 		                  std::ostringstream oss;
 		                  auto & frameID = d_movieExports[t.id()].FrameID;
+		                  frameID++;
 		                  oss << d_options.NewAntOutputDir
 		                      << "/movies/tag_"
 		                      << std::setfill('0') << std::setw(4) << t.id()
 		                      << "/frame_"
-		                      << std::setfill('0') << std::setw(6) << (frameID++)
+		                      << std::setfill('0') << std::setw(6) << (frame->ID())
 		                      << ".png";
 
 		                  std::filesystem::path filepath(oss.str());
