@@ -263,20 +263,27 @@ Time::Time(int64_t wallSec, int32_t wallNsec, uint64_t mono, MonoclockID monoID)
 	, d_wallNsec(wallNsec)
 	, d_mono(mono)
 	, d_monoID(monoID) {
-	while(d_wallNsec >= NANOS_PER_SECOND_SINT64 ) {
-		if (d_wallSec == MAX_SINT64 ) {
+	while(d_wallNsec >= 1000000000L) {
+		// why this barrier is needed for RelWithDebInfo ??? Otherwise
+		// it won't make the check correctly otherwise
+		std::atomic_thread_fence(std::memory_order_acquire);
+		if (d_wallSec == std::numeric_limits<int64_t>::max() ) {
 			throw Overflow("Wall");
 		}
-		++d_wallSec;
-		d_wallNsec -= NANOS_PER_SECOND_SINT64;
+
+		d_wallSec += 1;
+		d_wallNsec -= 1000000000L;
 	}
 
 	while(d_wallNsec < 0) {
-		if (d_wallSec == MIN_SINT64 ) {
+		// why this barrier is needed for RelWithDebInfo ??? Otherwise
+		// it won't make the check correctly otherwise
+		std::atomic_thread_fence(std::memory_order_acquire);
+		if (d_wallSec == std::numeric_limits<int64_t>::min() ) {
 			throw Overflow("Wall");
 		}
 		--d_wallSec;
-		d_wallNsec += NANOS_PER_SECOND_SINT64;
+		d_wallNsec += 1000000000L;
 	}
 }
 

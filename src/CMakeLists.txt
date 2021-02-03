@@ -160,7 +160,7 @@ target_link_libraries(artemis-common ${GLOG_LIBRARIES}
 	                                 ${TBB_LIBRARIES}
 	                                 glfw
 	                                 ${GLEW_LIBRARIES}
-	                                 OpenGL::OpenGL
+	                                 OpenGL::GL
 	                                 freetype-gl
 	                                 ${FONTCONFIG_LIBRARIES}
 	                                 boost_system
