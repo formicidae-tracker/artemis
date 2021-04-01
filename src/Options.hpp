@@ -30,6 +30,8 @@ struct GeneralOptions {
 	bool        LegacyMode;
 
 	std::string stubImagePaths;
+
+	unsigned int NumberThreads;
 };
 
 

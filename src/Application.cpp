@@ -26,7 +26,7 @@ void Application::Execute(int argc, char ** argv) {
 	}
 
 	InitGoogleLogging(argv[0],options.General);
-	InitGlobalDependencies();
+	InitGlobalDependencies(options.General);
 
 	Application application(options);
 	application.Run();
@@ -68,7 +68,7 @@ void Application::InitGoogleLogging(char * applicationName,
 	::google::InstallFailureSignalHandler();
 }
 
-void Application::InitGlobalDependencies() {
+void Application::InitGlobalDependencies(const GeneralOptions & options) {
 	// Needed as we will do some parallelized access to Eigen ??
 	Eigen::initParallel();
 	// reduce the number of threads for OpenCV to allow some room for
@@ -79,6 +79,12 @@ void Application::InitGlobalDependencies() {
 	} else if ( numThreads > 2 ) {
 		numThreads -= 2;
 	}
+	if ( options.NumberThreads > 0 ) {
+		numThreads = options.NumberThreads;
+	}
+
+
+
 	cv::setNumThreads(numThreads);
 }
 
