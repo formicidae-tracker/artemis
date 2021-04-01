@@ -104,7 +104,7 @@ void GeneralOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("stub-image-paths", stubImagePaths, "Use a suite of stub images instead of an actual framegrabber");
 	parser.AddFlag("test-mode",TestMode,"Test mode, adds an overlay detection drawing and statistics");
 	parser.AddFlag("legacy-mode",LegacyMode,"Uses a legacy mode data output for ants cataloging and video output display. The data will be convertible to the data expected by the former Keller's group tracking system");
-	parser.AddFlag("number-thread",NumberThreads,"Number threads to use,0 for automatic detection");
+	parser.AddFlag("number-threads",NumberThreads,"Number threads to use,0 for automatic detection");
 }
 
 void GeneralOptions::FinishParse() {
