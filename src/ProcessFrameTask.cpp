@@ -122,6 +122,15 @@ void ProcessFrameTask::SetUpPoolObjects() {
 ProcessFrameTask::~ProcessFrameTask() {}
 
 void ProcessFrameTask::TearDown() {
+	LOG(INFO) << "Stats frame processed: "
+	          << d_frameProcessed
+	          << "/"
+	          << d_frameProcessed+ d_frameDropped
+	          << " ("
+	          << 100.0 * d_frameDropped / double ( d_frameDropped + d_frameProcessed )
+	          << " % drop) FPS: "
+	          << CurrentFPS(Time::Now());
+
 	if ( d_userInterface ) {
 		d_userInterface->CloseQueue();
 	}
