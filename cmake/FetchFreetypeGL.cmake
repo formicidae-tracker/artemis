@@ -2,7 +2,8 @@ include(FetchContent)
 include(CMakeParseArguments)
 
 function(fetch_freetype_gl)
-	cmake_parse_arguments(OPST "" "VERSION" "")
+	cmake_parse_arguments(OPTS "" "VERSION" "" ${ARGN})
+	message(STATUS "Fetching freetype-gl version: ${OPTS_VERSION}")
 	FetchContent_Declare(freetype-gl
 	                     GIT_REPOSITORY https://github.com/rougier/freetype-gl
 	                     GIT_TAG        ${OPTS_VERSION}
