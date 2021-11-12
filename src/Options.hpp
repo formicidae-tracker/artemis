@@ -91,17 +91,24 @@ private:
 };
 
 struct CameraOptions {
+	struct Rect {
+		size_t x,y,w,h;
+		static Rect FromString(const std::string & input);
+	};
+
 	CameraOptions();
 	void PopulateParser( options::FlagParser & parser);
  	void FinishParse();
 
-	double    FPS;
-	Duration  StrobeDuration;
-	Duration  StrobeDelay;
-	size_t    SlaveWidth;
-	size_t    SlaveHeight;
+	double                FPS;
+	Duration              StrobeDuration;
+	Duration              StrobeDelay;
+	size_t                SlaveWidth;
+	size_t                SlaveHeight;
+	std::shared_ptr<Rect> ROI;
+
 private:
-	std::string d_strobeDuration,d_strobeDelay;
+	std::string d_strobeDuration,d_strobeDelay,d_ROI;
 };
 
 

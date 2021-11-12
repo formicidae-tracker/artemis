@@ -3,6 +3,20 @@
 #include <glog/logging.h>
 #include <regex>
 
+bool operator==(const fort::artemis::CameraOptions::Rect & a,
+                const fort::artemis::CameraOptions::Rect & b) {
+	return a.x == b.x
+		&& a.y == b.y
+		&& a.w == b.w
+		&& a.h == b.h;
+}
+
+bool operator!=(const fort::artemis::CameraOptions::Rect & a,
+                const fort::artemis::CameraOptions::Rect & b) {
+	return !(a == b);
+}
+
+
 namespace fort {
 namespace artemis {
 
@@ -50,6 +64,17 @@ EuresysFrameGrabber::EuresysFrameGrabber(Euresys::EGenTL & gentl,
 		setInteger<DeviceModule>("StrobeDelay",options.StrobeDelay.Microseconds());
 
 		setString<RemoteModule>("ExposureMode","Edge_Triggerred_Programmable");
+
+		CameraOptions::Rect wantedROI = {.x = 1, .y =1, .w = 7920, .h = 6004 };
+
+		if ( options.ROI != nullptr ) {
+			wantedROI = EuresysFrameGrabber::AlignROI(*options.ROI);
+		}
+
+		if ( GetROI() != wantedROI ) {
+			SetROI(wantedROI);
+		}
+
 	} else {
 		if (options.SlaveWidth == 0 || options.SlaveHeight == 0 ) {
 			throw std::runtime_error("Camera resolution is not specified in DF mode");
@@ -138,6 +163,37 @@ const cv::Mat & EuresysFrame::ToCV() {
 void * EuresysFrame::Data() {
 	return getInfo<void*>(GenTL::BUFFER_INFO_BASE);
 }
+
+CameraOptions::Rect EuresysFrameGrabber::GetROI() {
+	using namespace Euresys;
+	CameraOptions::Rect roi;
+	roi.w = getInteger<RemoteModule>("ROI_HR");
+	roi.h = getInteger<RemoteModule>("ROI_1_VR");
+	roi.x = getInteger<RemoteModule>("ROI_1_HR_Start");
+	roi.y = getInteger<RemoteModule>("ROI_1_VR_Start");
+	return roi;
+}
+
+void EuresysFrameGrabber::SetROI(const CameraOptions::Rect & roi) {
+	using namespace Euresys;
+	setInteger<RemoteModule>("ROI_HR",roi.w);
+	setInteger<RemoteModule>("ROI_1_VR",roi.h);
+	setInteger<RemoteModule>("ROI_1_HR_Start",roi.x);
+	setInteger<RemoteModule>("ROI_1_VR_Start",roi.y);
+	execute<RemoteModule>("ROI_Set_Windows");
+	d_width = roi.w;
+	d_height = roi.h;
+}
+
+CameraOptions::Rect EuresysFrameGrabber::AlignROI(const CameraOptions::Rect & roi) {
+	auto res = roi;
+	res.x = roi.x - roi.x % 16 + 1;
+	res.y = roi.y - roi.y % 2 + 1;
+	res.w = roi.w - roi.w % 16;
+	res.h = roi.h - roi.w % 2;
+	return res;
+}
+
 
 } // namespace artemis
 } // namespace fort

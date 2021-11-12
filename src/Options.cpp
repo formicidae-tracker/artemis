@@ -188,6 +188,7 @@ CameraOptions::CameraOptions()
 	, StrobeDelay(0) {
 	d_strobeDuration = StrobeDuration.ToString();
 	d_strobeDelay = StrobeDelay.ToString();
+	d_ROI = "";
 }
 
 void CameraOptions::PopulateParser(options::FlagParser & parser)  {
@@ -196,11 +197,28 @@ void CameraOptions::PopulateParser(options::FlagParser & parser)  {
 	parser.AddFlag("camera-slave-height",SlaveHeight,"Camera Height argument for slave mode");
 	parser.AddFlag("camera-strobe",d_strobeDuration,"Camera Strobe duration");
 	parser.AddFlag("camera-strobe-delay",d_strobeDelay,"Camera Strobe delay");
+	parser.AddFlag("camera-roi",d_ROI,"Camera ROI");
 }
 
 void CameraOptions::FinishParse() {
 	StrobeDuration = Duration::Parse(d_strobeDuration);
 	StrobeDelay = Duration::Parse(d_strobeDelay);
+	if ( d_ROI.empty() == false ) {
+		ROI = std::make_shared<Rect>(Rect::FromString(d_ROI));
+	}
+}
+
+CameraOptions::Rect CameraOptions::Rect::FromString(const std::string & input) {
+	Rect res;
+	int cres = std::sscanf(input.c_str(),
+	                       "%lu:%lu:%lu:%lu",
+	                       &res.x,&res.y,&res.w,&res.h);
+	if ( cres != 4 ) {
+		throw std::invalid_argument("Rectangle specification '"
+		                            + input + "' is not in the format 'X:Y:W:H' : "
+		                            + std::to_string(cres));
+	}
+	return res;
 }
 
 ApriltagOptions::ApriltagOptions()

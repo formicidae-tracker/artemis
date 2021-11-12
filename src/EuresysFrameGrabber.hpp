@@ -53,6 +53,11 @@ public :
 
 	cv::Size Resolution() const override;
 private:
+	static CameraOptions::Rect AlignROI(const CameraOptions::Rect & roi);
+
+	CameraOptions::Rect GetROI();
+	void SetROI(const CameraOptions::Rect & roi);
+
 
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
