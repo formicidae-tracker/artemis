@@ -304,7 +304,7 @@ void Options::Validate() {
 	}
 #ifdef NDEBUG
 	if ( Process.ImageRenewPeriod < 15 * Duration::Minute ) {
-		throw std::invalid_argument("Image renew period (" + Process.ImageRenewPeriod.ToString() + ") is too small for production of large dataset (minimum: 15m)");
+		throw std::invalid_argument("Image renew period (" + formatDuration(Process.ImageRenewPeriod) + ") is too small for production of large dataset (minimum: 15m)");
 	}
 #endif
 
