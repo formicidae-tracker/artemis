@@ -1,7 +1,7 @@
 cmake_policy(SET CMP0048 NEW)
 
 project(artemis VERSION 0.4.4
-                LANGUAGES C CXX)
+	LANGUAGES C CXX)
 
 cmake_minimum_required(VERSION 3.11)
 
@@ -12,6 +12,7 @@ include(FetchFortTags)
 include(FetchFortHermes)
 include(FetchBoostAsio)
 include(FetchFreetypeGL)
+include(FetchFortTime)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -27,8 +28,9 @@ if(EURESYS_FRAMEGRABBER_SUPPORT)
 	find_package(EGrabber REQUIRED)
 endif(EURESYS_FRAMEGRABBER_SUPPORT)
 
-fetch_google_test(VERSION release-1.8.1)
-fetch_fort_tags(VERSION v1.3.1)
+fetch_google_test(VERSION release-1.12.1)
+fetch_fort_tags(VERSION v1.4.1)
+fetch_fort_time(VERSION v1.0.9)
 fetch_fort_hermes(VERSION v0.4.1)
 fetch_boost_asio(VERSION boost-1.74.0)
 fetch_freetype_gl(VERSION 1a8c007f3fe7b1441f9e5616bc23d7455f4b07dd)
@@ -59,13 +61,14 @@ include_directories(${EGRABBER_INCLUDE_DIRS}
                     # GLFW uses target properties
                     ${GLEW_INCLUDE_DIRS}
                     ${PROTOBUF_INCLUDE_DIRS}
-	                ${TBB_INCLUDE_DIRS}
+                    ${TBB_INCLUDE_DIRS}
                     ${FONTCONFIG_INCLUDE_DIRS}
+                    ${FORT_TIME_INCLUDE_DIRS}
                     ${FORT_TAGS_INCLUDE_DIRS}
                     ${FORT_HERMES_INCLUDE_DIRS}
                     ${BOOST_ASIO_INCLUDE_DIRS}
-	                ${FREETYPE_GL_INCLUDE_DIRS}
-	                )
+                    ${FREETYPE_GL_INCLUDE_DIRS}
+)
 
 include(EnableMakeCheck)
 enable_testing()

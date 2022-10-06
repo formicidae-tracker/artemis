@@ -5,7 +5,7 @@ namespace fort {
 namespace artemis {
 
 Frame::Frame() {
-	d_time = fort::artemis::Time::Now();
+	d_time = fort::Time::Now();
 }
 
 Frame::~Frame() {}
@@ -13,7 +13,7 @@ Frame::~Frame() {}
 FrameGrabber::~FrameGrabber() {}
 
 
-const fort::artemis::Time & Frame::Time() const {
+const fort::Time & Frame::Time() const {
 	return d_time;
 }
 

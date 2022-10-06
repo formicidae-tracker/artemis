@@ -68,7 +68,7 @@ void UserInterfaceTask::QueueFrame(const UserInterface::FrameToDisplay &  toDisp
 }
 
 void UserInterfaceTask::CloseQueue() {
-	d_displayQueue.push({.Full = nullptr });
+	d_displayQueue.push({.Full = nullptr,.FrameTime = fort::Time() });
 }
 
 

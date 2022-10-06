@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "Time.hpp"
+#include <fort/time/Time.hpp>
 
 #include <opencv2/core.hpp>
 
@@ -24,10 +24,10 @@ public:
 	virtual uint64_t Timestamp() const = 0;
 	virtual uint64_t ID() const = 0;
 	virtual const cv::Mat & ToCV() = 0;
-	const fort::artemis::Time & Time() const;
+	const fort::Time & Time() const;
 private:
 
-	fort::artemis::Time d_time;
+	fort::Time d_time;
 };
 
 class FrameGrabber {

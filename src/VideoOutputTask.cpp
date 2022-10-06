@@ -9,6 +9,8 @@
 
 #include "ImageTextRenderer.hpp"
 
+#include <iomanip>
+
 namespace fort {
 namespace artemis {
 

@@ -1,4 +1,5 @@
 #include "Options.hpp"
+#include "fort/time/Time.hpp"
 
 #include <stdexcept>
 
@@ -156,6 +157,12 @@ void DisplayOptions::FinishParse() {
 }
 
 
+std::string formatDuration(const fort::Duration & d ) {
+	std::ostringstream oss;
+	oss << d;
+	return oss.str();
+}
+
 ProcessOptions::ProcessOptions()
 	: FrameStride(1)
 	, FrameID()
@@ -163,7 +170,7 @@ ProcessOptions::ProcessOptions()
 	, NewAntOutputDir()
 	, NewAntROISize(600)
 	, ImageRenewPeriod(2 * Duration::Hour) {
-	d_imageRenewPeriod = ImageRenewPeriod.ToString();
+	d_imageRenewPeriod = formatDuration(ImageRenewPeriod);
 }
 
 void ProcessOptions::PopulateParser(options::FlagParser & parser) {
@@ -186,8 +193,8 @@ CameraOptions::CameraOptions()
 	: FPS(8.0)
 	, StrobeDuration(1500 * Duration::Microsecond)
 	, StrobeDelay(0) {
-	d_strobeDuration = StrobeDuration.ToString();
-	d_strobeDelay = StrobeDelay.ToString();
+	d_strobeDuration = formatDuration(StrobeDuration);
+	d_strobeDelay = formatDuration(StrobeDelay);
 }
 
 void CameraOptions::PopulateParser(options::FlagParser & parser)  {

@@ -7,6 +7,7 @@
 
 #include "utils/PosixCall.hpp"
 
+#include <iostream>
 
 namespace fort {
 namespace artemis {
@@ -17,7 +18,8 @@ std::thread Task::Spawn(Task & task,size_t niceness) {
 	return std::thread([&task,niceness]() {
 		                   if ( niceness != 0 ) {
 			                   auto tid = syscall(SYS_gettid);
-			                   p_call(setpriority,PRIO_PROCESS,tid,niceness);
+			                   auto current = getpriority(PRIO_PROCESS,tid);
+			                   p_call(setpriority,PRIO_PROCESS,tid,current + niceness);
 		                   }
 		                   task.Run();
 	                   });

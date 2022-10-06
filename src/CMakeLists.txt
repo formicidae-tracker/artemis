@@ -61,7 +61,6 @@ set(SRC_FILES utils/Defer.cpp
 	          utils/StringManipulation.cpp
 	          utils/Partitions.cpp
 	          Task.cpp
-	          Time.cpp
 	          Options.cpp
 	          FrameGrabber.cpp
 	          StubFrameGrabber.cpp
@@ -95,7 +94,6 @@ set(HDR_FILES utils/Defer.hpp
 	          utils/Partitions.hpp
 	          Task.hpp
 	          FrameGrabber.hpp
-	          Time.hpp
 	          Connection.hpp
 	          StubFrameGrabber.hpp
 	          Options.hpp
@@ -123,7 +121,6 @@ set(UTEST_SRC_FILES main-check.cpp
                     utils/DeferUTest.cpp
                     utils/FlagParserUTest.cpp
                     utils/StringManipulationUTest.cpp
-                    TimeUTest.cpp
 	                ConnectionUTest.cpp
 	                utils/PartitionsUTest.cpp
 	                OptionsUTest.cpp
@@ -135,7 +132,6 @@ set(UTEST_HDR_FILES utils/DeferUTest.hpp
 	                utils/FlagParserUTest.hpp
 	                utils/StringManipulationUTest.hpp
 	                utils/PartitionsUTest.hpp
-	                TimeUTest.hpp
 	                ConnectionUTest.hpp
 	                OptionsUTest.hpp
 	                TaskUTest.hpp
@@ -150,19 +146,20 @@ endif(EGrabber_FOUND)
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 target_link_libraries(artemis-common ${GLOG_LIBRARIES}
-	                                 ${EGRABBER_LIBRARIES}
-	                                 fort-tags
-	                                 fort-hermes-cpp
-	                                 ${PROTOBUF_LIBRARIES}
-	                                 ${OpenCV_LIBS}
-	                                 ${TBB_LIBRARIES}
-	                                 glfw
-	                                 ${GLEW_LIBRARIES}
-	                                 OpenGL::GL
-	                                 freetype-gl
-	                                 ${FONTCONFIG_LIBRARIES}
-	                                 boost_system
-	                                  "-ldl")
+                                     ${EGRABBER_LIBRARIES}
+                                     fort-time
+                                     fort-tags
+                                     fort-hermes-cpp
+                                     ${PROTOBUF_LIBRARIES}
+                                     ${OpenCV_LIBS}
+                                     ${TBB_LIBRARIES}
+                                     glfw
+                                     ${GLEW_LIBRARIES}
+                                     OpenGL::GL
+                                     freetype-gl
+                                     ${FONTCONFIG_LIBRARIES}
+                                     boost_system
+                                     "-ldl")
 
 add_executable(artemis main.cpp)
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Time.hpp>
-#include <fort/tags/fort-tags.h>
+#include <fort/time/Time.hpp>
+#include <fort/tags/fort-tags.hpp>
 #include <set>
 #include <cstdint>
 #include <opencv2/core.hpp>
@@ -17,7 +17,7 @@ struct GeneralOptions {
 	GeneralOptions();
 
 	void PopulateParser( options::FlagParser & parser);
- 	void FinishParse();
+	void FinishParse();
 
 	bool        PrintHelp;
 	bool        PrintVersion;
@@ -48,7 +48,7 @@ private :
 struct NetworkOptions {
 	NetworkOptions();
 	void PopulateParser( options::FlagParser & parser);
- 	void FinishParse();
+	void FinishParse();
 
 
 	std::string Host;
@@ -58,7 +58,7 @@ struct NetworkOptions {
 struct VideoOutputOptions {
 	VideoOutputOptions();
 	void PopulateParser( options::FlagParser & parser);
- 	void FinishParse();
+	void FinishParse();
 
 	cv::Size WorkingResolution(const cv::Size &  inputResolution ) const;
 
@@ -72,7 +72,7 @@ struct VideoOutputOptions {
 struct ApriltagOptions {
 	ApriltagOptions();
 	void PopulateParser( options::FlagParser & parser);
- 	void FinishParse();
+	void FinishParse();
 
 
 	tags::Family Family;
@@ -93,7 +93,7 @@ private:
 struct CameraOptions {
 	CameraOptions();
 	void PopulateParser( options::FlagParser & parser);
- 	void FinishParse();
+	void FinishParse();
 
 	double    FPS;
 	Duration  StrobeDuration;
@@ -108,7 +108,7 @@ private:
 struct ProcessOptions {
 	ProcessOptions();
 	void PopulateParser( options::FlagParser & parser);
- 	void FinishParse();
+	void FinishParse();
 
 	size_t             FrameStride;
 	std::set<uint64_t> FrameID;

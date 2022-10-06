@@ -1,6 +1,16 @@
 #include "ApriltagDetector.hpp"
 
-#include <fort/tags/fort-tags.h>
+#include <fort/tags/fort-tags.hpp>
+#include <apriltag/tag16h5.h>
+#include <apriltag/tag25h9.h>
+#include <apriltag/tag36h11.h>
+#include <apriltag/tagCircle21h7.h>
+#include <apriltag/tagCircle49h12.h>
+#include <apriltag/tagCustom48h12.h>
+#include <apriltag/tagStandard41h12.h>
+#include <apriltag/tagStandard52h13.h>
+#include <fort/tags/tag36h10.h>
+#include <fort/tags/tag36ARTag.h>
 
 #include <tbb/parallel_for.h>
 

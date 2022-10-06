@@ -13,6 +13,6 @@ function(fetch_fort_tags)
 		FetchContent_Populate(fort-tags)
 		add_subdirectory(${fort-tags_SOURCE_DIR} ${fort-tags_BINARY_DIR})
 	endif(NOT fort-tags_POPULATED)
-	set(FORT_TAGS_INCLUDE_DIRS ${fort-tags_SOURCE_DIR}/src ${APRILTAG_INCLUDE_DIRS} PARENT_SCOPE)
+	set(FORT_TAGS_INCLUDE_DIRS ${fort-tags_SOURCE_DIR}/src ${FETCHCONTENT_BASE_DIR}/src PARENT_SCOPE)
 
 endfunction(fetch_fort_tags)

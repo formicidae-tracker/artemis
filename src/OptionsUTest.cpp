@@ -240,8 +240,8 @@ TEST_F(OptionsUTest,TestParse) {
 		try {
 			d.Test(Options::Parse(nArgs,(char**)&(d.Args[0])));
 		} catch ( const std::exception & e ) {
-
-			ADD_FAILURE() << "Unexpected exception: " << e.what();
+			ADD_FAILURE() << "Unexpected exception: " << e.what() << std::endl
+			              << "when parsing " << d.Args[1];
 		}
 
 

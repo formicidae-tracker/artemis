@@ -18,6 +18,8 @@
 
 #include "../Utils.hpp"
 
+#include <iomanip>
+
 #if (GLFW_VERSION_MAJOR * 100 + GLFW_VERSION_MINOR) < 303
 #define IMPLEMENT_GLFW_GET_ERROR 1
 #endif
