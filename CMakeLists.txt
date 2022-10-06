@@ -33,7 +33,7 @@ fetch_fort_tags(VERSION v1.4.1)
 fetch_fort_time(VERSION v1.0.9)
 fetch_fort_hermes(VERSION v0.4.1)
 fetch_boost_asio(VERSION boost-1.74.0)
-fetch_freetype_gl(VERSION 1a8c007f3fe7b1441f9e5616bc23d7455f4b07dd)
+fetch_freetype_gl(VERSION 513fa238357f7c11a9f427965fe336aae7955297)
 
 
 find_package(GLog REQUIRED)
