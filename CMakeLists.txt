@@ -1,9 +1,11 @@
 cmake_policy(SET CMP0048 NEW)
+cmake_policy(SET CMP0077 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 project(artemis VERSION 0.4.4
 	LANGUAGES C CXX)
 
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.16)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
