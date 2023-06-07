@@ -30,6 +30,9 @@ RUN apt update && apt install -y \
 	libgoogle-glog-dev \
 	google-mock
 
+COPY --from=golang:1.20-bullseye /usr/local/go /usr/local/go
+
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 WORKDIR /app/artemis
 
@@ -39,10 +42,8 @@ RUN mkdir -p build
 
 WORKDIR /app/artemis/build
 
-RUN if [ "$FG" = "stub_only" ] ; then echo "stub"; else echo "euresys"; fi
-
-RUN if [ "$FG" = "stub_only" ] ; then cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFORCE_STUB_FRAMEGRABBER_ONLY=On ..; else cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..; fi
+RUN if [ $FG = "stub_only" ] ; then cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFORCE_STUB_FRAMEGRABBER_ONLY=On ..; else cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..; fi
 
 RUN make all check install && ldconfig
 
-ENTRYPOINT artemis
+ENTRYPOINT artemis --version
