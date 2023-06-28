@@ -3,3 +3,4 @@ build
 scripts/resourcify/resourcify
 Dockerfile
 .dockerignore
+.github
