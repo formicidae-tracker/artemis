@@ -94,6 +94,9 @@ HyperionFrame::
 			d_ID = std::atoi(prop.readS().c_str());
 		} else if (prop.name() == "Timestamp_us") {
 			d_timestamp = std::atoi(prop.readS().c_str());
+		} else {
+			LOG(INFO) << "unused " << prop.name() << " " << it.docString()
+			          << " value: " << prop.readS();
 		}
 	}
 
@@ -108,6 +111,7 @@ HyperionFrame::
 }
 
 HyperionFrame::~HyperionFrame() {
+	LOG(INFO) << "Done" << d_index;
 	d_interface.imageRequestUnlock(d_index);
 }
 
