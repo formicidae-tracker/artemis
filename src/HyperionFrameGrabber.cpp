@@ -108,9 +108,10 @@ HyperionFrame::
 }
 
 HyperionFrame::~HyperionFrame() {
-	LOG(INFO) << "Done" << d_index;
+	LOG(INFO) << "Done " << d_index;
 	d_request->unlock();
-	d_interface.imageRequestUnlock(d_index);
+	d_interface.imageRequestSingle();
+	// d_interface.imageRequestUnlock(d_index);
 }
 
 void *HyperionFrame::Data() {
