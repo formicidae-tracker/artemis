@@ -29,13 +29,9 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	d_description = cdm.cameraDescriptionCameraLink(0);
 	d_description->aoiWidth.write(WIDTH);
 	d_description->aoiHeight.write(HEIGHT);
-	std::vector<std::string> values;
-	d_description->bitsPerPixel.getTranslationDictStrings(values);
-	LOG(INFO) << "got possible values: " << values.size();
-	for (const auto &v : values) {
-		LOG(INFO) << v;
-	}
-	d_description->bitsPerPixel.write(2);
+	d_description->bitsPerPixel.write(8);
+
+	d_description->pixelsPerCycle.write(2);
 	d_description->tapsYGeometry.writeS("2YE");
 
 	d_stats = std::make_unique<acq::Statistics>(d_device);
