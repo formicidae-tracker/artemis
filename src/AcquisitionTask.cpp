@@ -1,6 +1,7 @@
 #include "AcquisitionTask.hpp"
 
 #include <artemis-config.h>
+#include <stdexcept>
 #ifdef EURESYS_FRAMEGRABBER_SUPPORT
 #include "EuresysFrameGrabber.hpp"
 #endif // EURESYS_FRAMEGRABBER_SUPPORT
@@ -35,6 +36,15 @@ FrameGrabber::Ptr AcquisitionTask::LoadFrameGrabber(
 	static Euresys::EGenTL egentl;
 	return std::make_shared<EuresysFrameGrabber>(egentl, options);
 #endif // EURESYS_FRAMEGRABBER_SUPPORT
+
+#ifdef HYPERION_FRAMEGRABBER_SUPPORT
+	throw std::runtime_error("Hyperion Not Yet Implemented");
+#endif
+
+#ifdef MULTICAM_FRAMEGRABBER_SUPPORT
+	throw std::runtime_error("Multicam support Not Yet Implemented");
+#endif
+
 #endif // ARTEMIS_FRAMEGRABBER_ONLY
 }
 
