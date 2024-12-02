@@ -68,10 +68,12 @@ void UserInterfaceTask::QueueFrame(const UserInterface::FrameToDisplay &  toDisp
 }
 
 void UserInterfaceTask::CloseQueue() {
-	d_displayQueue.push({.Full = nullptr,.FrameTime = fort::Time() });
+	UserInterface::FrameToDisplay end;
+	end.Full      = nullptr;
+	end.FrameTime = fort::Time();
+
+	d_displayQueue.push(end);
 }
-
-
 
 } // namespace artemis
 
