@@ -97,8 +97,6 @@ HyperionFrame::
 		}
 	}
 
-	LOG(INFO) << "Got frame " << d_ID << " " << d_timestamp;
-
 	auto buf = d_request->getImageBufferDesc().getBuffer();
 	d_data   = buf->vpData;
 	d_width  = buf->iWidth;
@@ -108,7 +106,6 @@ HyperionFrame::
 }
 
 HyperionFrame::~HyperionFrame() {
-	LOG(INFO) << "Done " << d_index;
 	d_request->unlock();
 	d_interface.imageRequestSingle();
 	// d_interface.imageRequestUnlock(d_index);
