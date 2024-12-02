@@ -86,8 +86,18 @@ HyperionFrame::
 	}
 
 	for (auto it = d_request->getInfoIterator(); it.isValid(); ++it) {
-		std::cerr << it.name() << "-" << it.docString() << std::endl;
+		if (it.isProp() == false) {
+			continue;
+		}
+		acq::Property prop(it);
+		if (prop.name() == "FrameID") {
+			d_ID = std::atoi(prop.readS().c_str());
+		} else if (prop.name() == "Timestamp_us") {
+			d_timestamp = std::atoi(prop.readS().c_str());
+		}
 	}
+
+	LOG(INFO) << "Got frame " << d_ID << " " << d_timestamp;
 
 	auto buf = d_request->getImageBufferDesc().getBuffer();
 	d_data   = buf->vpData;
