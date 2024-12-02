@@ -8,7 +8,13 @@ find_library(
 	PATH_SUFFIXES lib/x86_64
 )
 
-mark_as_advanced(HYPERION_LIBRARY HYPERION_INCLUDE_DIR)
+find_library(
+	DEVICE_MANAGER_LIBRARY mvDeviceManager
+	PATHS /opt/mvIMPACT_Acquire
+	PATH_SUFFIXES lib/x86_64
+)
+
+mark_as_advanced(HYPERION_LIBRARY HYPERION_INCLUDE_DIR DEVICE_MANAGER_LIBRARY)
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
 	Hyperion DEFAULT_MSG HYPERION_INCLUDE_DIR HYPERION_LIBRARY
@@ -30,11 +36,16 @@ if(Hyperion_FOUND)
 	)
 	FetchContent_MakeAvailable(fort-clserpp)
 
-	add_library(Hyperion::mvImpact_Acquire OBJECT IMPORTED)
-	target_link_libraries(
-		Hyperion::mvImpact_Acquire INTERFACE ${HYPERION_LIBRARY}
-											 fort-clserpp::clserpp
+	add_library(Hyperion::mvImpact_Acquire UNKNOWN IMPORTED GLOBAL)
+	set_target_properties(
+		Hyperion::mvImpact_Acquire PROPERTIES IMPORTED_LOCATION
+											  ${HYPERION_LIBRARY}
 	)
+	target_link_libraries(
+		Hyperion::mvImpact_Acquire INTERFACE ${DEVICE_MANAGER_LIBRARY}
+		# fort-clserpp::clserpp
+	)
+
 	target_include_directories(
 		Hyperion::mvImpact_Acquire INTERFACE ${HYPERION_INCLUDE_DIR}
 	)

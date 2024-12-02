@@ -172,7 +172,7 @@ target_link_libraries(
 	OpenGL::GL
 	freetype-gl
 	${FONTCONFIG_LIBRARIES}
-	# boost_system
+	boost_system
 	"-ldl"
 )
 
