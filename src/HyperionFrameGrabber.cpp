@@ -1,8 +1,10 @@
-#include "HyperionFrameGrabber.hpp"
-#include <DriverBase/Include/mvDriverBaseEnums.h>
 #include <memory>
-#include <mvIMPACT_CPP/mvIMPACT_acquire.h>
 #include <stdexcept>
+
+#include "HyperionFrameGrabber.hpp"
+#include <mvIMPACT_CPP/mvIMPACT_acquire.h>
+
+#include <glog/logging.h>
 
 namespace fort {
 
@@ -27,6 +29,9 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	d_description = cdm.cameraDescriptionCameraLink(0);
 	d_description->aoiWidth.write(WIDTH);
 	d_description->aoiHeight.write(HEIGHT);
+	std::vector<std::string> values;
+	d_description->bitsPerPixel.getTranslationDictStrings(values);
+	LOG(INFO) << "got possible values: " << values.size();
 	d_description->bitsPerPixel.write(2);
 	d_description->tapsYGeometry.writeS("2YE");
 
