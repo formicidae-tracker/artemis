@@ -24,7 +24,7 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 
 	d_device->open();
 
-	acq::CameraDescriptionManager cdm(d_device.get());
+	acq::CameraDescriptionManager cdm(d_device);
 
 	d_description = cdm.cameraDescriptionCameraLink(0);
 	d_description->aoiWidth.write(WIDTH);
@@ -32,11 +32,14 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	std::vector<std::string> values;
 	d_description->bitsPerPixel.getTranslationDictStrings(values);
 	LOG(INFO) << "got possible values: " << values.size();
+	for (const auto &v : values) {
+		LOG(INFO) << v;
+	}
 	d_description->bitsPerPixel.write(2);
 	d_description->tapsYGeometry.writeS("2YE");
 
-	d_stats = std::make_unique<acq::Statistics>(d_device.get());
-	d_intf  = std::make_unique<acq::FunctionInterface>(d_device.get());
+	d_stats = std::make_unique<acq::Statistics>(d_device);
+	d_intf  = std::make_unique<acq::FunctionInterface>(d_device);
 
 	acq::TDMR_ERROR err = acq::DMR_NO_ERROR;
 	for (; err == acq::DMR_NO_ERROR;

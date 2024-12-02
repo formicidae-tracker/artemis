@@ -51,7 +51,7 @@ public:
 	cv::Size Resolution() const override;
 
 private:
-	std::unique_ptr<mvIMPACT::acquire::Device>      d_device;
+	mvIMPACT::acquire::Device                      *d_device;
 	mvIMPACT::acquire::CameraDescriptionCameraLink *d_description;
 
 	std::unique_ptr<mvIMPACT::acquire::Statistics>        d_stats;
