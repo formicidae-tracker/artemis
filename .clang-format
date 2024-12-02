@@ -1,0 +1,27 @@
+# -*- mode: yaml -*-
+---
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: ForIndentation
+TabWidth: 4
+---
+Language: Cpp
+AllowShortFunctionsOnASingleLine: Empty
+SeparateDefinitionBlocks: Always
+AccessModifierOffset: -4
+AlignConsecutiveAssignments: AcrossComments
+AllowAllArgumentsOnNextLine: false
+BinPackArguments: false
+BinPackParameters: false
+BreakConstructorInitializers: BeforeComma
+BreakStringLiterals: true
+PackConstructorInitializers: Never
+AlignAfterOpenBracket: BlockIndent
+Cpp11BracedListStyle: true
+AlwaysBreakBeforeMultilineStrings: true
+AlignConsecutiveDeclarations: AcrossComments
+AlignConsecutiveMacros: AcrossComments
+Standard: c++17
+PointerAlignment: Right
+ReferenceAlignment: Right
+---
