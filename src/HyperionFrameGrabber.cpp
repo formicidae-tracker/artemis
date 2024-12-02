@@ -24,9 +24,7 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 
 	acq::CameraDescriptionManager cdm(d_device.get());
 
-	d_description = std::unique_ptr<acq::CameraDescriptionCameraLink>(
-	    cdm.cameraDescriptionCameraLink(0)
-	);
+	d_description = cdm.cameraDescriptionCameraLink(0);
 	d_description->aoiWidth.write(WIDTH);
 	d_description->aoiHeight.write(HEIGHT);
 	d_description->bitsPerPixel.write(2);
