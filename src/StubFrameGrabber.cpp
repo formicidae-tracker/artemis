@@ -11,14 +11,13 @@
 namespace fort {
 namespace artemis {
 
-StubFrame::StubFrame(const cv::Mat & mat, uint64_t ID)
-	: d_mat(mat.clone())
-	, d_ID(ID) {
-}
+StubFrame::StubFrame(const cv::Mat &mat, uint64_t ID)
+    : d_mat(mat.clone())
+    , d_ID(ID) {}
 
 StubFrame::~StubFrame() {}
 
-void * StubFrame::Data() {
+void *StubFrame::Data() {
 	return d_mat.data;
 }
 
@@ -38,39 +37,39 @@ uint64_t StubFrame::ID() const {
 	return d_ID;
 }
 
-const cv::Mat & StubFrame::ToCV() {
+const cv::Mat &StubFrame::ToCV() {
 	return d_mat;
 }
 
-
-StubFrameGrabber::StubFrameGrabber(const std::vector<std::string> & paths,
-                                   double FPS)
-	: d_ID(0)
-	, d_timestamp(0)
-	, d_period(1.0e9 / FPS) {
-	if ( paths.empty() == true ) {
+StubFrameGrabber::StubFrameGrabber(
+    const std::vector<std::string> &paths, double FPS
+)
+    : d_ID(0)
+    , d_timestamp(0)
+    , d_period(1.0e9 / FPS) {
+	if (paths.empty() == true) {
 		throw std::invalid_argument("No paths given to StubFrameGrabber");
 	}
-	for ( const auto & p : paths ) {
-		d_images.push_back(cv::imread(p,0));
-		if ( d_images.back().data == NULL ) {
+	for (const auto &p : paths) {
+		d_images.push_back(cv::imread(p, 0));
+		if (d_images.back().data == NULL) {
 			throw std::runtime_error("Could not load '" + p + "'");
 		}
-		if ( d_images.back().size() != d_images[0].size() ) {
-			throw std::runtime_error("'" + paths[0] + "' and '" + p + "' have different sizes");
+		if (d_images.back().size() != d_images[0].size()) {
+			throw std::runtime_error(
+			    "'" + paths[0] + "' and '" + p + "' have different sizes"
+			);
 		}
 	}
 }
 
-StubFrameGrabber::~StubFrameGrabber() {
-}
+StubFrameGrabber::~StubFrameGrabber() {}
 
 void StubFrameGrabber::Start() {
 	d_last = Time::Now().Add(-d_period);
 }
 
-void StubFrameGrabber::Stop() {
-}
+void StubFrameGrabber::Stop() {}
 
 cv::Size StubFrameGrabber::Resolution() const {
 	return d_images.front().size();
@@ -78,11 +77,12 @@ cv::Size StubFrameGrabber::Resolution() const {
 
 Frame::Ptr StubFrameGrabber::NextFrame() {
 	auto toWait = d_last.Add(d_period).Sub(Time::Now());
-	if ( toWait > 0 ) {
+	if (toWait > 0) {
 		usleep(toWait.Microseconds());
 	}
 
-	Frame::Ptr res = std::make_shared<StubFrame>(d_images[d_ID % d_images.size()],d_ID);
+	Frame::Ptr res =
+	    std::make_shared<StubFrame>(d_images[d_ID % d_images.size()], d_ID);
 	d_ID += 1;
 	d_last = res->Time();
 	return res;

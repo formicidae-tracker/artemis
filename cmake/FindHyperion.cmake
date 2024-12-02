@@ -14,7 +14,6 @@ find_package_handle_standard_args(
 	Hyperion DEFAULT_MSG HYPERION_INCLUDE_DIR HYPERION_LIBRARY
 )
 if(Hyperion_FOUND)
-
 	include(FetchContent)
 	set(CLSER_LIBRARY_NAMES
 		clserMV
@@ -31,12 +30,12 @@ if(Hyperion_FOUND)
 	)
 	FetchContent_MakeAvailable(fort-clserpp)
 
-	add_library(Hyperion::mv_ImpactAcquire INTERFACE IMPORTED)
+	add_library(Hyperion::mvImpact_Acquire OBJECT IMPORTED)
 	target_link_libraries(
-		Hyperion::mv_ImpactAcquire INTERFACE ${HYPERION_LIBRARY}
+		Hyperion::mvImpact_Acquire INTERFACE ${HYPERION_LIBRARY}
 											 fort-clserpp::clserpp
 	)
 	target_include_directories(
-		Hyperion::mv_ImpactAcquire INTERFACE ${HYPERION_INCLUDE_DIR}
+		Hyperion::mvImpact_Acquire INTERFACE ${HYPERION_INCLUDE_DIR}
 	)
 endif(Hyperion_FOUND)
