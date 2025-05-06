@@ -61,10 +61,16 @@ endif(ARTEMIS_NUM_FG EQUAL 0)
 
 fetch_google_test(VERSION release-1.12.1)
 fetch_fort_tags(VERSION v1.4.1)
-fetch_fort_time(VERSION v1.0.9)
 fetch_fort_hermes(VERSION v0.4.1)
 fetch_boost_asio(VERSION boost-1.74.0)
 fetch_freetype_gl(VERSION 513fa238357f7c11a9f427965fe336aae7955297)
+
+FetchContent_Declare(
+	fort-charis
+	GIT_REPOSITORY https://github.com/formicidae-tracker/charis.git
+	GIT_TAG fdd0cd03efaa8d7428c3e815855a887a4437526f
+)
+FetchContent_MakeAvailable(fort-charis)
 
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)

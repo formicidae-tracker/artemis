@@ -106,56 +106,9 @@ void GeneralOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("legacy-mode",LegacyMode,"Uses a legacy mode data output for ants cataloging and video output display. The data will be convertible to the data expected by the former Keller's group tracking system");
 }
 
-void GeneralOptions::FinishParse() {
-	base::SplitString(stubImagePaths.cbegin(),
-	                  stubImagePaths.cend(),
-	                  ",",
-	                  std::back_inserter<std::vector<std::string>>(StubImagePaths));
-}
-
-
-NetworkOptions::NetworkOptions()
-	: Host()
-	, Port(3002) {
-}
-
-void NetworkOptions::PopulateParser(options::FlagParser & parser) {
-	parser.AddFlag("host", Host, "Host to send tag detection readout");
-	parser.AddFlag("port", Port, "Port to send tag detection readout",'p');
-}
-
-void NetworkOptions::FinishParse() {}
-
-VideoOutputOptions::VideoOutputOptions()
-	: Height(1080)
-	, AddHeader(false)
-	, ToStdout(false) {
-}
-
-void VideoOutputOptions::PopulateParser(options::FlagParser & parser) {
-	parser.AddFlag("video-output-to-stdout", ToStdout, "Sends video output to stdout");
-	parser.AddFlag("video-output-height", Height, "Video Output height (width computed to maintain aspect ratio");
-	parser.AddFlag("video-output-add-header", AddHeader, "Adds binary header to stdout output");
-}
-
-void VideoOutputOptions::FinishParse() {
-}
-
 cv::Size VideoOutputOptions::WorkingResolution(const cv::Size & input) const {
 	return cv::Size(input.width * double(Height) / double(input.height),Height);
 }
-
-DisplayOptions::DisplayOptions() {
-}
-
-void DisplayOptions::PopulateParser(options::FlagParser & parser) {
-		parser.AddFlag("highlight-tags",d_highlighted,"Tag to highlight when drawing detections");
-}
-
-void DisplayOptions::FinishParse() {
-	Highlighted = ParseCommaSeparatedListHexa(d_highlighted);
-}
-
 
 std::string formatDuration(const fort::Duration & d ) {
 	std::ostringstream oss;
@@ -180,85 +133,6 @@ void ProcessOptions::PopulateParser(options::FlagParser & parser) {
 	parser.AddFlag("new-ant-roi-size", NewAntROISize, "Size of the image to save when a new ant is found");
 	parser.AddFlag("image-renew-period", d_imageRenewPeriod, "ant cataloguing and full frame export renew period");
 	parser.AddFlag("uuid", UUID,"The UUID to mark data sent over network");
-}
-
-void ProcessOptions::FinishParse() {
-	auto IDs = ParseCommaSeparatedList(d_frameIDs);
-	FrameID.clear();
-	FrameID.insert(IDs.begin(),IDs.end());
-	ImageRenewPeriod = Duration::Parse(d_imageRenewPeriod);
-}
-
-CameraOptions::CameraOptions()
-	: FPS(8.0)
-	, StrobeDuration(1500 * Duration::Microsecond)
-	, StrobeDelay(0) {
-	d_strobeDuration = formatDuration(StrobeDuration);
-	d_strobeDelay = formatDuration(StrobeDelay);
-}
-
-void CameraOptions::PopulateParser(options::FlagParser & parser)  {
-	parser.AddFlag("camera-fps",FPS,"Camera FPS to use");
-	parser.AddFlag("camera-slave-width",SlaveWidth,"Camera Width argument for slave mode");
-	parser.AddFlag("camera-slave-height",SlaveHeight,"Camera Height argument for slave mode");
-	parser.AddFlag("camera-strobe",d_strobeDuration,"Camera Strobe duration");
-	parser.AddFlag("camera-strobe-delay",d_strobeDelay,"Camera Strobe delay");
-}
-
-void CameraOptions::FinishParse() {
-	StrobeDuration = Duration::Parse(d_strobeDuration);
-	StrobeDelay = Duration::Parse(d_strobeDelay);
-}
-
-ApriltagOptions::ApriltagOptions()
-	: Family(fort::tags::Family::Undefined)
-	, QuadDecimate(1.0)
-	, QuadSigma(0.0)
-	, RefineEdges(false)
-	, QuadMinClusterPixel(5)
-	, QuadMaxNMaxima(10)
-	, QuadCriticalRadian(0.174533)
-	, QuadMaxLineMSE(10.0)
-	, QuadMinBWDiff(40)
-	, QuadDeglitch(false) {
- }
-
-void ApriltagOptions::PopulateParser(options::FlagParser & parser)  {
-	parser.AddFlag("at-quad-decimate",QuadDecimate,"Decimate original image for faster computation but worse pose estimation. Should be 1.0 (no decimation), 1.5, 2, 3 or 4");
-	parser.AddFlag("at-quad-sigma",QuadSigma,"Apply a gaussian filter for quad detection, noisy image likes a slight filter like 0.8, for ant detection, 0.0 is almost always fine");
-	parser.AddFlag("at-refine-edges",RefineEdges,"Refines the edge of the quad, especially needed if decimation is used.");
-	parser.AddFlag("at-quad-min-cluster",QuadMinClusterPixel,"Minimum number of pixel to consider it a quad");
-	parser.AddFlag("at-quad-max-n-maxima",QuadMaxNMaxima,"Number of candidate to consider to fit quad corner");
-	parser.AddFlag("at-quad-critical-radian",QuadCriticalRadian,"Rejects quad with angle to close to 0 or 180 degrees");
-	parser.AddFlag("at-quad-max-line-mse",QuadMaxLineMSE,"MSE threshold to reject a fitted quad");
-	parser.AddFlag("at-quad-min-bw-diff",QuadMinBWDiff,"Difference in pixel value to consider a region black or white");
-	parser.AddFlag("at-quad-deglitch",QuadDeglitch,"Deglitch only for noisy images");
-	parser.AddFlag("at-family",d_family,"The apriltag family to use");
-}
-
-void ApriltagOptions::FinishParse() {
-	Family = ParseTagFamily(d_family);
-}
-
-
-void Options::PopulateParser(options::FlagParser & parser)  {
-	General.PopulateParser(parser);
-	Display.PopulateParser(parser);
-	Network.PopulateParser(parser);
-	VideoOutput.PopulateParser(parser);
-	Apriltag.PopulateParser(parser);
-	Camera.PopulateParser(parser);
-	Process.PopulateParser(parser);
-}
-
-void Options::FinishParse()  {
-	General.FinishParse();
-	Display.FinishParse();
-	Network.FinishParse();
-	VideoOutput.FinishParse();
-	Apriltag.FinishParse();
-	Camera.FinishParse();
-	Process.FinishParse();
 }
 
 Options Options::Parse(int & argc, char ** argv, bool printHelp) {

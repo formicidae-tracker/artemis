@@ -173,6 +173,7 @@ target_link_libraries(
 	freetype-gl
 	${FONTCONFIG_LIBRARIES}
 	boost_system
+	fort-charis::libfort-options
 	"-ldl"
 )
 
