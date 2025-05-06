@@ -30,6 +30,12 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 )
     : d_device{deviceManager.getDevice(index)} {
 
+	if (options.FPS > 5.0) {
+		throw std::out_of_range(
+		    "Camera FPS (" + std::to_string(options.FPS) + ") should be <= 5.0"
+		);
+	}
+
 	sendHeliosTriggerMode(
 	    double(fort::Duration::Second.Nanoseconds()) / options.FPS,
 	    options.StrobeDuration
