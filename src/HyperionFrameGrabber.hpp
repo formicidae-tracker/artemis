@@ -42,7 +42,12 @@ class HyperionFrameGrabber : public FrameGrabber {
 
 public:
 	HyperionFrameGrabber(int deviceIndex, const CameraOptions &options);
-	virtual ~HyperionFrameGrabber() = default;
+	virtual ~HyperionFrameGrabber();
+
+	HyperionFrameGrabber(const HyperionFrameGrabber &)            = delete;
+	HyperionFrameGrabber(HyperionFrameGrabber &&)                 = delete;
+	HyperionFrameGrabber &operator=(const HyperionFrameGrabber &) = delete;
+	HyperionFrameGrabber &operator=(HyperionFrameGrabber &&)      = delete;
 
 	void       Start() override;
 	void       Stop() override;
@@ -51,6 +56,17 @@ public:
 	cv::Size Resolution() const override;
 
 private:
+	struct CanConfig {
+		uint8_t     NodeID = 0;
+		std::string IfName = "slcan0";
+	};
+
+	static void sendHeliosTriggerMode(
+	    fort::Duration period,
+	    fort::Duration length,
+	    const CanConfig & = CanConfig{.NodeID = 0, .IfName = "slcan0"}
+	);
+
 	mvIMPACT::acquire::Device                      *d_device;
 	mvIMPACT::acquire::CameraDescriptionCameraLink *d_description;
 
