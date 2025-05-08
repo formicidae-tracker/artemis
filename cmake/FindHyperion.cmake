@@ -32,7 +32,7 @@ if(Hyperion_FOUND)
 	FetchContent_Declare(
 		fort-clserpp
 		GIT_REPOSITORY https://github.com/formicidae-tracker/clserpp.git
-		GIT_TAG be7890337f4e86eb7c12bc108c559dac624204df
+		GIT_TAG 69b542681dd3e0d1204ff157de83840f6ee96f34
 	)
 	FetchContent_MakeAvailable(fort-clserpp)
 
