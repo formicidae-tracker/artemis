@@ -28,7 +28,8 @@ static acq::DeviceManager deviceManager;
 HyperionFrameGrabber::HyperionFrameGrabber(
     int index, const CameraOptions &options
 )
-    : d_device{deviceManager.getDevice(index)} {
+    : d_device{deviceManager.getDevice(index)}
+    , d_acquisitionTimeout(1500 / options.FPS) {
 
 	if (options.FPS > 5.0) {
 		throw std::out_of_range(
@@ -40,6 +41,11 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	    double(fort::Duration::Second.Nanoseconds()) / options.FPS,
 	    options.StrobeDuration
 	);
+
+	// if (d_device->acquisitionStartStopBehaviour.read() != acq::assbUser) {
+	// 	LOG(INFO) << "[mvHYPERION] user acquisition start/stop";
+	// 	d_device->acquisitionStartStopBehaviour.write(acq::assbUser);
+	// }
 
 	d_device->open();
 
@@ -56,8 +62,8 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	d_stats = std::make_unique<acq::Statistics>(d_device);
 	d_intf  = std::make_unique<acq::FunctionInterface>(d_device);
 
-	acq::TDMR_ERROR err = acq::DMR_NO_ERROR;
-	for (; err == acq::DMR_NO_ERROR;
+	;
+	for (auto err = acq::DMR_NO_ERROR; err == acq::DMR_NO_ERROR;
 	     err = static_cast<acq::TDMR_ERROR>(d_intf->imageRequestSingle())) {
 		++d_requestCount;
 	}
@@ -79,17 +85,23 @@ void HyperionFrameGrabber::Stop() {
 	d_intf->acquisitionStop();
 }
 
+void HyperionFrameGrabber::AbordPending() {
+	d_stop.store(true);
+}
+
 Frame::Ptr HyperionFrameGrabber::NextFrame() {
 
 	while (true) {
-		auto       idx    = d_intf->imageRequestWaitFor(2000);
-		static int logged = 0;
+		auto idx = d_intf->imageRequestWaitFor(d_acquisitionTimeout);
+
+		if (d_stop.load() == true) {
+			return Frame::Ptr{};
+		}
+
 		if (d_intf->isRequestNrValid(idx) == false) {
-			if (logged++ % 30 == 0) {
-				LOG(ERROR
-				) << "invalid request :"
-				  << acq::ImpactAcquireException::getErrorCodeAsString(idx);
-			}
+			LOG(ERROR) << "invalid request :"
+			           << acq::ImpactAcquireException::getErrorCodeAsString(idx
+			              );
 			continue;
 		}
 		try {
@@ -98,7 +110,6 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 			LOG(ERROR) << "Could not create frame: " << e.what();
 			continue;
 		}
-		logged = 0;
 	}
 }
 

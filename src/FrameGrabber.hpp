@@ -31,13 +31,14 @@ private:
 };
 
 class FrameGrabber {
-public :
+public:
 	typedef std::shared_ptr<FrameGrabber> Ptr;
 
 	virtual ~FrameGrabber();
 
-	virtual void Start() = 0;
-	virtual void Stop() = 0;
+	virtual void Start()        = 0;
+	virtual void AbordPending() = 0;
+	virtual void Stop()         = 0;
 
 	virtual Frame::Ptr NextFrame() = 0;
 

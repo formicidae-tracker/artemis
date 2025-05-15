@@ -24,28 +24,28 @@ private :
 	cv::Mat d_mat;
 };
 
-
 class StubFrameGrabber : public FrameGrabber {
-public :
-	StubFrameGrabber(const std::vector<std::string> & paths,
-	                 double FPS);
+public:
+	StubFrameGrabber(const std::vector<std::string> &paths, double FPS);
 
 	virtual ~StubFrameGrabber();
 
-	void Start() override;
-	void Stop() override;
+	void       Start() override;
+	void       Stop() override;
 	Frame::Ptr NextFrame() override;
 
+	void AbordPending() override {}
+
 	cv::Size Resolution() const override;
+
 private:
 	typedef std::chrono::high_resolution_clock clock;
-	typedef clock::time_point time;
-	std::vector<cv::Mat> d_images;
-	uint64_t             d_ID,d_timestamp;
-	Time                 d_last;
-	Duration             d_period;
+	typedef clock::time_point                  time;
+	std::vector<cv::Mat>                       d_images;
+	uint64_t                                   d_ID, d_timestamp;
+	Time                                       d_last;
+	Duration                                   d_period;
 };
-
 
 } // namespace artemis
 } // namespace fort

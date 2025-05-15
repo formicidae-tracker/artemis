@@ -36,33 +36,32 @@ private :
 	friend class EuresysFrameGrabbero;
 };
 
-
-class EuresysFrameGrabber : public FrameGrabber,public Euresys::EGrabber<Euresys::CallbackOnDemand> {
-public :
+class EuresysFrameGrabber
+    : public FrameGrabber,
+      public Euresys::EGrabber<Euresys::CallbackOnDemand> {
+public:
 	typedef std::shared_ptr<Euresys::ScopedBuffer> BufferPtr;
 
-	EuresysFrameGrabber(Euresys::EGenTL & gentl,
-	                    const CameraOptions & options);
+	EuresysFrameGrabber(Euresys::EGenTL &gentl, const CameraOptions &options);
 
 	virtual ~EuresysFrameGrabber();
 
-
-	void Start() override;
-	void Stop() override;
+	void       Start() override;
+	void       Stop() override;
+	void       AbordPending() override {};
 	Frame::Ptr NextFrame() override;
 
 	cv::Size Resolution() const override;
-private:
 
+private:
 	virtual void onNewBufferEvent(const Euresys::NewBufferData &data);
 
-	std::mutex         d_mutex;
-	Frame::Ptr         d_frame;
-	uint64_t           d_lastFrame;
-	uint64_t           d_toAdd;
-	int32_t            d_width,d_height;
+	std::mutex d_mutex;
+	Frame::Ptr d_frame;
+	uint64_t   d_lastFrame;
+	uint64_t   d_toAdd;
+	int32_t    d_width, d_height;
 };
-
 
 } // namespace artemis
 

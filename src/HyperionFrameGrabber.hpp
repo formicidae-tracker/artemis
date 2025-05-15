@@ -51,6 +51,7 @@ public:
 
 	void       Start() override;
 	void       Stop() override;
+	void       AbordPending() override;
 	Frame::Ptr NextFrame() override;
 
 	cv::Size Resolution() const override;
@@ -72,6 +73,10 @@ private:
 
 	std::unique_ptr<mvIMPACT::acquire::Statistics>        d_stats;
 	std::unique_ptr<mvIMPACT::acquire::FunctionInterface> d_intf;
+
+	std::atomic<bool> d_stop = false;
+
+	int d_acquisitionTimeout;
 
 	size_t d_requestCount = 0;
 };

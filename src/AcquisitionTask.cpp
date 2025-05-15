@@ -61,6 +61,7 @@ AcquisitionTask::~AcquisitionTask() {}
 
 void AcquisitionTask::Stop() {
 	d_quit.store(true);
+	d_grabber->AbordPending();
 }
 
 void AcquisitionTask::Run() {
@@ -68,7 +69,7 @@ void AcquisitionTask::Run() {
 	d_grabber->Start();
 	while (d_quit.load() == false) {
 		Frame::Ptr f = d_grabber->NextFrame();
-		if (d_processFrame) {
+		if (d_processFrame && f != nullptr) {
 			d_processFrame->QueueFrame(f);
 		}
 	}
