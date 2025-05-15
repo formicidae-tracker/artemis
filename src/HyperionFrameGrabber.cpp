@@ -82,18 +82,23 @@ void HyperionFrameGrabber::Stop() {
 Frame::Ptr HyperionFrameGrabber::NextFrame() {
 
 	while (true) {
-		auto idx = d_intf->imageRequestWaitFor(-1);
-
+		auto       idx    = d_intf->imageRequestWaitFor(2000);
+		static int logged = 0;
 		if (d_intf->isRequestNrValid(idx) == false) {
-			throw std::logic_error{
-			    "invalid request :" +
-			    acq::ImpactAcquireException::getErrorCodeAsString(idx)};
+			if (logged++ % 30 == 0) {
+				LOG(ERROR
+				) << "invalid request :"
+				  << acq::ImpactAcquireException::getErrorCodeAsString(idx);
+			}
+			continue;
 		}
 		try {
 			return std::make_shared<HyperionFrame>(idx, *d_intf);
 		} catch (const std::runtime_error &e) {
+			LOG(ERROR) << "Could not create frame: " << e.what();
 			continue;
 		}
+		logged = 0;
 	}
 }
 
