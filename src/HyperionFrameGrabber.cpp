@@ -37,10 +37,12 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 		);
 	}
 
-	sendHeliosTriggerMode(
-	    double(fort::Duration::Second.Nanoseconds()) / options.FPS,
-	    options.StrobeDuration
-	);
+	d_socket = openCANSocket();
+
+	d_pulseLength = options.StrobeDuration;
+	d_pulsePeriod = double(fort::Duration::Second.Nanoseconds()) / options.FPS;
+	sendHeliosTriggerMode(d_pulsePeriod, d_pulseLength, d_socket, 1);
+	d_lastSend = Time::Now();
 
 	// if (d_device->acquisitionStartStopBehaviour.read() != acq::assbUser) {
 	// 	LOG(INFO) << "[mvHYPERION] user acquisition start/stop";
@@ -71,7 +73,7 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 
 HyperionFrameGrabber::~HyperionFrameGrabber() {
 	try {
-		sendHeliosTriggerMode(0, 0);
+		sendHeliosTriggerMode(0, 0, d_socket, 1);
 	} catch (const std::exception &e) {
 		LOG(ERROR) << "Could not reset helios trigger mode: " << e.what();
 	}
@@ -90,9 +92,24 @@ void HyperionFrameGrabber::AbordPending() {
 }
 
 Frame::Ptr HyperionFrameGrabber::NextFrame() {
-
+	Time now;
 	while (true) {
 		auto idx = d_intf->imageRequestWaitFor(d_acquisitionTimeout);
+
+		if (now.Sub(d_lastSend) >= 5 * Duration::Second) {
+			d_lastSend = now;
+			try {
+				sendHeliosTriggerMode(
+				    d_pulsePeriod,
+				    d_pulseLength,
+				    d_socket,
+				    1
+				);
+			} catch (const std::exception &e) {
+				LOG(ERROR) << "could not resend helios pulse mode: "
+				           << e.what();
+			}
+		}
 
 		if (d_stop.load() == true) {
 			return Frame::Ptr{};
@@ -102,12 +119,16 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 			LOG(ERROR) << "invalid request :"
 			           << acq::ImpactAcquireException::getErrorCodeAsString(idx
 			              );
+			now = Time::Now();
 			continue;
 		}
 		try {
-			return std::make_shared<HyperionFrame>(idx, *d_intf);
+			auto res = std::make_shared<HyperionFrame>(idx, *d_intf);
+			now      = res->Time();
+			return res;
 		} catch (const std::runtime_error &e) {
 			LOG(ERROR) << "Could not create frame: " << e.what();
+			now = Time::Now();
 			continue;
 		}
 	}
@@ -200,9 +221,7 @@ void bindSocketToIfName(int s, const std::string &ifname) {
 	}
 }
 
-void HyperionFrameGrabber::sendHeliosTriggerMode(
-    fort::Duration period, fort::Duration length, const CanConfig &config
-) {
+int HyperionFrameGrabber::openCANSocket(const CanConfig &config) {
 	auto s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
 	if (s < 0) {
 		throw std::system_error(
@@ -211,10 +230,13 @@ void HyperionFrameGrabber::sendHeliosTriggerMode(
 		    "could not open socket"
 		);
 	}
-	defer {
-		close(s);
-	};
 	bindSocketToIfName(s, config.IfName);
+	return s;
+}
+
+void HyperionFrameGrabber::sendHeliosTriggerMode(
+    fort::Duration period, fort::Duration length, int socket, uint8_t nodeID
+) {
 
 	struct can_frame frame;
 
@@ -230,10 +252,10 @@ void HyperionFrameGrabber::sendHeliosTriggerMode(
 	    .CameraDelay_us  = 0,
 	};
 
-	frame.can_id  = (0b10 << 9) | (0x36 << 3) | (config.NodeID & 0x07);
+	frame.can_id  = (0b10 << 9) | (0x36 << 3) | (nodeID & 0x07);
 	frame.can_dlc = sizeof(ArkeHeliosTriggerConfig);
 	memcpy(frame.data, &trigger, sizeof(ArkeHeliosTriggerConfig));
-	if (write(s, &frame, sizeof(struct can_frame)) < 0) {
+	if (write(socket, &frame, sizeof(struct can_frame)) < 0) {
 		throw std::system_error(
 		    errno,
 		    ARTEMIS_SYSTEM_CATEGORY(),

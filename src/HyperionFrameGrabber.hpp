@@ -63,8 +63,10 @@ private:
 	};
 
 	static void sendHeliosTriggerMode(
-	    fort::Duration period,
-	    fort::Duration length,
+	    fort::Duration period, fort::Duration length, int socket, uint8_t nodeID
+	);
+
+	static int openCANSocket(
 	    const CanConfig & = CanConfig{.NodeID = 0, .IfName = "slcan0"}
 	);
 
@@ -79,6 +81,11 @@ private:
 	int d_acquisitionTimeout;
 
 	size_t d_requestCount = 0;
+
+	int                  d_socket;
+	fort::Duration       d_pulseLength;
+	fort::Duration       d_pulsePeriod;
+	fort::Time           d_lastSend;
 };
 } // namespace artemis
 } // namespace fort
