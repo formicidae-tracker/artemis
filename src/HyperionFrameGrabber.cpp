@@ -92,11 +92,9 @@ void HyperionFrameGrabber::AbordPending() {
 }
 
 Frame::Ptr HyperionFrameGrabber::NextFrame() {
-	Time now;
 	while (true) {
-		auto idx = d_intf->imageRequestWaitFor(d_acquisitionTimeout);
-
-		if (now.Sub(d_lastSend) >= 5 * Duration::Second) {
+		auto now = Time::Now();
+		if (Time::Now().Sub(d_lastSend) >= 5 * Duration::Second) {
 			d_lastSend = now;
 			try {
 				sendHeliosTriggerMode(
@@ -111,6 +109,8 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 			}
 		}
 
+		auto idx = d_intf->imageRequestWaitFor(d_acquisitionTimeout);
+
 		if (d_stop.load() == true) {
 			return Frame::Ptr{};
 		}
@@ -119,16 +119,13 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 			LOG(ERROR) << "invalid request :"
 			           << acq::ImpactAcquireException::getErrorCodeAsString(idx
 			              );
-			now = Time::Now();
 			continue;
 		}
 		try {
 			auto res = std::make_shared<HyperionFrame>(idx, *d_intf);
-			now      = res->Time();
 			return res;
 		} catch (const std::runtime_error &e) {
 			LOG(ERROR) << "Could not create frame: " << e.what();
-			now = Time::Now();
 			continue;
 		}
 	}
