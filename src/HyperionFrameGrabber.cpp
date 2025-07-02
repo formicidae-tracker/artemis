@@ -81,6 +81,7 @@ HyperionFrameGrabber::~HyperionFrameGrabber() {
 
 void HyperionFrameGrabber::Start() {
 	d_intf->acquisitionStart();
+	d_fixer = details::Uint32TimestampFixer{};
 }
 
 void HyperionFrameGrabber::Stop() {
@@ -122,7 +123,7 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 			continue;
 		}
 		try {
-			auto res = std::make_shared<HyperionFrame>(idx, *d_intf);
+			auto res = std::make_shared<HyperionFrame>(idx, *d_intf, d_fixer);
 			return res;
 		} catch (const std::runtime_error &e) {
 			LOG(ERROR) << "Could not create frame: " << e.what();
@@ -135,8 +136,11 @@ cv::Size HyperionFrameGrabber::Resolution() const {
 	return {WIDTH, HEIGHT};
 }
 
-HyperionFrame::
-    HyperionFrame(int idx, mvIMPACT::acquire::FunctionInterface &interface)
+HyperionFrame::HyperionFrame(
+    int                                   idx,
+    mvIMPACT::acquire::FunctionInterface &interface,
+    details::Uint32TimestampFixer        &fixer
+)
     : d_interface{interface}
     , d_index{idx}
     , d_request{d_interface.getRequest(d_index)} {
@@ -154,7 +158,7 @@ HyperionFrame::
 		if (prop.name() == "FrameID") {
 			d_ID = std::atoi(prop.readS().c_str());
 		} else if (prop.name() == "TimeStamp_us") {
-			d_timestamp = std::atoi(prop.readS().c_str());
+			d_timestamp = fixer.FixTimestamp(prop.readS());
 		}
 	}
 
@@ -260,6 +264,25 @@ void HyperionFrameGrabber::sendHeliosTriggerMode(
 		);
 	}
 }
+
+namespace details {
+
+uint64_t Uint32TimestampFixer::FixTimestamp(const std::string &value) {
+	auto newTimestamp = uint32_t(std::atoi(value.c_str()));
+
+	if (this->Last == nullptr) {
+		this->Last      = std::make_unique<uint32_t>();
+		*this->Last     = newTimestamp;
+		this->Timestamp = newTimestamp;
+		return this->Timestamp;
+	}
+
+	uint32_t udiff = newTimestamp - *this->Last;
+	this->Timestamp += uint64_t(udiff);
+	*this->Last = newTimestamp;
+	return this->Timestamp;
+}
+} // namespace details
 
 } // namespace artemis
 } // namespace fort

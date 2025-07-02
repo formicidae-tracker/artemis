@@ -10,9 +10,24 @@
 namespace fort {
 namespace artemis {
 
+namespace details {
+struct Uint32TimestampFixer {
+	std::unique_ptr<uint32_t> Last;
+
+	uint64_t Timestamp = 0;
+
+	uint64_t FixTimestamp(const std::string &value);
+};
+
+} // namespace details
+
 class HyperionFrame : public Frame {
 public:
-	HyperionFrame(int index, mvIMPACT::acquire::FunctionInterface &interface);
+	HyperionFrame(
+	    int                                   index,
+	    mvIMPACT::acquire::FunctionInterface &interface,
+	    details::Uint32TimestampFixer        &timestamp
+	);
 	virtual ~HyperionFrame();
 
 	HyperionFrame(const HyperionFrame &other)            = delete;
@@ -82,10 +97,12 @@ private:
 
 	size_t d_requestCount = 0;
 
-	int                  d_socket;
-	fort::Duration       d_pulseLength;
-	fort::Duration       d_pulsePeriod;
-	fort::Time           d_lastSend;
+	int            d_socket;
+	fort::Duration d_pulseLength;
+	fort::Duration d_pulsePeriod;
+	fort::Time     d_lastSend;
+
+	details::Uint32TimestampFixer d_fixer;
 };
 } // namespace artemis
 } // namespace fort
