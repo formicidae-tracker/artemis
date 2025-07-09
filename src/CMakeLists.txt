@@ -54,7 +54,6 @@ add_custom_command(
 )
 
 set(SRC_FILES
-	utils/Defer.cpp
 	utils/PosixCall.cpp
 	utils/FlagParser.cpp
 	utils/StringManipulation.cpp
@@ -85,7 +84,6 @@ set(SRC_FILES
 )
 
 set(HDR_FILES
-	utils/Defer.hpp
 	utils/PosixCall.hpp
 	utils/PosixCall.hpp
 	utils/FlagParser.hpp
@@ -117,7 +115,6 @@ set(HDR_FILES
 
 set(UTEST_SRC_FILES
 	main-check.cpp
-	utils/DeferUTest.cpp
 	utils/FlagParserUTest.cpp
 	utils/StringManipulationUTest.cpp
 	ConnectionUTest.cpp
@@ -128,7 +125,6 @@ set(UTEST_SRC_FILES
 )
 
 set(UTEST_HDR_FILES
-	utils/DeferUTest.hpp
 	utils/FlagParserUTest.hpp
 	utils/StringManipulationUTest.hpp
 	utils/PartitionsUTest.hpp
@@ -157,40 +153,38 @@ if(MULTICAM_FRAMEGRABBER_SUPPORT)
 endif(MULTICAM_FRAMEGRABBER_SUPPORT)
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
+
 target_link_libraries(
 	artemis-common
-	${FG_LIBRARIES}
-	${GLOG_LIBRARIES}
-	fort-time
-	fort-tags
-	fort-hermes-cpp
-	${PROTOBUF_LIBRARIES}
-	${OpenCV_LIBS}
-	${TBB_LIBRARIES}
-	glfw
-	${GLEW_LIBRARIES}
-	OpenGL::GL
-	freetype-gl
-	${FONTCONFIG_LIBRARIES}
-	boost_system
-	"-ldl"
+	PUBLIC ${FG_LIBRARIES}
+		   ${GLOG_LIBRARIES}
+		   fort-charis::libfort-time
+		   fort-charis::libfort-utils
+		   c
+		   fort-hermes::libfort-hermes
+		   fort-tags::libfort-tags
+		   ${OpenCV_LIBS}
+		   ${TBB_LIBRARIES}
+		   glfw
+		   ${GLEW_LIBRARIES}
+		   OpenGL::GL
+		   freetype-gl
+		   ${FONTCONFIG_LIBRARIES}
+		   boost_system
+		   "-ldl"
 )
 
 add_executable(artemis main.cpp)
 
 target_link_libraries(artemis artemis-common)
 
-add_check_test(
-	NAME
-	artemis
-	FILES
-	${UTEST_SRC_FILES}
-	${UTEST_HDR_FILES}
-	INCLUDE_DIRS
-	${GMOCK_INCLUDE_DIRS}
-	LIBRARIES
-	gmock
-	artemis-common
+add_executable(artemis-tests ${UTEST_SRC_FILES} ${UTEST_HDR_FILES})
+target_link_libraries(
+	artemis-tests PUBLIC artemis-common GTest::gtest GTest::gmock
 )
+gtest_discover_tests(artemis-tests)
+add_dependencies(check artemis-tests)
+# add_check_test( NAME artemis FILES ${UTEST_SRC_FILES} ${UTEST_HDR_FILES}
+# INCLUDE_DIRS ${GMOCK_INCLUDE_DIRS} LIBRARIES gmock artemis-common )
 
 install(TARGETS artemis DESTINATION bin)

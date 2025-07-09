@@ -12,14 +12,10 @@ cmake_minimum_required(VERSION 3.16)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-include(FetchGoogleTest)
-include(FetchFortTags)
-include(FetchFortHermes)
-include(FetchBoostAsio)
 include(FetchFreetypeGL)
-include(FetchFortTime)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED 1)
 
 option(EURESYS_FRAMEGRABBER_SUPPORT
 	   "Add support for Euresys Coaxpress Framegrabber" Off
@@ -59,12 +55,20 @@ elseif(ARTEMIS_NUM_FG GREATER 1)
 	)
 endif(ARTEMIS_NUM_FG EQUAL 0)
 
-fetch_google_test(VERSION release-1.12.1)
-fetch_fort_tags(VERSION v1.4.1)
-fetch_fort_time(VERSION v1.0.9)
-fetch_fort_hermes(VERSION v0.4.1)
-fetch_boost_asio(VERSION boost-1.74.0)
 fetch_freetype_gl(VERSION 513fa238357f7c11a9f427965fe336aae7955297)
+
+include(FetchContent)
+
+set(FORT_CHARIS_BUILD_GL Off)
+set(FORT_CHARIS_BUILD_VIDEO Off)
+FetchContent_Declare(fort-charis SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/charis)
+FetchContent_Declare(fort-hermes SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/hermes)
+FetchContent_Declare(
+	fort-tags
+	GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
+	GIT_TAG v1.4.2
+)
+FetchContent_MakeAvailable(fort-charis fort-hermes fort-tags)
 
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
@@ -77,7 +81,6 @@ find_package(GLEW REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
 
 pkg_check_modules(TBB tbb REQUIRED)
-
 pkg_check_modules(FONTCONFIG fontconfig freetype2 REQUIRED)
 
 add_definitions(${EIGEN3_DEFINITIONS})
@@ -93,16 +96,25 @@ include_directories(
 	${PROTOBUF_INCLUDE_DIRS}
 	${TBB_INCLUDE_DIRS}
 	${FONTCONFIG_INCLUDE_DIRS}
-	${FORT_TIME_INCLUDE_DIRS}
-	${FORT_TAGS_INCLUDE_DIRS}
-	${FORT_HERMES_INCLUDE_DIRS}
-	${BOOST_ASIO_INCLUDE_DIRS}
 	${FREETYPE_GL_INCLUDE_DIRS}
 )
 
-include(EnableMakeCheck)
+set(INSTALL_GTEST Off)
+FetchContent_Declare(
+	googletest
+	GIT_REPOSITORY https://github.com/google/googletest.git
+	GIT_TAG 76bb2afb8b522d24496ad1c757a49784fbfa2e42
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt
+	ON
+	CACHE BOOL "" FORCE
+)
+FetchContent_MakeAvailable(googletest)
+
 enable_testing()
-enable_make_check()
+add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS -V)
+include(GoogleTest)
 
 add_subdirectory(scripts)
 
