@@ -1,143 +1,211 @@
 #pragma once
 
-#include <fort/time/Time.hpp>
-#include <fort/tags/fort-tags.hpp>
-#include <set>
 #include <cstdint>
-#include <opencv2/core.hpp>
+#include <istream>
+#include <set>
 
-namespace options {
-class FlagParser;
-}
+#include <fort/time/Time.hpp>
+// Istream operator should be declared before Options.
+std::istream &operator>>(std::istream &in, fort::Duration &duration);
+
+#include <fort/options/Options.hpp>
+#include <fort/tags/fort-tags.hpp>
 
 namespace fort {
 namespace artemis {
 
-struct GeneralOptions {
-	GeneralOptions();
+struct DisplayOptions : public options::Group {
+protected:
+	std::string &highlighted =
+	    AddOption<std::string>(
+	        "highlight-tags",
+	        "Comma separated list of tags to highlight when drawing detections"
+	    )
+	        .SetDefault("");
 
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
-
-	bool        PrintHelp;
-	bool        PrintVersion;
-	bool        PrintResolution;
-
-	std::string LogDir;
-	std::vector<std::string> StubImagePaths;
-
-	bool        TestMode;
-	bool        LegacyMode;
-
-	std::string stubImagePaths;
+public:
+	std::set<uint32_t> Highlighted() const;
 };
 
-
-struct DisplayOptions {
-	DisplayOptions();
-
-	std::vector<uint32_t> Highlighted;
-
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
-
-private :
-	std::string d_highlighted;
+struct LetoOptions : public options::Group {
+	std::string &Host =
+	    AddOption<std::string>("host", "Host to send tag detection readout")
+	        .SetDefault("");
+	uint16_t &Port =
+	    AddOption<uint16_t>("port", "Host to send tag detection readout")
+	        .SetDefault(3002);
 };
 
-struct NetworkOptions {
-	NetworkOptions();
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
+struct VideoOutputOptions : public options::Group {
+	std::tuple<size_t, size_t>
+	WorkingResolution(const std::tuple<size_t, size_t> &inputResolution) const;
 
-
-	std::string Host;
-	uint16_t    Port;
+	size_t &Height =
+	    AddOption<size_t>("height", "Video output height").SetDefault(1080);
+	bool &AddHeader =
+	    AddOption<bool>("add-header", "Adds binary header to stdout output");
+	bool &ToStdout = AddOption<bool>("to-stdout", "Outputs video to stdout");
 };
 
-struct VideoOutputOptions {
-	VideoOutputOptions();
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
+struct ApriltagOptions : public options::Group {
+public:
+	std::string &family =
+	    AddOption<std::string>("family", "Family to use for detection")
+	        .SetDefault("");
 
-	cv::Size WorkingResolution(const cv::Size &  inputResolution ) const;
+	tags::Family Family() const;
 
+	float &QuadDecimate =
+	    AddOption<float>(
+	        "quad-decimate",
+	        "Decimate original image for faster computation but worse pose "
+	        "estimation. Should be 1.0 (no decimation), 1.5, 2, 3 or 4"
+	    )
+	        .SetDefault(1.0);
+	float &QuadSigma =
+	    AddOption<float>(
+	        "quad-sigma",
+	        "Apply a gaussian filter for quad detection, noisy image likes a "
+	        "slight filter like 0.8, for ant detection, 0.0 is almost always "
+	        "fine"
+	    )
+	        .SetDefault(0.0);
+	bool &RefineEdges = AddOption<bool>(
+	    "refine-edges",
+	    "Refines the edge of the quad, especially needed if decimation is used."
+	);
+	int &QuadMinClusterPixel =
+	    AddOption<int>(
+	        "quad-min-cluster", "Minimum number of pixel to consider it a quad"
+	    )
+	        .SetDefault(5);
+	int &QuadMaxNMaxima =
+	    AddOption<int>(
+	        "quad-max-n-maxima",
+	        "Number of candidate to consider to fit quad corner"
+	    )
+	        .SetDefault(10);
+	float &QuadCriticalRadian =
+	    AddOption<float>(
+	        "quad-critical-radian",
+	        "Rejects quad with angle to close to 0 or 180 degrees"
+	    )
+	        .SetDefault(0.174533);
+	float &QuadMaxLineMSE =
+	    AddOption<float>(
+	        "quad-max-line-mse", "MSE threshold to reject a fitted quad"
+	    )
+	        .SetDefault(10.0);
+	int &QuadMinBWDiff =
+	    AddOption<int>(
+	        "quad-min-bw-diff",
+	        "Difference in pixel value to consider a region black or white"
+	    )
+	        .SetDefault(40);
 
-	size_t      Height;
-	bool        AddHeader;
-	bool        ToStdout;
+	bool &QuadDeglitch =
+	    AddOption<bool>("quad-deglitch", "Deglitch for noisy images");
 };
 
+struct CameraOptions : public options::Group {
 
-struct ApriltagOptions {
-	ApriltagOptions();
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
-
-
-	tags::Family Family;
-	float        QuadDecimate;
-	float        QuadSigma;
-	bool         RefineEdges;
-	int          QuadMinClusterPixel;
-	int          QuadMaxNMaxima;
-	float        QuadCriticalRadian;
-	float        QuadMaxLineMSE;
-	int          QuadMinBWDiff;
-	bool         QuadDeglitch;
-
-private:
-	std::string d_family;
+	double &FPS =
+	    AddOption<double>("fps", "Desired camera FPS").SetDefault(8.0);
+	Duration &StrobeDuration = AddOption<Duration>("strobe", "strobe duration")
+	                               .SetDefault(1500 * Duration::Microsecond);
+	Duration &StrobeDelay =
+	    AddOption<Duration>("strobe-delay", "Camera strobe delay")
+	        .SetDefault(0);
+	size_t &SlaveWidth =
+	    AddOption<size_t>("slave-width", "Camera Width for slave mode")
+	        .SetDefault(0);
+	size_t &SlaveHeight =
+	    AddOption<size_t>("slave-height", "Camera Height for slave mode")
+	        .SetDefault(0);
 };
 
-struct CameraOptions {
-	CameraOptions();
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
+struct ProcessOptions : public options::Group {
+	std::string &frameIDs =
+	    AddOption<std::string>(
+	        "ids",
+	        "Frame ID to process in the sequence, if empty, consider alls"
+	    )
+	        .SetDefault("");
 
-	double    FPS;
-	Duration  StrobeDuration;
-	Duration  StrobeDelay;
-	size_t    SlaveWidth;
-	size_t    SlaveHeight;
-private:
-	std::string d_strobeDuration,d_strobeDelay;
+	size_t &FrameStride =
+	    AddOption<size_t>("stride", "Frame sequence length").SetDefault(1);
+
+	std::set<uint64_t> FrameIDs() const;
+
+	std::string &UUID = AddOption<std::string>(
+	                        "uuid", "The UUID to mark data sent over network"
+	)
+	                        .SetDefault("");
 };
 
+struct Options : public options::Group {
+protected:
+	std::string &stubImagePaths = AddOption<std::string>(
+	                                  "stub-image-paths",
+	                                  "Stub images to use instead of the "
+	                                  "camera as a comma separated list."
+	)
+	                                  .SetDefault("");
 
-struct ProcessOptions {
-	ProcessOptions();
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
+public:
+	bool &PrintVersion =
+	    AddOption<bool>("version,V", "Print the version and exit");
+	bool &PrintResolution =
+	    AddOption<bool>("fetch-resolution", "Prints the camera resolution");
+	std::string &LogDir =
+	    AddOption<std::string>("log-output-dir", "Directory to puts logs in")
+	        .SetDefault("");
 
-	size_t             FrameStride;
-	std::set<uint64_t> FrameID;
-	std::string        UUID;
+	bool &TestMode =
+	    AddOption<bool>("test-mode", "Run with a test-mode overlay");
+	bool &LegacyMode = AddOption<bool>(
+	    "legacy-mode",
+	    "Uses a legacy mode data output for ants cataloging and video output "
+	    "display. The data will be convertible to the data expected by the "
+	    "former Keller's group tracking system"
+	);
 
+	std::string &NewAntOutputDir =
+	    AddOption<std::string>(
+	        "new-ant-output-dir", "Path to save new detected individuals"
+	    )
+	        .SetDefault("");
+	size_t &NewAntROISize =
+	    AddOption<size_t>(
+	        "new-ant-roi-size", "Size of the close-up on new individuals"
+	    )
+	        .SetDefault(600);
+	Duration &ImageRenewPeriod =
+	    AddOption<Duration>(
+	        "renew-period", "Individual cataloguing and stream renew period"
+	    )
+	        .SetDefault(2 * Duration::Hour);
 
-	std::string NewAntOutputDir;
-	size_t      NewAntROISize;
-	Duration    ImageRenewPeriod;
-private:
-	std::string d_imageRenewPeriod,d_frameIDs;
-};
+	std::vector<std::string> StubImagePaths() const;
 
-struct Options {
-	GeneralOptions     General;
-	DisplayOptions     Display;
-	NetworkOptions     Network;
-	VideoOutputOptions VideoOutput;
-	ApriltagOptions    Apriltag;
-	CameraOptions      Camera;
-	ProcessOptions     Process;
-
-	static Options Parse(int & argc, char ** argv, bool printHelp = false);
+	DisplayOptions &Display =
+	    AddSubgroup<DisplayOptions>("display", "display options");
+	LetoOptions &Leto = AddSubgroup<LetoOptions>(
+	    "leto", "Options regarding communication with leto"
+	);
+	VideoOutputOptions &VideoOutput = AddSubgroup<VideoOutputOptions>(
+	    "video-output", "Options regarding video output"
+	);
+	ApriltagOptions &Apriltag =
+	    AddSubgroup<ApriltagOptions>("at", "option regarding tag detection");
+	CameraOptions &Camera = AddSubgroup<CameraOptions>(
+	    "camera", "options regarding camera and illumination"
+	);
+	ProcessOptions &Process = AddSubgroup<ProcessOptions>(
+	    "process", "options regarding process of frames"
+	);
 
 	void Validate();
-
-private :
-	void PopulateParser( options::FlagParser & parser);
-	void FinishParse();
 };
 
 } // namespace artemis

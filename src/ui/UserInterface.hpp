@@ -17,28 +17,40 @@ namespace artemis {
 
 class UserInterface {
 public:
+	struct Options {
+		std::set<uint32_t> Highlighted;
+		bool               TestMode;
+		size_t             NewAntROISize;
+
+		Options(const fort::artemis::Options &options)
+		    : Highlighted{options.Display.Highlighted()}
+		    , TestMode{options.TestMode}
+		    , NewAntROISize{options.NewAntROISize} {}
+	};
+
 	struct FrameToDisplay {
-		std::shared_ptr<cv::Mat>              Full,Zoomed;
+		std::shared_ptr<cv::Mat>              Full, Zoomed;
 		std::shared_ptr<hermes::FrameReadout> Message;
 
 		cv::Rect CurrentROI;
 
-		//Other data
-		Time       FrameTime;
-		double     FPS;
-		size_t     FrameProcessed;
-		size_t     FrameDropped;
-		size_t     VideoOutputProcessed;
-		size_t     VideoOutputDropped;
+		// Other data
+		Time   FrameTime;
+		double FPS;
+		size_t FrameProcessed;
+		size_t FrameDropped;
+		size_t VideoOutputProcessed;
+		size_t VideoOutputDropped;
 	};
 
 	typedef tbb::concurrent_queue<cv::Rect> ROIChannel;
 	typedef std::shared_ptr<ROIChannel> ROIChannelPtr;
 
-	UserInterface(const cv::Size & workingResolution,
-	              const Options & options,
-	              const ROIChannelPtr & zoomChannel);
-
+	UserInterface(
+	    const cv::Size               &workingResolution,
+	    const UserInterface::Options &options,
+	    const ROIChannelPtr          &zoomChannel
+	);
 
 	virtual void PollEvents() = 0;
 
@@ -84,7 +96,6 @@ private:
 	bool               d_displayHelp;
 	bool               d_displayOverlay;
 };
-
 
 } // namespace artemis
 } // namespace fort

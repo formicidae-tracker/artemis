@@ -34,108 +34,136 @@ typedef std::shared_ptr<FullFrameExportTask> FullFrameExportTaskPtr;
 class ApriltagDetector;
 typedef std::shared_ptr<ApriltagDetector>    ApriltagDetectorPtr;
 
-class ProcessFrameTask : public Task{
+class ProcessFrameTask : public Task {
 public:
-	ProcessFrameTask(const Options & options,
-	                 boost::asio::io_context & context,
-	                 const cv::Size & inputResolution);
+	ProcessFrameTask(
+	    const Options           &options,
+	    boost::asio::io_context &context,
+	    const cv::Size          &inputResolution
+	);
 
 	virtual ~ProcessFrameTask();
 
 	void Run() override;
 
-	void QueueFrame( const Frame::Ptr & );
+	void QueueFrame(const Frame::Ptr &);
 	void CloseFrameQueue();
 
 	VideoOutputTaskPtr     VideoOutputTask() const;
 	UserInterfaceTaskPtr   UserInterfaceTask() const;
 	FullFrameExportTaskPtr FullFrameExportTask() const;
 
-
-private :
+private:
 	typedef tbb::concurrent_bounded_queue<Frame::Ptr> FrameQueue;
 
-	void SetUpVideoOutputTask(const VideoOutputOptions & options,
-	                          boost::asio::io_context & context,
-	                          bool legacyMode);
-	void SetUpDetection(const cv::Size & inputResolution,
-	                    const ApriltagOptions & options);
-	void SetUpCataloguing(const ProcessOptions & options);
-	void SetUpUserInterface(const cv::Size & workingresolution,
-	                        const cv::Size & fullresolution,
-	                        const Options & options);
+	void SetUpVideoOutputTask(
+	    const VideoOutputOptions &options,
+	    boost::asio::io_context  &context,
+	    bool                      legacyMode
+	);
+	void SetUpDetection(
+	    const cv::Size &inputResolution, const ApriltagOptions &options
+	);
+	void SetUpCataloguing(const Options &options);
+	void SetUpUserInterface(
+	    const cv::Size &workingresolution,
+	    const cv::Size &fullresolution,
+	    const Options  &options
+	);
 	void SetUpPoolObjects();
 
-	void SetUpConnection(const NetworkOptions & options, boost::asio::io_context & context);
+	void SetUpConnection(
+	    const LetoOptions &options, boost::asio::io_context &context
+	);
 
+	void ProcessFrameMandatory(const Frame::Ptr &frame);
+	void ProcessFrame(const Frame::Ptr &frame);
+	void DropFrame(const Frame::Ptr &frame);
 
-	void ProcessFrameMandatory(const Frame::Ptr & frame );
-	void ProcessFrame(const Frame::Ptr & frame);
-	void DropFrame(const Frame::Ptr & frame);
+	void Detect(const Frame::Ptr &frame, hermes::FrameReadout &m);
 
+	void ResetExportedID(const Time &time);
 
-	void Detect(const Frame::Ptr & frame,
-	            hermes::FrameReadout & m);
+	std::vector<std::tuple<uint32_t, double, double>>
+	FindUnexportedID(const hermes::FrameReadout &m);
 
-	void ResetExportedID(const Time & time);
+	void ExportROI(
+	    const cv::Mat &image,
+	    uint64_t       frameID,
+	    uint32_t       tagID,
+	    double         x,
+	    double         y
+	);
 
-	std::vector<std::tuple<uint32_t,double,double>> FindUnexportedID(const hermes::FrameReadout & m);
+	void CatalogAnt(const Frame::Ptr &frame, const hermes::FrameReadout &m);
 
-	void ExportROI(const cv::Mat & image,
-	               uint64_t frameID,
-	               uint32_t tagID,
-	               double x,
-	               double y);
+	void ExportFullFrame(const Frame::Ptr &frame);
 
-	void CatalogAnt(const Frame::Ptr & frame,
-	                const hermes::FrameReadout & m);
-
-	void ExportFullFrame(const Frame::Ptr & frame);
-
-	void DisplayFrame(const Frame::Ptr frame,
-	                  const std::shared_ptr<hermes::FrameReadout> & m);
+	void DisplayFrame(
+	    const Frame::Ptr frame, const std::shared_ptr<hermes::FrameReadout> &m
+	);
 
 	void TearDown();
 
 	size_t GrayscaleImagePerCycle() const;
 	size_t RGBImagePerCycle() const;
 
-	std::shared_ptr<hermes::FrameReadout> PrepareMessage(const Frame::Ptr & frame);
+	std::shared_ptr<hermes::FrameReadout> PrepareMessage(const Frame::Ptr &frame
+	);
 
 	bool ShouldProcess(uint64_t ID);
 
-	double CurrentFPS(const Time & time);
+	double CurrentFPS(const Time &time);
 
-	const ProcessOptions   d_options;
+	// const ProcessOptions d_options;
+	struct Config {
 
-	FrameQueue             d_frameQueue;
-	VideoOutputTaskPtr     d_videoOutput;
-	UserInterfaceTaskPtr   d_userInterface;
+		std::string        UUID;
+		size_t             FrameStride;
+		std::set<uint64_t> FrameIDs;
+		Duration           ImageRenewPeriod;
+		std::string        NewAntOutputDir;
+		size_t             NewAntROISize;
 
-	ConnectionPtr          d_connection;
+		Config(const Options &options)
+		    : UUID{options.Process.UUID}
+		    , FrameStride{options.Process.FrameStride}
+		    , FrameIDs{options.Process.FrameIDs()}
+		    , ImageRenewPeriod{options.ImageRenewPeriod}
+		    , NewAntOutputDir{options.NewAntOutputDir}
+		    , NewAntROISize{options.NewAntROISize} {}
+	};
+
+	Config d_config;
+
+	FrameQueue d_frameQueue;
+
+	VideoOutputTaskPtr   d_videoOutput;
+	UserInterfaceTaskPtr d_userInterface;
+
+	ConnectionPtr d_connection;
 
 	FullFrameExportTaskPtr d_fullFrameExport;
 
+	ObjectPool<cv::Mat> d_grayImagePool;
+	ObjectPool<cv::Mat> d_rgbImagePool;
 
-	ObjectPool<cv::Mat>               d_grayImagePool;
-	ObjectPool<cv::Mat>               d_rgbImagePool;
+	ObjectPool<hermes::FrameReadout> d_messagePool;
+	std::shared_ptr<cv::Mat>         d_downscaled;
+	const size_t                     d_maximumThreads;
+	size_t                           d_actualThreads;
 
-	ObjectPool<hermes::FrameReadout>  d_messagePool;
-	std::shared_ptr<cv::Mat>          d_downscaled;
-	const size_t                      d_maximumThreads;
-	size_t                            d_actualThreads;
+	ApriltagDetectorPtr d_detector;
 
-	ApriltagDetectorPtr               d_detector;
+	Time               d_nextFrameExport;
+	Time               d_nextAntCatalog;
+	std::set<uint32_t> d_exportedID;
 
-	Time                              d_nextFrameExport;
-	Time                              d_nextAntCatalog;
-	std::set<uint32_t>                d_exportedID;
-
-	cv::Size            d_workingResolution;
-	cv::Rect            d_wantedROI;
-	size_t              d_frameDropped;
-	size_t              d_frameProcessed;
-	Time                d_start;
+	cv::Size d_workingResolution;
+	cv::Rect d_wantedROI;
+	size_t   d_frameDropped;
+	size_t   d_frameProcessed;
+	Time     d_start;
 };
 
 } // namespace artemis

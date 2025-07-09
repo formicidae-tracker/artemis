@@ -17,23 +17,25 @@ class GLFont;
 
 class GLUserInterface : public UserInterface {
 public:
-	GLUserInterface(const cv::Size & workingResolution,
-	                const cv::Size & fullResolution,
-	                const Options & options,
-	                const ROIChannelPtr & roiChannel);
+	GLUserInterface(
+	    const cv::Size               &workingResolution,
+	    const cv::Size               &fullResolution,
+	    const UserInterface::Options &options,
+	    const ROIChannelPtr          &roiChannel
+	);
 
 	virtual ~GLUserInterface();
 
 	void PollEvents() override;
 
-	void UpdateFrame(const FrameToDisplay & frame,
-	                 const DataToDisplay & data) override;
+	void UpdateFrame(const FrameToDisplay &frame, const DataToDisplay &data)
+	    override;
 
 private:
-	typedef std::unique_ptr<GLFWwindow,void(*)(GLFWwindow*)> GLFWwindowPtr;
-	GLFWwindowPtr d_window;
+	typedef std::unique_ptr<GLFWwindow, void (*)(GLFWwindow *)> GLFWwindowPtr;
+	GLFWwindowPtr                                               d_window;
 
-	static GLFWwindowPtr OpenWindow(const cv::Size & size);
+	static GLFWwindowPtr OpenWindow(const cv::Size &size);
 
 	struct DrawBuffer {
 		FrameToDisplay            Frame;
@@ -41,9 +43,8 @@ private:
 		cv::Size                  TrackingSize;
 		bool                      FullUploaded;
 		GLuint                    PBO;
-		GLVertexBufferObject::Ptr NormalTags,HighlightedTags,TagLabels;
+		GLVertexBufferObject::Ptr NormalTags, HighlightedTags, TagLabels;
 	};
-
 
 	void SetWindowCallback();
 	void InitContext();
@@ -146,7 +147,6 @@ private:
 	const static size_t LABEL_FONT_SIZE = 16;
 	const static size_t OVERLAY_FONT_SIZE = 14;
 };
-
 
 } // namespace artemis
 } // namespace fort

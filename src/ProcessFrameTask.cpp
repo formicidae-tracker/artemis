@@ -20,32 +20,37 @@
 namespace fort {
 namespace artemis {
 
-ProcessFrameTask::ProcessFrameTask(const Options & options,
-                                   boost::asio::io_context & context,
-                                   const cv::Size & inputResolution)
-	: d_options(options.Process)
-	, d_maximumThreads(cv::getNumThreads()) {
-	d_actualThreads = d_maximumThreads;
-	d_workingResolution = options.VideoOutput.WorkingResolution(inputResolution);
+ProcessFrameTask::ProcessFrameTask(
+    const Options           &options,
+    boost::asio::io_context &context,
+    const cv::Size          &inputResolution
+)
+    : d_maximumThreads{size_t(cv::getNumThreads())}
+    , d_config{options} {
+	d_actualThreads              = d_maximumThreads;
+	const auto workingResolution = options.VideoOutput.WorkingResolution(
+	    {inputResolution.width, inputResolution.height}
+	);
+	d_workingResolution = cv::Size(
+	    std::get<0>(workingResolution),
+	    std::get<1>(workingResolution)
+	);
 
-	SetUpDetection(inputResolution,options.Apriltag);
-	SetUpUserInterface(d_workingResolution,inputResolution,options);
-	SetUpVideoOutputTask(options.VideoOutput,context,options.General.LegacyMode);
+	SetUpDetection(inputResolution, options.Apriltag);
+	SetUpUserInterface(d_workingResolution, inputResolution, options);
+	SetUpVideoOutputTask(options.VideoOutput, context, options.LegacyMode);
 	SetUpCataloguing(options.Process);
 	SetUpPoolObjects();
-	SetUpConnection(options.Network,context);
+	SetUpConnection(options.Leto, context);
 
-
-	std::string ids,prefix;
-	for ( const auto & id : options.Process.FrameID ) {
+	std::string ids, prefix;
+	for (const auto &id : options.Process.FrameIDs()) {
 		ids += prefix + std::to_string(id);
 		prefix = ",";
 	}
 	LOG(INFO) << "Processing IDs: " << ids;
 	LOG(INFO) << "Processing Stride: " << options.Process.FrameStride;
-
 }
-
 
 VideoOutputTaskPtr ProcessFrameTask::VideoOutputTask() const {
 	return d_videoOutput;
@@ -69,17 +74,20 @@ void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions & options,
 	d_videoOutput = std::make_shared<artemis::VideoOutputTask>(options,context,legacyMode);
 }
 
-void ProcessFrameTask::SetUpDetection(const cv::Size & inputResolution,
-                                      const ApriltagOptions & options) {
-	if ( options.Family == tags::Family::Undefined ) {
+void ProcessFrameTask::SetUpDetection(
+    const cv::Size &inputResolution, const ApriltagOptions &options
+) {
+	if (options.Family() == tags::Family::Undefined) {
 		return;
 	}
-	d_detector = std::make_unique<ApriltagDetector>(d_maximumThreads,
-	                                                inputResolution,
-	                                                options);
-
+	d_detector = std::make_unique<ApriltagDetector>(
+	    d_maximumThreads,
+	    inputResolution,
+	    options
+	);
 }
-void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
+
+void ProcessFrameTask::SetUpCataloguing(const Options &options) {
 	if ( options.NewAntOutputDir.empty() ) {
 		return ;
 	}
@@ -90,13 +98,18 @@ void ProcessFrameTask::SetUpCataloguing(const ProcessOptions & options) {
 	d_fullFrameExport = std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
 }
 
-
-void ProcessFrameTask::SetUpConnection(const NetworkOptions & options,
-									   boost::asio::io_context & context) {
-	if ( options.Host.empty() ) {
+void ProcessFrameTask::SetUpConnection(
+    const LetoOptions &options, boost::asio::io_context &context
+) {
+	if (options.Host.empty()) {
 		return;
 	}
-	d_connection = Connection::Create(context,options.Host,options.Port,5*Duration::Second);
+	d_connection = Connection::Create(
+	    context,
+	    options.Host,
+	    options.Port,
+	    5 * Duration::Second
+	);
 }
 
 void ProcessFrameTask::SetUpUserInterface(const cv::Size & workingResolution,
@@ -228,28 +241,25 @@ void ProcessFrameTask::ProcessFrame(const Frame::Ptr & frame) {
 	DisplayFrame(frame,m);
 }
 
-
-std::shared_ptr<hermes::FrameReadout> ProcessFrameTask::PrepareMessage(const Frame::Ptr & frame) {
+std::shared_ptr<hermes::FrameReadout>
+ProcessFrameTask::PrepareMessage(const Frame::Ptr &frame) {
 	auto m = d_messagePool.Get();
 	m->Clear();
 	m->set_timestamp(frame->Timestamp());
 	m->set_frameid(frame->ID());
 	frame->Time().ToTimestamp(m->mutable_time());
-	m->set_producer_uuid(d_options.UUID);
+	m->set_producer_uuid(d_config.UUID);
 	m->set_width(frame->Width());
 	m->set_height(frame->Height());
 	return m;
 }
 
-
 bool ProcessFrameTask::ShouldProcess(uint64_t ID) {
-	if ( d_options.FrameStride <= 1 ) {
+	if (d_config.FrameStride <= 1) {
 		return true;
 	}
-	return d_options.FrameID.count(ID % d_options.FrameStride) != 0;
+	return d_config.FrameIDs.count(ID % d_config.FrameStride) != 0;
 }
-
-
 
 void ProcessFrameTask::QueueFrame( const Frame::Ptr & frame ) {
 	d_frameQueue.push(frame);
@@ -266,44 +276,41 @@ void ProcessFrameTask::Detect(const Frame::Ptr & frame,
 	}
 }
 
-void ProcessFrameTask::ExportFullFrame(const Frame::Ptr & frame) {
-	if ( ! d_fullFrameExport
-	     || frame->Time().Before(d_nextFrameExport) ) {
+void ProcessFrameTask::ExportFullFrame(const Frame::Ptr &frame) {
+	if (!d_fullFrameExport || frame->Time().Before(d_nextFrameExport)) {
 		return;
 	}
 
-	if ( d_fullFrameExport->QueueExport(frame) == false ) {
+	if (d_fullFrameExport->QueueExport(frame) == false) {
 		return;
 	}
 	d_actualThreads = d_maximumThreads - 1;
 	cv::setNumThreads(d_actualThreads);
-	d_nextFrameExport = frame->Time().Add(d_options.ImageRenewPeriod);
+	d_nextFrameExport = frame->Time().Add(d_config.ImageRenewPeriod);
 }
 
-
-void ProcessFrameTask::CatalogAnt(const Frame::Ptr & frame,
-                                  const hermes::FrameReadout & m) {
-	if ( d_options.NewAntOutputDir.empty() ) {
+void ProcessFrameTask::CatalogAnt(
+    const Frame::Ptr &frame, const hermes::FrameReadout &m
+) {
+	if (d_config.NewAntOutputDir.empty()) {
 		return;
 	}
 
 	ResetExportedID(frame->Time());
 
 	auto toExport = FindUnexportedID(m);
-	tbb::parallel_for(std::size_t(0),
-	                  toExport.size(),
-	                  [&] (std::size_t index) {
-		                  const auto & [tagID,x,y] = toExport[index];
-		                  ExportROI(frame->ToCV(),frame->ID(),tagID,x,y);
-	                  });
-	for ( const auto & [tagID,x,y] : toExport ) {
+	tbb::parallel_for(std::size_t(0), toExport.size(), [&](std::size_t index) {
+		const auto &[tagID, x, y] = toExport[index];
+		ExportROI(frame->ToCV(), frame->ID(), tagID, x, y);
+	});
+	for (const auto &[tagID, x, y] : toExport) {
 		d_exportedID.insert(tagID);
 	}
 }
 
-void ProcessFrameTask::ResetExportedID(const Time & time) {
-	if ( d_nextAntCatalog.Before(time) ) {
-		d_nextAntCatalog = time.Add(d_options.ImageRenewPeriod);
+void ProcessFrameTask::ResetExportedID(const Time &time) {
+	if (d_nextAntCatalog.Before(time)) {
+		d_nextAntCatalog = time.Add(d_config.ImageRenewPeriod);
 		d_exportedID.clear();
 	}
 }
@@ -323,24 +330,25 @@ ProcessFrameTask::FindUnexportedID(const hermes::FrameReadout & m) {
 	return res;
 }
 
-
-
-void ProcessFrameTask::ExportROI(const cv::Mat & image,
-                                 uint64_t frameID,
-                                 uint32_t tagID,
-                                 double x,
-                                 double y) {
+void ProcessFrameTask::ExportROI(
+    const cv::Mat &image, uint64_t frameID, uint32_t tagID, double x, double y
+) {
 
 	std::ostringstream oss;
-	oss << d_options.NewAntOutputDir << "/ant_" << tagID << "_" << frameID << ".png";
-	cv::imwrite(oss.str(),
-	            cv::Mat(image,
-	                    GetROICenteredAt({int(x),int(y)},
-	                                     cv::Size(d_options.NewAntROISize,
-	                                              d_options.NewAntROISize),
-	                                     image.size())));
+	oss << d_config.NewAntOutputDir << "/ant_" << tagID << "_" << frameID
+	    << ".png";
+	cv::imwrite(
+	    oss.str(),
+	    cv::Mat(
+	        image,
+	        GetROICenteredAt(
+	            {int(x), int(y)},
+	            cv::Size(d_config.NewAntROISize, d_config.NewAntROISize),
+	            image.size()
+	        )
+	    )
+	);
 }
-
 
 void ProcessFrameTask::DisplayFrame(const Frame::Ptr frame,
                                     const std::shared_ptr<hermes::FrameReadout> & m) {

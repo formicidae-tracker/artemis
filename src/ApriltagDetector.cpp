@@ -20,22 +20,27 @@
 namespace fort {
 namespace artemis {
 
-ApriltagDetector::ApriltagDetector(size_t maxParallel,
-                                   const cv::Size & size,
-                                   const ApriltagOptions & options) {
-	d_minimumDetectionDistanceSquared = options.QuadMinClusterPixel * options.QuadMinClusterPixel;
+ApriltagDetector::ApriltagDetector(
+    size_t maxParallel, const cv::Size &size, const ApriltagOptions &options
+) {
+	d_minimumDetectionDistanceSquared =
+	    options.QuadMinClusterPixel * options.QuadMinClusterPixel;
 
 	d_detectors.reserve(maxParallel);
 	d_detectors.reserve(maxParallel);
 
-	for ( size_t i = 0 ; i < maxParallel; ++ i ) {
-		d_families.push_back(std::move(CreateFamily(options.Family)));
-		d_detectors.push_back(std::move(CreateDetector(options,d_families.back().get())));
+	for (size_t i = 0; i < maxParallel; ++i) {
+		d_families.push_back(std::move(CreateFamily(options.Family())));
+		d_detectors.push_back(
+		    std::move(CreateDetector(options, d_families.back().get()))
+		);
 		Partition partition;
-		PartitionRectangle(::cv::Rect(::cv::Point(0,0),size),
-		                   i + 1,
-		                   partition);
-		AddMargin(size,75,partition);
+		PartitionRectangle(
+		    ::cv::Rect(::cv::Point(0, 0), size),
+		    i + 1,
+		    partition
+		);
+		AddMargin(size, 75, partition);
 		d_partitions.push_back(partition);
 	}
 }

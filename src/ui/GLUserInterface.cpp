@@ -70,41 +70,41 @@ namespace artemis {
 
 #endif // IMPLEMENT_GLFW_GET_ERROR
 
-
-GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
-                                 const cv::Size & fullSize,
-                                 const Options & options,
-                                 const ROIChannelPtr & roiChannel)
-	: UserInterface(workingResolution,options,roiChannel)
-	, d_window(nullptr,[](GLFWwindow*){})
-	, d_index(0)
-	, d_workingSize(workingResolution)
-	, d_fullSize(fullSize)
-	, d_windowSize(workingResolution)
-	, d_currentScaleFactor(0)
-	, d_currentPOI(fullSize.width/2,fullSize.height/2)
-	, d_ROISize(options.Process.NewAntROISize){
+GLUserInterface::GLUserInterface(
+    const cv::Size      &workingResolution,
+    const cv::Size      &fullSize,
+    const Options       &options,
+    const ROIChannelPtr &roiChannel
+)
+    : UserInterface(workingResolution, options, roiChannel)
+    , d_window(nullptr, [](GLFWwindow *) {})
+    , d_index(0)
+    , d_workingSize(workingResolution)
+    , d_fullSize(fullSize)
+    , d_windowSize(workingResolution)
+    , d_currentScaleFactor(0)
+    , d_currentPOI(fullSize.width / 2, fullSize.height / 2)
+    , d_ROISize(options.NewAntROISize) {
 
 #ifdef IMPLEMENT_GLFW_GET_ERROR
 	glfwSetErrorCallback(&GLFWErrorCallback);
 #endif // IMPLEMENT_GLFW_GET_ERROR
 	DLOG(INFO) << "[GLUserInterface]: initialiazing GLFW";
 
-	if ( !glfwInit() ) {
+	if (!glfwInit()) {
 		throw_glfw_error("could not initilaize GLFW");
 	}
 
 	try {
 		d_window = OpenWindow(workingResolution);
-	} catch ( const std::exception &  ) {
+	} catch (const std::exception &) {
 		glfwTerminate();
 		throw;
 	}
 
-
 	try {
 		InitContext();
-	} catch ( const std::exception &) {
+	} catch (const std::exception &) {
 		d_window.reset();
 		glfwTerminate();
 		throw;
@@ -112,7 +112,6 @@ GLUserInterface::GLUserInterface(const cv::Size & workingResolution,
 
 	InitGLData();
 	SetWindowCallback();
-
 }
 
 GLUserInterface::GLFWwindowPtr GLUserInterface::OpenWindow(const cv::Size & size) {

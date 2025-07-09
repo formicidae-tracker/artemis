@@ -1,4 +1,3 @@
-#include "AcquisitionTask.hpp"
 
 #include <artemis-config.h>
 #include <memory>
@@ -15,9 +14,11 @@
 #include "MULTICAMFrameGrabber.hpp"
 #endif // MULTICAM_FRAMEGRABBER_SUPPORT
 
-#include "StubFrameGrabber.hpp"
-
 #include "ProcessFrameTask.hpp"
+
+#include "AcquisitionTask.hpp"
+
+#include "StubFrameGrabber.hpp"
 
 #include <glog/logging.h>
 

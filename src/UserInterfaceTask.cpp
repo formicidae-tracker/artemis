@@ -7,16 +7,16 @@
 namespace fort {
 namespace artemis {
 
-
-
-UserInterfaceTask::UserInterfaceTask(const cv::Size & workingResolution,
-                                     const cv::Size & fullResolution,
-                                     const Options & options)
-	: d_workingResolution(workingResolution)
-	, d_fullResolution(fullResolution)
-	, d_options(options)
-	, d_defaultROI(cv::Point(0,0),fullResolution)
-	, d_roiChannel(std::make_shared<UserInterface::ROIChannel>()) {
+UserInterfaceTask::UserInterfaceTask(
+    const cv::Size &workingResolution,
+    const cv::Size &fullResolution,
+    const Options  &options
+)
+    : d_workingResolution(workingResolution)
+    , d_fullResolution(fullResolution)
+    , d_config(options)
+    , d_defaultROI(cv::Point(0, 0), fullResolution)
+    , d_roiChannel(std::make_shared<UserInterface::ROIChannel>()) {
 	// UI not initialized here to ensure that it is initialized from
 	// the working thread (i.e. once the task is spawned in Run())
 }
@@ -25,10 +25,15 @@ UserInterfaceTask::~UserInterfaceTask() {
 
 }
 
-void UserInterfaceTask::Run()  {
+void UserInterfaceTask::Run() {
 	LOG(INFO) << "[UserInterfaceTask]: Initialize OpenGL";
 
-	d_ui = std::make_unique<GLUserInterface>(d_workingResolution,d_fullResolution,d_options,d_roiChannel);
+	d_ui = std::make_unique<GLUserInterface>(
+	    d_workingResolution,
+	    d_fullResolution,
+	    d_config,
+	    d_roiChannel
+	);
 
 	LOG(INFO) << "[UserInterfaceTask]: Started";
 
@@ -36,13 +41,13 @@ void UserInterfaceTask::Run()  {
 	for (;;) {
 		d_ui->PollEvents();
 		bool hasNew(false);
-		while(d_displayQueue.try_pop(frame) == true) {
+		while (d_displayQueue.try_pop(frame) == true) {
 			hasNew = true;
 		}
-		if ( hasNew == false ) {
+		if (hasNew == false) {
 			continue;
 		}
-		if ( !frame.Full) {
+		if (!frame.Full) {
 			break;
 		}
 		d_ui->PushFrame(frame);
@@ -50,7 +55,6 @@ void UserInterfaceTask::Run()  {
 	d_ui.reset();
 	LOG(INFO) << "[UserInterfaceTask]: Ended";
 }
-
 
 const cv::Rect & UserInterfaceTask::DefaultROI() const {
 	return d_defaultROI;

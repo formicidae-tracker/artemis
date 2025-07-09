@@ -61,6 +61,7 @@ include(FetchContent)
 
 set(FORT_CHARIS_BUILD_GL Off)
 set(FORT_CHARIS_BUILD_VIDEO Off)
+set(FORT_CHARIS_CAPITALIZE_DEFER On)
 FetchContent_Declare(fort-charis SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/charis)
 FetchContent_Declare(fort-hermes SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/hermes)
 FetchContent_Declare(
@@ -113,7 +114,7 @@ set(gtest_force_shared_crt
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS -V)
+add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
 include(GoogleTest)
 
 add_subdirectory(scripts)

@@ -55,7 +55,6 @@ add_custom_command(
 
 set(SRC_FILES
 	utils/PosixCall.cpp
-	utils/FlagParser.cpp
 	utils/StringManipulation.cpp
 	utils/Partitions.cpp
 	Task.cpp
@@ -86,7 +85,6 @@ set(SRC_FILES
 set(HDR_FILES
 	utils/PosixCall.hpp
 	utils/PosixCall.hpp
-	utils/FlagParser.hpp
 	utils/StringManipulation.hpp
 	utils/Partitions.hpp
 	Task.hpp
@@ -115,7 +113,6 @@ set(HDR_FILES
 
 set(UTEST_SRC_FILES
 	main-check.cpp
-	utils/FlagParserUTest.cpp
 	utils/StringManipulationUTest.cpp
 	ConnectionUTest.cpp
 	utils/PartitionsUTest.cpp
@@ -125,13 +122,8 @@ set(UTEST_SRC_FILES
 )
 
 set(UTEST_HDR_FILES
-	utils/FlagParserUTest.hpp
-	utils/StringManipulationUTest.hpp
-	utils/PartitionsUTest.hpp
-	ConnectionUTest.hpp
-	OptionsUTest.hpp
-	TaskUTest.hpp
-	ObjectPoolUTest.hpp
+	utils/StringManipulationUTest.hpp utils/PartitionsUTest.hpp
+	ConnectionUTest.hpp OptionsUTest.hpp TaskUTest.hpp ObjectPoolUTest.hpp
 )
 
 if(EURESYS_FRAMEGRABBER_SUPPORT)
@@ -160,7 +152,7 @@ target_link_libraries(
 		   ${GLOG_LIBRARIES}
 		   fort-charis::libfort-time
 		   fort-charis::libfort-utils
-		   c
+		   fort-charis::libfort-options
 		   fort-hermes::libfort-hermes
 		   fort-tags::libfort-tags
 		   ${OpenCV_LIBS}
@@ -172,6 +164,7 @@ target_link_libraries(
 		   ${FONTCONFIG_LIBRARIES}
 		   boost_system
 		   "-ldl"
+		   cpptrace::cpptrace
 )
 
 add_executable(artemis main.cpp)
@@ -181,6 +174,7 @@ target_link_libraries(artemis artemis-common)
 add_executable(artemis-tests ${UTEST_SRC_FILES} ${UTEST_HDR_FILES})
 target_link_libraries(
 	artemis-tests PUBLIC artemis-common GTest::gtest GTest::gmock
+						 cpptrace::cpptrace
 )
 gtest_discover_tests(artemis-tests)
 add_dependencies(check artemis-tests)
