@@ -1,0 +1,3 @@
+[submodule "deps/charis"]
+	path = deps/charis
+	url = https://github.com/formicidae-tracker/charis
