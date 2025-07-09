@@ -1,3 +1,6 @@
 [submodule "deps/charis"]
 	path = deps/charis
 	url = https://github.com/formicidae-tracker/charis
+[submodule "deps/hermes"]
+	path = deps/hermes
+	url = https://github.com/formicidae-tracker/hermes
