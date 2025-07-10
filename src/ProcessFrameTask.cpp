@@ -41,7 +41,7 @@ ProcessFrameTask::ProcessFrameTask(
 	SetUpDetection(inputResolution, options.Apriltag);
 	SetUpUserInterface(d_workingResolution, inputResolution, options);
 	SetUpVideoOutputTask(options.VideoOutput, context, options.LegacyMode);
-	SetUpCataloguing(options.Process);
+	SetUpCataloguing(options);
 	SetUpPoolObjects();
 	SetUpConnection(options.Leto, context);
 
@@ -173,7 +173,7 @@ void ProcessFrameTask::Run() {
 	d_frameProcessed = 0;
 	d_start          = Time::Now();
 	for (;;) {
-		d_frameQueue.pop(frame);
+		d_frameQueue.wait_dequeue(frame);
 		if (!frame) {
 			break;
 		}
@@ -185,7 +185,7 @@ void ProcessFrameTask::Run() {
 
 		ProcessFrameMandatory(frame);
 
-		if (d_frameQueue.size() > 0) {
+		if (d_frameQueue.peek() != nullptr) {
 			if (ShouldProcess(frame->ID()) == true) {
 				DropFrame(frame);
 			}
@@ -280,11 +280,11 @@ bool ProcessFrameTask::ShouldProcess(uint64_t ID) {
 }
 
 void ProcessFrameTask::QueueFrame(const Frame::Ptr &frame) {
-	d_frameQueue.push(frame);
+	d_frameQueue.enqueue(frame);
 }
 
 void ProcessFrameTask::CloseFrameQueue() {
-	d_frameQueue.push({});
+	d_frameQueue.enqueue(nullptr);
 }
 
 void ProcessFrameTask::Detect(
