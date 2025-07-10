@@ -69,7 +69,29 @@ FetchContent_Declare(
 	GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
 	GIT_TAG v1.4.2
 )
-FetchContent_MakeAvailable(fort-charis fort-hermes fort-tags)
+
+FetchContent_Declare(
+	taskflow
+	GIT_REPOSITORY https://github.com/taskflow/taskflow
+	GIT_TAG v3.10.0
+)
+FetchContent_GetProperties(taskflow)
+if(NOT taskflow_POPULATED)
+	FetchContent_Populate(taskflow)
+endif(NOT taskflow_POPULATED)
+
+add_library(taskflow INTERFACE)
+add_library(taskflow::taskflow ALIAS taskflow)
+target_include_directories(taskflow INTERFACE ${taskflow_SOURCE_DIR})
+target_link_options(taskflow INTERFACE "-pthread")
+
+FetchContent_Declare(
+	readwriterqueue
+	GIT_REPOSITORY https://github.com/cameron314/readerwriterqueue
+	GIT_TAG v1.0.7
+)
+
+FetchContent_MakeAvailable(fort-charis fort-hermes fort-tags readwriterqueue)
 
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
@@ -81,7 +103,6 @@ find_package(glfw3 REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
 
-pkg_check_modules(TBB tbb REQUIRED)
 pkg_check_modules(FONTCONFIG fontconfig freetype2 REQUIRED)
 
 add_definitions(${EIGEN3_DEFINITIONS})
@@ -95,7 +116,6 @@ include_directories(
 	# GLFW uses target properties
 	${GLEW_INCLUDE_DIRS}
 	${PROTOBUF_INCLUDE_DIRS}
-	${TBB_INCLUDE_DIRS}
 	${FONTCONFIG_INCLUDE_DIRS}
 	${FREETYPE_GL_INCLUDE_DIRS}
 )

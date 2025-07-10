@@ -156,7 +156,6 @@ target_link_libraries(
 		   fort-hermes::libfort-hermes
 		   fort-tags::libfort-tags
 		   ${OpenCV_LIBS}
-		   ${TBB_LIBRARIES}
 		   glfw
 		   ${GLEW_LIBRARIES}
 		   OpenGL::GL
@@ -165,8 +164,9 @@ target_link_libraries(
 		   boost_system
 		   "-ldl"
 		   cpptrace::cpptrace
+		   readerwriterqueue
+		   taskflow::taskflow
 )
-
 add_executable(artemis main.cpp)
 
 target_link_libraries(artemis artemis-common)

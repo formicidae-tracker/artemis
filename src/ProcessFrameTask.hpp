@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tbb/concurrent_queue.h>
+#include <taskflow/core/executor.hpp>
 
 #include <opencv2/core.hpp>
 
@@ -8,17 +8,16 @@
 
 #include <boost/asio/io_context.hpp>
 
-#include "Task.hpp"
-#include "Options.hpp"
 #include "FrameGrabber.hpp"
 #include "ObjectPool.hpp"
+#include "Options.hpp"
+#include "Task.hpp"
 
 #include "ui/UserInterface.hpp"
 
 namespace cv {
 class Mat;
 }
-
 
 namespace fort {
 namespace artemis {
@@ -164,6 +163,8 @@ private:
 	size_t   d_frameDropped;
 	size_t   d_frameProcessed;
 	Time     d_start;
+
+	tf::Executor d_executor;
 };
 
 } // namespace artemis

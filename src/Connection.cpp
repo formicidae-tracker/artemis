@@ -66,21 +66,24 @@ Connection::Ptr Connection::Create(boost::asio::io_context & context,
 	return res;
 }
 
-Connection::Connection(boost::asio::io_context & context,
-                       const std::string & host,
-                       uint16_t port,
-                       Duration reconnectPeriod)
-	: d_context(context)
-	, d_strand(context)
-	, d_host(host)
-	, d_port(port)
-	, d_sending(false)
-	, d_reconnectPeriod(reconnectPeriod) {
-	if ( host.empty() ) {
-		throw std::invalid_argument("Connection: destination host cannot be empty");
+Connection::Connection(
+    boost::asio::io_context &context,
+    const std::string       &host,
+    uint16_t                 port,
+    Duration                 reconnectPeriod
+)
+    : d_context{context}
+    , d_strand{context}
+    , d_host{host}
+    , d_port{port}
+    , d_sending{false}
+    , d_bufferQueue{16}
+    , d_reconnectPeriod{reconnectPeriod} {
+	if (host.empty()) {
+		throw std::invalid_argument(
+		    "Connection: destination host cannot be empty"
+		);
 	}
-	d_bufferQueue.set_capacity(16);
-
 }
 
 Connection::~Connection() {
@@ -97,50 +100,59 @@ inline std::string SerializeMessage(const google::protobuf::MessageLite & messag
 
 }
 
-void Connection::PostMessage(const Ptr & self,const google::protobuf::MessageLite & message) {
-	if ( self->d_bufferQueue.try_push(SerializeMessage(message)) == false ) {
-		Connection_LOG(WARNING,self) << "discarding message as input queue is full";
+void Connection::PostMessage(
+    const Ptr &self, const google::protobuf::MessageLite &message
+) {
+	if (self->d_bufferQueue.try_enqueue(SerializeMessage(message)) == false) {
+		Connection_LOG(WARNING, self)
+		    << "discarding message as input queue is full";
 	}
 
-	self->d_strand.post([self] () {
-		                    if(self->d_bufferQueue.size() <= 0  || self->d_sending == true) {
-			                    return;
-		                    }
-		                    if (!self->d_socket) {
-			                    Connection_LOG(WARNING,self) << "discarding message has there is no active connection";\
-			                    std::string discard;
-			                    self->d_bufferQueue.pop(discard);
-			                    ScheduleReconnect(self);
-			                    return;
-		                    }
-		                    ScheduleSend(self);
-	                    });
+	self->d_strand.post([self]() {
+		if (self->d_bufferQueue.size_approx() == 0 || self->d_sending == true) {
+			return;
+		}
+		if (!self->d_socket) {
+			Connection_LOG(WARNING, self)
+			    << "discarding message has there is no active connection";
+			std::string discard;
+			self->d_bufferQueue.wait_dequeue(discard);
+			ScheduleReconnect(self);
+			return;
+		}
+		ScheduleSend(self);
+	});
 }
 
-void Connection::ScheduleSend(const Ptr & self) {
+void Connection::ScheduleSend(const Ptr &self) {
 	self->d_sending = true;
 	std::string toSend;
-	self->d_bufferQueue.pop(toSend);
-	boost::asio::async_write(*self->d_socket,
-	                         boost::asio::const_buffers_1(&((toSend)[0]),toSend.size()),
-	                         self->d_strand.wrap([self,toSend](const boost::system::error_code & ec,
-	                                                           std::size_t s) {
-		                                             if ( ec == boost::asio::error::connection_reset || ec == boost::asio::error::bad_descriptor ) {
-			                                             Connection_LOG(ERROR,self) << "disconnected: " << ec;
-			                                             if (!self->d_socket) {
-				                                             return;
-			                                             }
-			                                             self->d_socket.reset();
-			                                             ScheduleReconnect(self);
-		                                             } else if ( ec ) {
-			                                             Connection_LOG(ERROR,self) << "could not send data: " << ec;
-		                                             }
-		                                             if (self->d_bufferQueue.size() <= 0 ) {
-			                                      self->d_sending = false;
-			                                      return;
-		                                             }
-		                                             ScheduleSend(self);
-	                                             }));
+	self->d_bufferQueue.wait_dequeue(toSend);
+	boost::asio::async_write(
+	    *self->d_socket,
+	    boost::asio::const_buffers_1(&((toSend)[0]), toSend.size()),
+	    self->d_strand.wrap(
+	        [self, toSend](const boost::system::error_code &ec, std::size_t s) {
+		        if (ec == boost::asio::error::connection_reset ||
+		            ec == boost::asio::error::bad_descriptor) {
+			        Connection_LOG(ERROR, self) << "disconnected: " << ec;
+			        if (!self->d_socket) {
+				        return;
+			        }
+			        self->d_socket.reset();
+			        ScheduleReconnect(self);
+		        } else if (ec) {
+			        Connection_LOG(ERROR, self)
+			            << "could not send data: " << ec;
+		        }
+		        if (self->d_bufferQueue.size_approx() <= 0) {
+			        self->d_sending = false;
+			        return;
+		        }
+		        ScheduleSend(self);
+	        }
+	    )
+	);
 }
 
 void Connection::ScheduleReconnect(const Ptr & self) {

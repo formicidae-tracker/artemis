@@ -18,31 +18,31 @@ FullFrameExportTask::~FullFrameExportTask() {}
 
 void FullFrameExportTask::Run() {
 	LOG(INFO) << "[FullFrameExportTask]: started";
-	for(;;) {
+	for (;;) {
 		Frame::Ptr f;
-		d_queue.pop(f);
+		d_queue.wait_dequeue(f);
 		if (!f) {
 			break;
 		}
-		ExportFrame(d_dir,f);
+		ExportFrame(d_dir, f);
 	}
 	LOG(INFO) << "[FullFrameExportTask]: ended";
 }
 
 void FullFrameExportTask::CloseQueue() {
-	LOG(INFO) << "Queue size " << d_queue.size();
-	d_queue.push(nullptr);
+	LOG(INFO) << "Queue size " << d_queue.size_approx();
+	d_queue.enqueue(nullptr);
 }
 
-bool FullFrameExportTask::QueueExport(const Frame::Ptr & frame) {
-	if ( d_queue.size() >= 0 ) {
+bool FullFrameExportTask::QueueExport(const Frame::Ptr &frame) {
+	if (d_queue.peek() != nullptr) {
 		return false;
 	}
-	return d_queue.try_push(frame);
+	return d_queue.enqueue(frame);
 }
 
 bool FullFrameExportTask::IsFree() const {
-	return d_queue.size() < 0;
+	return d_queue.peek() == nullptr;
 }
 
 void FullFrameExportTask::ExportFrame(const std::string & dir,
