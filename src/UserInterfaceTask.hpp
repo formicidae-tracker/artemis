@@ -6,8 +6,7 @@
 
 #include <fort/hermes/FrameReadout.pb.h>
 
-#include <tbb/concurrent_queue.h>
-
+#include "readerwriterqueue.h"
 #include "ui/GLUserInterface.hpp"
 #include "ui/UserInterface.hpp"
 
@@ -35,7 +34,7 @@ public:
 	void CloseQueue();
 
 private:
-	tbb::concurrent_queue<UserInterface::FrameToDisplay> d_displayQueue;
+	moodycamel::ReaderWriterQueue<UserInterface::FrameToDisplay> d_displayQueue;
 
 	std::unique_ptr<UserInterface> d_ui;
 	const cv::Size                 d_workingResolution, d_fullResolution;

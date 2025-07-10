@@ -2,15 +2,12 @@
 
 #include <functional>
 
-#include <tbb/concurrent_queue.h>
-
 #include <opencv2/core.hpp>
 
 #include <fort/hermes/FrameReadout.pb.h>
 
 #include "../Options.hpp"
-
-
+#include "readerwriterqueue.h"
 
 namespace fort {
 namespace artemis {
@@ -43,8 +40,8 @@ public:
 		size_t VideoOutputDropped;
 	};
 
-	typedef tbb::concurrent_queue<cv::Rect> ROIChannel;
-	typedef std::shared_ptr<ROIChannel> ROIChannelPtr;
+	typedef moodycamel::ReaderWriterQueue<cv::Rect> ROIChannel;
+	typedef std::shared_ptr<ROIChannel>             ROIChannelPtr;
 
 	UserInterface(
 	    const cv::Size               &workingResolution,
@@ -54,43 +51,43 @@ public:
 
 	virtual void PollEvents() = 0;
 
-	void PushFrame(const FrameToDisplay & frame);
+	void PushFrame(const FrameToDisplay &frame);
 
 protected:
 	struct DataToDisplay {
-		std::vector<size_t> HighlightedIndexes,NormalIndexes;
+		std::vector<size_t> HighlightedIndexes, NormalIndexes;
 	};
 
-	virtual void UpdateFrame(const FrameToDisplay & frame,
-	                         const DataToDisplay & data) = 0;
+	virtual void
+	UpdateFrame(const FrameToDisplay &frame, const DataToDisplay &data) = 0;
 
-	void ROIChanged(const cv::Rect & roi);
+	void ROIChanged(const cv::Rect &roi);
 	void ToggleHighlight(uint32_t tagID);
 	void ToggleDisplayROI();
 	void ToggleDisplayLabels();
 	void ToggleDisplayHelp();
 	void ToggleDisplayOverlay();
 
-	std::string PromptAndValue() const;
-	void EnterHighlightPrompt();
-	void LeaveHighlightPrompt();
-	void AppendPromptValue( char c );
-	const std::string & Value() const;
+	std::string        PromptAndValue() const;
+	void               EnterHighlightPrompt();
+	void               LeaveHighlightPrompt();
+	void               AppendPromptValue(char c);
+	const std::string &Value() const;
 
+	bool               DisplayROI() const;
+	bool               DisplayLabels() const;
+	bool               DisplayHelp() const;
+	bool               DisplayOverlay() const;
+	const std::string &Watermark() const;
 
-	bool DisplayROI() const;
-	bool DisplayLabels() const;
-	bool DisplayHelp() const;
-	bool DisplayOverlay() const;
-	const std::string & Watermark() const;
-
-	DataToDisplay ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> & m);
+	DataToDisplay
+	ComputeDataToDisplay(const std::shared_ptr<hermes::FrameReadout> &m);
 
 private:
 	ROIChannelPtr      d_roiChannel;
 	std::set<uint32_t> d_highlighted;
 	const std::string  d_watermark;
-	std::string        d_prompt,d_value;
+	std::string        d_prompt, d_value;
 	bool               d_displayROI;
 	bool               d_displayLabels;
 	bool               d_displayHelp;

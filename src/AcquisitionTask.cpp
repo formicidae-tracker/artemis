@@ -71,6 +71,7 @@ void AcquisitionTask::Run() {
 	while (d_quit.load() == false) {
 		Frame::Ptr f = d_grabber->NextFrame();
 		if (d_processFrame && f != nullptr) {
+
 			d_processFrame->QueueFrame(f);
 		}
 	}

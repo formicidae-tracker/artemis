@@ -13,6 +13,7 @@
 #include "Options.hpp"
 #include "Task.hpp"
 
+#include "readerwriterqueue.h"
 #include "ui/UserInterface.hpp"
 
 namespace cv {
@@ -53,7 +54,7 @@ public:
 	FullFrameExportTaskPtr FullFrameExportTask() const;
 
 private:
-	typedef tbb::concurrent_bounded_queue<Frame::Ptr> FrameQueue;
+	typedef moodycamel::BlockingReaderWriterQueue<Frame::Ptr> FrameQueue;
 
 	void SetUpVideoOutputTask(
 	    const VideoOutputOptions &options,

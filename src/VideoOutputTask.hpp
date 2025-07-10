@@ -3,7 +3,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 
-#include <tbb/concurrent_queue.h>
+#include <readerwriterqueue.h>
 
 #include <mutex>
 
@@ -56,7 +56,7 @@ private:
 	void OutputDataWithoutHeader(const std::shared_ptr<cv::Mat> &framePtr);
 
 	typedef std::tuple<std::shared_ptr<cv::Mat>, Time, uint64_t> FrameData;
-	typedef tbb::concurrent_bounded_queue<FrameData>             InboundQueue;
+	typedef moodycamel::BlockingReaderWriterQueue<FrameData>     InboundQueue;
 
 	boost::asio::posix::stream_descriptor d_stream;
 	InboundQueue                          d_queue;

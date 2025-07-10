@@ -29,7 +29,7 @@ void UserInterface::ToggleHighlight(uint32_t tagID) {
 }
 
 void UserInterface::ROIChanged(const cv::Rect &roi) {
-	d_roiChannel->push(roi);
+	d_roiChannel->enqueue(roi);
 }
 
 UserInterface::DataToDisplay UserInterface::ComputeDataToDisplay(

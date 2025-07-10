@@ -30,21 +30,19 @@ VideoOutputTask::VideoOutputTask(const VideoOutputOptions & options,
 
 }
 
+VideoOutputTask::~VideoOutputTask() {}
 
-VideoOutputTask::~VideoOutputTask() {
-}
-
-
-void VideoOutputTask::QueueFrame(const std::shared_ptr<cv::Mat> & image,
-                                 const Time & frameTime,
-                                 const uint64_t frameID) {
-	d_queue.push({image,frameTime,frameID});
+void VideoOutputTask::QueueFrame(
+    const std::shared_ptr<cv::Mat> &image,
+    const Time                     &frameTime,
+    const uint64_t                  frameID
+) {
+	d_queue.enqueue({image, frameTime, frameID});
 }
 
 void VideoOutputTask::CloseQueue() {
-	d_queue.push({nullptr,Time(),0});
+	d_queue.enqueue({nullptr, Time(), 0});
 }
-
 
 void VideoOutputTask::Run() {
 	LOG(INFO) << "[VideoOutputTask]: Started";
@@ -53,35 +51,33 @@ void VideoOutputTask::Run() {
 	d_frameProcessed.store(0);
 
 	FrameData data;
-	size_t frameDropped(0),frameProcessed(0);
+	size_t    frameDropped(0), frameProcessed(0);
 	for (;;) {
-		d_queue.pop(data);
-		const auto & [imagePtr,time,frameID] = data;
-		if ( !imagePtr ) {
+		d_queue.wait_dequeue(data);
+		const auto &[imagePtr, time, frameID] = data;
+		if (!imagePtr) {
 			break;
 		}
 
 		{
 			std::lock_guard<std::mutex> lock(d_mutex);
-			if ( d_queue.size() > 1
-			     || d_done == false ) {
+			if (d_queue.peek() != nullptr || d_done == false) {
 				frameDropped = d_frameDropped.fetch_add(1) + 1;
 				LOG(ERROR) << "[VideoOutput]: dropping frame " << frameID
-				           << " dropped: " << frameDropped
-				           << "/"
-				           << frameProcessed + frameDropped
-				           << " ( "
+				           << " dropped: " << frameDropped << "/"
+				           << frameProcessed + frameDropped << " ( "
 				           << std::setprecision(2) << std::fixed
-				           << double(frameDropped) / double(frameDropped + frameProcessed) * 100.0
+				           << double(frameDropped) /
+				                  double(frameDropped + frameProcessed) * 100.0
 				           << "% )";
 				continue;
 			}
 			d_done = false;
 		}
 
-		OverlayData(*imagePtr,time,frameID);
+		OverlayData(*imagePtr, time, frameID);
 
-		OutputData(imagePtr,frameID);
+		OutputData(imagePtr, frameID);
 		frameProcessed = d_frameProcessed.fetch_add(1) + 1;
 	}
 	LOG(INFO) << "[VideoOutputTask]: Ended";

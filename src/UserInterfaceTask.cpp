@@ -41,7 +41,7 @@ void UserInterfaceTask::Run() {
 	for (;;) {
 		d_ui->PollEvents();
 		bool hasNew(false);
-		while (d_displayQueue.try_pop(frame) == true) {
+		while (d_displayQueue.try_dequeue(frame) == true) {
 			hasNew = true;
 		}
 		if (hasNew == false) {
@@ -60,15 +60,17 @@ const cv::Rect & UserInterfaceTask::DefaultROI() const {
 	return d_defaultROI;
 }
 
-cv::Rect UserInterfaceTask::UpdateROI(const cv::Rect & previous) {
+cv::Rect UserInterfaceTask::UpdateROI(const cv::Rect &previous) {
 	cv::Rect previous_ = previous;
-	while ( d_roiChannel->try_pop(previous_) == true ) {
+	while (d_roiChannel->try_dequeue(previous_) == true) {
 	}
 	return previous_;
 }
 
-void UserInterfaceTask::QueueFrame(const UserInterface::FrameToDisplay &  toDisplay) {
-	d_displayQueue.push(toDisplay);
+void UserInterfaceTask::QueueFrame(
+    const UserInterface::FrameToDisplay &toDisplay
+) {
+	d_displayQueue.enqueue(toDisplay);
 }
 
 void UserInterfaceTask::CloseQueue() {
@@ -76,7 +78,7 @@ void UserInterfaceTask::CloseQueue() {
 	end.Full      = nullptr;
 	end.FrameTime = fort::Time();
 
-	d_displayQueue.push(end);
+	d_displayQueue.enqueue(end);
 }
 
 } // namespace artemis
