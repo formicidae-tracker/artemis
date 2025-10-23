@@ -5,6 +5,7 @@
 #include <set>
 
 namespace fort {
+
 namespace artemis {
 
 UserInterface::UserInterface(

@@ -14,14 +14,16 @@ namespace artemis {
 class ProcessFrameTask;
 typedef std::shared_ptr<ProcessFrameTask> ProcessFrameTaskPtr;
 
-
 class AcquisitionTask : public Task {
 public:
-	static FrameGrabber::Ptr LoadFrameGrabber(const std::vector<std::string> & stubImagePaths,
-	                                          const CameraOptions & options);
+	static FrameGrabber::Ptr LoadFrameGrabber(
+	    const std::vector<std::string> &stubImagePaths,
+	    const CameraOptions            &options
+	);
 
-	AcquisitionTask(const FrameGrabber::Ptr & grabber,
-	                const ProcessFrameTaskPtr &  process);
+	AcquisitionTask(
+	    const FrameGrabber::Ptr &grabber, const ProcessFrameTaskPtr &process
+	);
 
 	virtual ~AcquisitionTask();
 
@@ -30,7 +32,6 @@ public:
 	void Stop();
 
 private:
-
 	FrameGrabber::Ptr   d_grabber;
 	ProcessFrameTaskPtr d_processFrame;
 	std::atomic<bool>   d_quit;

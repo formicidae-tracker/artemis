@@ -13,7 +13,7 @@
 
 #include <mutex>
 
-#if (BOOST_ASIO_VERSION != 101800)
+#if (BOOST_ASIO_VERSION < 101800)
 #error "Wrong version of boost asio " # BOOST_ASIO_VERSION
 #endif
 
