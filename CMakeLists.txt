@@ -2,13 +2,13 @@ cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0077 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
+cmake_minimum_required(VERSION 3.16)
+
 project(
 	artemis
 	VERSION 0.4.5
 	LANGUAGES C CXX
 )
-
-cmake_minimum_required(VERSION 3.16)
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -62,8 +62,30 @@ include(FetchContent)
 set(FORT_CHARIS_BUILD_GL Off)
 set(FORT_CHARIS_BUILD_VIDEO Off)
 set(FORT_CHARIS_CAPITALIZE_DEFER On)
-FetchContent_Declare(fort-charis SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/charis)
-FetchContent_Declare(fort-hermes SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/hermes)
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/deps/charis)
+	FetchContent_Declare(
+		fort-charis SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/charis
+	)
+else()
+	FetchContent_Declare(
+		fort-charis
+		GIT_REPOSITORY https://github.com/formicidae-tracker/charis.git
+		GIT_TAG 3df2c8929118298e8776e0ef3ca0c05b700dc43a
+	)
+endif()
+if(EXISTS ${PROJECT_SOURCE_DIR}/deps/charis)
+	FetchContent_Declare(
+		fort-hermes SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/hermes
+	)
+else()
+	FetchContent_Declare(
+		fort-hermes
+		GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
+		GIT_TAG v0.5.7
+	)
+endif()
+
 FetchContent_Declare(
 	fort-tags
 	GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
@@ -140,5 +162,3 @@ include(GoogleTest)
 add_subdirectory(scripts)
 
 add_subdirectory(src)
-
-add_subdirectory(src/mockup)
