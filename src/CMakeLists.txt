@@ -1,3 +1,5 @@
+include(${fort-charis_SOURCE_DIR}/cmake/add_resources.cmake)
+
 include(CheckCXXSourceRuns)
 
 check_cxx_source_runs(
@@ -18,39 +20,16 @@ int main() {
 configure_file(config.h.in artemis-config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_custom_command(
-	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.c
-		   ${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data.h
-	COMMAND
-		${RESOURCIFY_EXECUTABLE} ARGS "-O"
-		${CMAKE_CURRENT_BINARY_DIR}/ui/shaders_data "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.vertexshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.vertexshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.fragmentshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/circle.fragmentshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.vertexshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.fragmentshader "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/roi.fragmentshader
-	DEPENDS resourcify
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.vertexshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/frame.fragmentshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.vertexshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/circle.fragmentshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.vertexshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/font.fragmentshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/primitive.fragmentshader
-			${CMAKE_CURRENT_SOURCE_DIR}/ui/shaders/roi.fragmentshader
-)
-
-add_custom_command(
-	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data.c
-		   ${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data.h
-	COMMAND
-		${RESOURCIFY_EXECUTABLE} ARGS "-O"
-		${CMAKE_CURRENT_BINARY_DIR}/fonts/fonts_data "-I"
-		${CMAKE_CURRENT_SOURCE_DIR}/fonts/vga.fon
-	DEPENDS resourcify ${CMAKE_CURRENT_SOURCE_DIR}/fonts/vga.fon
+set(RESOURCE_FILES
+	ui/shaders/frame.vertexshader
+	ui/shaders/frame.fragmentshader
+	ui/shaders/primitive.vertexshader
+	ui/shaders/primitive.fragmentshader
+	ui/shaders/circle.fragmentshader
+	ui/shaders/font.vertexshader
+	ui/shaders/font.fragmentshader
+	ui/shaders/roi.fragmentshader
+	fonts/vga.fon
 )
 
 set(SRC_FILES
@@ -72,12 +51,7 @@ set(SRC_FILES
 	ImageTextRenderer.cpp
 	ui/UserInterface.cpp
 	ui/StubUserInterface.cpp
-	ui/GLVertexBufferObject.cpp
 	ui/GLUserInterface.cpp
-	ui/ShaderUtils.cpp
-	ui/shaders_data.c
-	fonts/fonts_data.c
-	ui/GLFont.cpp
 	Utils.cpp
 	main.cpp
 )
@@ -101,12 +75,7 @@ set(HDR_FILES
 	ImageTextRenderer.hpp
 	ui/UserInterface.hpp
 	ui/StubUserInterface.hpp
-	ui/GLVertexBufferObject.hpp
 	ui/GLUserInterface.hpp
-	ui/ShaderUtils.hpp
-	ui/shaders_data.h
-	fonts/fonts_data.h
-	ui/GLFont.hpp
 	Application.hpp
 	Utils.hpp
 )
@@ -146,6 +115,8 @@ endif(MULTICAM_FRAMEGRABBER_SUPPORT)
 
 add_library(artemis-common STATIC ${SRC_FILES} ${HDR_FILES})
 
+add_resources(TARGET artemis-common RESOURCES ${RESOURCE_FILES})
+
 target_link_libraries(
 	artemis-common
 	PUBLIC ${FG_LIBRARIES}
@@ -153,14 +124,10 @@ target_link_libraries(
 		   fort-charis::libfort-time
 		   fort-charis::libfort-utils
 		   fort-charis::libfort-options
+		   fort-charis::libfort-gl
 		   fort-hermes::libfort-hermes
 		   fort-tags::libfort-tags
 		   ${OpenCV_LIBS}
-		   glfw
-		   ${GLEW_LIBRARIES}
-		   OpenGL::GL
-		   freetype-gl
-		   ${FONTCONFIG_LIBRARIES}
 		   boost_system
 		   "-ldl"
 		   cpptrace::cpptrace

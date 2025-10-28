@@ -12,8 +12,7 @@ StubUserInterface::StubUserInterface(const cv::Size & workingResolution,
 	: UserInterface(workingResolution,options,roiChannel) {
 }
 
-void StubUserInterface::PollEvents() {
-}
+void StubUserInterface::Task() {}
 
 void StubUserInterface::UpdateFrame(const FrameToDisplay & frame,
                                     const DataToDisplay &) {

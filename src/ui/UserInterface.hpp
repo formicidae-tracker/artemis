@@ -49,7 +49,7 @@ public:
 	    const ROIChannelPtr          &zoomChannel
 	);
 
-	virtual void PollEvents() = 0;
+	virtual void Task() = 0;
 
 	void PushFrame(const FrameToDisplay &frame);
 

@@ -12,8 +12,6 @@ project(
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-include(FetchFreetypeGL)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED 1)
 
@@ -55,11 +53,9 @@ elseif(ARTEMIS_NUM_FG GREATER 1)
 	)
 endif(ARTEMIS_NUM_FG EQUAL 0)
 
-fetch_freetype_gl(VERSION 513fa238357f7c11a9f427965fe336aae7955297)
-
 include(FetchContent)
 
-set(FORT_CHARIS_BUILD_GL Off)
+set(FORT_CHARIS_BUILD_GL On)
 set(FORT_CHARIS_BUILD_VIDEO Off)
 set(FORT_CHARIS_CAPITALIZE_DEFER On)
 
@@ -97,6 +93,7 @@ FetchContent_Declare(
 	GIT_REPOSITORY https://github.com/taskflow/taskflow
 	GIT_TAG v3.10.0
 )
+
 FetchContent_GetProperties(taskflow)
 if(NOT taskflow_POPULATED)
 	FetchContent_Populate(taskflow)
@@ -114,32 +111,19 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(fort-charis fort-hermes fort-tags readwriterqueue)
+FetchContent_GetProperties(fort-charis)
 
 find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
-set(OpenGL_PREFERENCE GLVND)
-find_package(OpenGL REQUIRED)
-find_package(glfw3 REQUIRED)
-find_package(GLEW REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
-
-pkg_check_modules(FONTCONFIG fontconfig freetype2 REQUIRED)
 
 add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(
-	${EGRABBER_INCLUDE_DIRS}
-	${GLOG_INCLUDE_DIRS}
-	${OpenCV_INCLUDE_DIRS}
-	${EIGEN3_INCLUDE_DIRS}
-	${OPENGL_INCLUDE_DIRS}
-	# GLFW uses target properties
-	${GLEW_INCLUDE_DIRS}
-	${PROTOBUF_INCLUDE_DIRS}
-	${FONTCONFIG_INCLUDE_DIRS}
-	${FREETYPE_GL_INCLUDE_DIRS}
+	${EGRABBER_INCLUDE_DIRS} ${GLOG_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS}
+	${EIGEN3_INCLUDE_DIRS} ${PROTOBUF_INCLUDE_DIRS}
 )
 
 set(INSTALL_GTEST Off)

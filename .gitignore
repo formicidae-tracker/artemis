@@ -2,3 +2,4 @@ build/
 euresys
 /.cache/
 deps/
+/*.png

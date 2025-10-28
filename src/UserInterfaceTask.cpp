@@ -39,7 +39,7 @@ void UserInterfaceTask::Run() {
 
 	UserInterface::FrameToDisplay frame;
 	for (;;) {
-		d_ui->PollEvents();
+		d_ui->Task();
 		bool hasNew(false);
 		while (d_displayQueue.try_dequeue(frame) == true) {
 			hasNew = true;
@@ -56,7 +56,7 @@ void UserInterfaceTask::Run() {
 	LOG(INFO) << "[UserInterfaceTask]: Ended";
 }
 
-const cv::Rect & UserInterfaceTask::DefaultROI() const {
+const cv::Rect &UserInterfaceTask::DefaultROI() const {
 	return d_defaultROI;
 }
 

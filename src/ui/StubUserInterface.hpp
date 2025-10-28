@@ -7,18 +7,17 @@ namespace artemis {
 
 class StubUserInterface : public UserInterface {
 public:
+	StubUserInterface(
+	    const cv::Size      &workingResolution,
+	    const Options       &options,
+	    const ROIChannelPtr &roiChannel
+	);
 
-	StubUserInterface(const cv::Size & workingResolution,
-	                  const Options & options,
-	                  const ROIChannelPtr & roiChannel);
+	void Task() override;
 
-	void PollEvents() override;
-
-	void UpdateFrame(const FrameToDisplay & frame,
-	                 const DataToDisplay & data) override;
-
+	void UpdateFrame(const FrameToDisplay &frame, const DataToDisplay &data)
+	    override;
 };
-
 
 } // namespace artemis
 } // namespace fort
