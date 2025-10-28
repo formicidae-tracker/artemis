@@ -1,11 +1,13 @@
 #include <chrono>
 #include <climits>
 
+#include <atomic>
+#include <cpptrace/utils.hpp>
 #include <ctime>
+#include <execinfo.h>
 #include <filesystem>
-#include <pwd.h>
-
 #include <linux/limits.h>
+#include <pwd.h>
 
 #include "Application.hpp"
 
@@ -32,7 +34,37 @@
 namespace fort {
 namespace artemis {
 
+static std::once_flag handler_installed;
+
+void printBacktrace(int signo, siginfo_t *info, void *context) {
+	fprintf(stderr, "got SIGSEGV signal:\n");
+
+	constexpr size_t MAX_STACKSIZE = 128;
+
+	void *stack[MAX_STACKSIZE];
+	auto  depth = backtrace(stack, MAX_STACKSIZE);
+	auto  msg   = backtrace_symbols(stack, depth);
+	for (size_t i = 0; i < depth; ++i) {
+		fprintf(stderr, "[%zu]: %s\n", i, msg[i]);
+	}
+	_exit(1);
+}
+
+void installCpptraceHandler() {
+	cpptrace::register_terminate_handler();
+
+	struct sigaction action = {0};
+	action.sa_flags         = 0;
+	action.sa_sigaction     = &printBacktrace;
+	if (sigaction(SIGSEGV, &action, NULL) == -1) {
+		perror("sigaction");
+		_exit(1);
+	}
+}
+
 void Application::Execute(int argc, char **argv) {
+	std::call_once(handler_installed, installCpptraceHandler);
+
 	Options options;
 	options.SetDescription(
 	    "run apriltag detection and coordinates with leto for results"

@@ -3,3 +3,8 @@ euresys
 /.cache/
 deps/
 /*.png
+/artemis.*.log.*
+/artemis.INFO
+/artemis.ERROR
+/artemis.WARNING
+/artemis.DEBUG
