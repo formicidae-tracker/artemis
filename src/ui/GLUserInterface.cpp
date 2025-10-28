@@ -353,9 +353,7 @@ void GLUserInterface::InitPBOs() {
 	d_logger.DInfo("initializing frame buffer objects");
 
 	for (auto &buffer : d_buffers) {
-		buffer.NormalTags = std::make_unique<fort::gl::VertexArrayObject>();
-		buffer.HighlightedTags =
-		    std::make_unique<fort::gl::VertexArrayObject>();
+		buffer.Points = std::make_unique<fort::gl::VertexArrayObject>();
 		glGenBuffers(1, &buffer.PBO);
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer.PBO);
 		glBufferData(
@@ -425,36 +423,23 @@ void GLUserInterface::UploadPoints(DrawBuffer &buffer) {
 	}
 	float factor = 1.0 / FullToWindowScaleFactor();
 
-	std::vector<float> points(
-	    2 * std::max(
-	            buffer.Data.HighlightedIndexes.size(),
-	            buffer.Data.NormalIndexes.size()
-	        ),
-	    0.0
+	std::vector<float> points;
+	points.reserve(
+	    buffer.Data.HighlightedIndexes.size() + buffer.Data.NormalIndexes.size()
 	);
 
-	size_t i = -1;
 	for (const auto hIndex : buffer.Data.HighlightedIndexes) {
 		const auto &t = buffer.Frame.Message->tags(hIndex);
-		points[i++]   = t.x();
-		points[i++]   = t.y();
+		points.push_back(t.x());
+		points.push_back(t.y());
 	}
-	buffer.HighlightedTags->BufferData<float, 2>(
-	    GL_DYNAMIC_DRAW,
-	    points.data(),
-	    2 * buffer.Data.HighlightedIndexes.size()
-	);
-	i = -1;
 	for (const auto nIndex : buffer.Data.NormalIndexes) {
 		const auto &t = buffer.Frame.Message->tags(nIndex);
-		points[i++]   = t.x();
-		points[i++]   = t.y();
+		points.push_back(t.x());
+		points.push_back(t.y());
 	}
-	buffer.NormalTags->BufferData<float, 2>(
-	    GL_DYNAMIC_DRAW,
-	    points.data(),
-	    2 * buffer.Data.NormalIndexes.size()
-	);
+	buffer.Points
+	    ->BufferData<float, 2>(GL_DYNAMIC_DRAW, points.data(), points.size());
 }
 
 float GLUserInterface::FullToWindowScaleFactor() const {
@@ -465,7 +450,8 @@ float GLUserInterface::FullToWindowScaleFactor() const {
 }
 
 void GLUserInterface::DrawROI(const DrawBuffer &buffer) {
-	if (!buffer.Frame.Message || DisplayROI() == false) {
+	if (!buffer.Frame.Message || DisplayROI() == false ||
+	    buffer.Points == nullptr) {
 		return;
 	}
 	glUseProgram(d_roiProgram);
@@ -484,10 +470,23 @@ void GLUserInterface::DrawROI(const DrawBuffer &buffer) {
 	);
 	glPointSize(floatPointSize);
 	fort::gl::Upload(d_roiProgram, "lineWidth", 3.0f * 2.0f / floatPointSize);
+
+	glBindVertexArray(buffer.Points->VAO);
+	Defer {
+		glBindVertexArray(buffer.Points->VAO);
+	};
+
+	glDrawArrays(GL_POINTS, 0, buffer.Data.HighlightedIndexes.size());
+
 	fort::gl::Upload(
 	    d_roiProgram,
 	    "boxColor",
 	    Eigen::Vector3f{1.0f, 0.0f, 0.0f}
+	);
+	glDrawArrays(
+	    GL_POINTS,
+	    buffer.Data.HighlightedIndexes.size(),
+	    buffer.Data.NormalIndexes.size()
 	);
 }
 
@@ -509,11 +508,23 @@ void GLUserInterface::DrawPoints(const DrawBuffer &buffer) {
 	);
 	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor);
 
+	glBindVertexArray(buffer.Points->VAO);
+	Defer {
+		glBindVertexArray(buffer.Points->VAO);
+	};
+	glDrawArrays(GL_POINTS, 0, buffer.Data.HighlightedIndexes.size());
+
 	glPointSize(float(NORMAL_POINT_SIZE) * factor);
 	fort::gl::Upload(
 	    d_pointProgram,
 	    "circleColor",
 	    Eigen::Vector3f{1.0f, 0.0f, 0.0f}
+	);
+
+	glDrawArrays(
+	    GL_POINTS,
+	    buffer.Data.HighlightedIndexes.size(),
+	    buffer.Data.NormalIndexes.size()
 	);
 }
 

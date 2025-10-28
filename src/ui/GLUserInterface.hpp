@@ -37,8 +37,7 @@ private:
 		bool           FullUploaded;
 		GLuint         PBO;
 
-		std::unique_ptr<fort::gl::VertexArrayObject> NormalTags,
-		    HighlightedTags;
+		std::unique_ptr<fort::gl::VertexArrayObject> Points;
 	};
 
 	void InitGLData();
