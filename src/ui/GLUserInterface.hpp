@@ -5,8 +5,10 @@
 #include <GLFW/glfw3.h>
 
 #include "UserInterface.hpp"
+#include "fort/gl/VAOPool.hpp"
 
 #include <fort/gl/Window.hpp>
+#include <memory>
 
 namespace fort {
 namespace artemis {
@@ -34,11 +36,13 @@ private:
 		cv::Size       TrackingSize;
 		bool           FullUploaded;
 		GLuint         PBO;
-		// GLVertexBufferObject::Ptr NormalTags, HighlightedTags, TagLabels;
+
+		std::unique_ptr<fort::gl::VertexArrayObject> NormalTags,
+		    HighlightedTags;
 	};
 
 	void InitGLData();
-
+	void InitPBOs();
 	void OnSizeChanged(int width, int height) override;
 	void OnKey(int key, int scancode, int action, int mods) override;
 	void OnText(unsigned int codepoint) override;
@@ -74,7 +78,7 @@ private:
 
 	float FullToWindowScaleFactor() const;
 
-	DrawBuffer d_buffer[2];
+	DrawBuffer d_buffers[2];
 	size_t     d_index;
 
 	const cv::Size d_workingSize, d_fullSize;
@@ -90,6 +94,9 @@ private:
 
 	GLuint d_frameProgram, d_frameTexture, d_pointProgram, d_primitiveProgram,
 	    d_fontProgram, d_roiProgram;
+	std::unique_ptr<fort::gl::VertexArrayObject> d_frameBuffer;
+
+	slog::Logger<1> d_logger;
 
 	const size_t d_ROISize;
 

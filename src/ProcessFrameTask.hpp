@@ -1,5 +1,6 @@
 #pragma once
 
+#include <slog++/Logger.hpp>
 #include <taskflow/core/executor.hpp>
 
 #include <opencv2/core.hpp>
@@ -165,7 +166,8 @@ private:
 	size_t   d_frameProcessed;
 	Time     d_start;
 
-	tf::Executor d_executor;
+	tf::Executor    d_executor;
+	slog::Logger<1> d_logger;
 };
 
 } // namespace artemis

@@ -120,7 +120,6 @@ add_resources(TARGET artemis-common RESOURCES ${RESOURCE_FILES})
 target_link_libraries(
 	artemis-common
 	PUBLIC ${FG_LIBRARIES}
-		   ${GLOG_LIBRARIES}
 		   fort-charis::libfort-time
 		   fort-charis::libfort-utils
 		   fort-charis::libfort-options

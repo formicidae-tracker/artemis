@@ -1,7 +1,7 @@
 
 #include <artemis-config.h>
 #include <memory>
-#include <stdexcept>
+#include <slog++/slog++.hpp>
 #ifdef EURESYS_FRAMEGRABBER_SUPPORT
 #include "EuresysFrameGrabber.hpp"
 #endif // EURESYS_FRAMEGRABBER_SUPPORT
@@ -14,13 +14,10 @@
 #include "MULTICAMFrameGrabber.hpp"
 #endif // MULTICAM_FRAMEGRABBER_SUPPORT
 
-#include "ProcessFrameTask.hpp"
-
 #include "AcquisitionTask.hpp"
 
+#include "ProcessFrameTask.hpp"
 #include "StubFrameGrabber.hpp"
-
-#include <glog/logging.h>
 
 namespace fort {
 namespace artemis {
@@ -54,7 +51,8 @@ AcquisitionTask::AcquisitionTask(
     const FrameGrabber::Ptr &grabber, const ProcessFrameTaskPtr &process
 )
     : d_grabber(grabber)
-    , d_processFrame(process) {
+    , d_processFrame(process)
+    , d_logger{slog::With(slog::String("task", "acquisition"))} {
 	d_quit.store(false);
 }
 
@@ -66,7 +64,8 @@ void AcquisitionTask::Stop() {
 }
 
 void AcquisitionTask::Run() {
-	LOG(INFO) << "[AcquisitionTask]:  started";
+
+	d_logger.Info("started");
 	d_grabber->Start();
 	while (d_quit.load() == false) {
 		Frame::Ptr f = d_grabber->NextFrame();
@@ -75,12 +74,12 @@ void AcquisitionTask::Run() {
 			d_processFrame->QueueFrame(f);
 		}
 	}
-	LOG(INFO) << "[AcquisitionTask]:  Tear Down";
+	d_logger.Info("tear down");
 	d_grabber->Stop();
 	if (d_processFrame) {
 		d_processFrame->CloseFrameQueue();
 	}
-	LOG(INFO) << "[AcquisitionTask]:  ended";
+	d_logger.Info("done");
 }
 
 } // namespace artemis

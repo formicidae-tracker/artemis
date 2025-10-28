@@ -12,6 +12,7 @@
 #include <fort/time/Time.hpp>
 
 #include <mutex>
+#include <slog++/Logger.hpp>
 
 #if (BOOST_ASIO_VERSION < 101800)
 #error "Wrong version of boost asio " # BOOST_ASIO_VERSION
@@ -61,7 +62,8 @@ private:
 
 	BufferQueue d_bufferQueue;
 
-	Duration d_reconnectPeriod;
+	Duration        d_reconnectPeriod;
+	slog::Logger<1> d_logger;
 };
 
 } // namespace artemis

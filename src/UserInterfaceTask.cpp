@@ -2,8 +2,6 @@
 
 #include "ui/GLUserInterface.hpp"
 
-#include "glog/logging.h"
-
 namespace fort {
 namespace artemis {
 
@@ -16,17 +14,16 @@ UserInterfaceTask::UserInterfaceTask(
     , d_fullResolution(fullResolution)
     , d_config(options)
     , d_defaultROI(cv::Point(0, 0), fullResolution)
-    , d_roiChannel(std::make_shared<UserInterface::ROIChannel>()) {
+    , d_roiChannel(std::make_shared<UserInterface::ROIChannel>())
+    , d_logger{slog::With(slog::String("task", "UserInterface"))} {
 	// UI not initialized here to ensure that it is initialized from
 	// the working thread (i.e. once the task is spawned in Run())
 }
 
-UserInterfaceTask::~UserInterfaceTask() {
-
-}
+UserInterfaceTask::~UserInterfaceTask() {}
 
 void UserInterfaceTask::Run() {
-	LOG(INFO) << "[UserInterfaceTask]: Initialize OpenGL";
+	d_logger.Info("Initializing OpenGL");
 
 	d_ui = std::make_unique<GLUserInterface>(
 	    d_workingResolution,
@@ -34,8 +31,7 @@ void UserInterfaceTask::Run() {
 	    d_config,
 	    d_roiChannel
 	);
-
-	LOG(INFO) << "[UserInterfaceTask]: Started";
+	d_logger.Info("started");
 
 	UserInterface::FrameToDisplay frame;
 	for (;;) {
@@ -53,7 +49,7 @@ void UserInterfaceTask::Run() {
 		d_ui->PushFrame(frame);
 	}
 	d_ui.reset();
-	LOG(INFO) << "[UserInterfaceTask]: Ended";
+	d_logger.Info("ended");
 }
 
 const cv::Rect &UserInterfaceTask::DefaultROI() const {

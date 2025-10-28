@@ -3,6 +3,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include <slog++/Attribute.hpp>
 #include <taskflow/algorithm/for_each.hpp>
 
 #include <artemis-config.h>
@@ -12,8 +13,6 @@
 #include "FullFrameExportTask.hpp"
 #include "UserInterfaceTask.hpp"
 #include "VideoOutputTask.hpp"
-
-#include <glog/logging.h>
 
 #include "Utils.hpp"
 #include "taskflow/core/taskflow.hpp"
@@ -28,7 +27,8 @@ ProcessFrameTask::ProcessFrameTask(
 )
     : d_maximumThreads{size_t(cv::getNumThreads())}
     , d_config{options}
-    , d_executor{d_maximumThreads} {
+    , d_executor{d_maximumThreads}
+    , d_logger{slog::With(slog::String("task", "process"))} {
 	d_actualThreads              = d_maximumThreads;
 	const auto workingResolution = options.VideoOutput.WorkingResolution(
 	    {inputResolution.width, inputResolution.height}
@@ -50,8 +50,11 @@ ProcessFrameTask::ProcessFrameTask(
 		ids += prefix + std::to_string(id);
 		prefix = ",";
 	}
-	LOG(INFO) << "Processing IDs: " << ids;
-	LOG(INFO) << "Processing Stride: " << options.Process.FrameStride;
+	d_logger.Info(
+	    "processing",
+	    slog::String("IDs", ids),
+	    slog::Int("stride", options.Process.FrameStride)
+	);
 }
 
 VideoOutputTaskPtr ProcessFrameTask::VideoOutputTask() const {
@@ -167,7 +170,7 @@ void ProcessFrameTask::TearDown() {
 }
 
 void ProcessFrameTask::Run() {
-	LOG(INFO) << "[ProcessFrameTask]: Started";
+	d_logger.Info("started");
 	Frame::Ptr frame;
 	d_frameDropped   = 0;
 	d_frameProcessed = 0;
@@ -194,9 +197,9 @@ void ProcessFrameTask::Run() {
 
 		ProcessFrame(frame);
 	}
-	LOG(INFO) << "[ProcessFrameTask]: Tear Down";
+	d_logger.Info("tear down");
 	TearDown();
-	LOG(INFO) << "[ProcessFrameTask]: Ended";
+	d_logger.Info("end");
 }
 
 void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr &frame) {
@@ -224,11 +227,15 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr &frame) {
 
 void ProcessFrameTask::DropFrame(const Frame::Ptr &frame) {
 	++d_frameDropped;
-	LOG(WARNING) << "Frame dropped due to over-processing. Total dropped: "
-	             << d_frameDropped << " ("
-	             << 100.0 * double(d_frameDropped) /
-	                    double(d_frameDropped + d_frameProcessed)
-	             << "%)";
+	d_logger.Warn(
+	    "frame dropped due to over-processing",
+	    slog::Int("total_dropped", d_frameDropped),
+	    slog::Float(
+	        "percent_dropped",
+	        100.0 * float(d_frameDropped) /
+	            float(d_frameDropped + d_frameProcessed)
+	    )
+	);
 
 	if (!d_connection) {
 		return;

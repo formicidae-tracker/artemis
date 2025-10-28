@@ -2,7 +2,9 @@
 
 #include "Task.hpp"
 
+#include <filesystem>
 #include <readerwriterqueue.h>
+#include <slog++/Logger.hpp>
 
 #include "FrameGrabber.hpp"
 
@@ -23,10 +25,11 @@ public:
 	bool IsFree() const;
 
 private:
-	static void ExportFrame(const std::string &dir, const Frame::Ptr &frame);
+	void ExportFrame(const std::filesystem::path &dir, const Frame::Ptr &frame);
 
 	moodycamel::BlockingReaderWriterQueue<Frame::Ptr> d_queue;
-	std::string                                       d_dir;
+	std::filesystem::path                             d_dir;
+	slog::Logger<1>                                   d_logger;
 };
 
 } // namespace artemis

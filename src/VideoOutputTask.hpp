@@ -12,6 +12,7 @@
 #include "Options.hpp"
 
 #include <opencv2/core.hpp>
+#include <slog++/Logger.hpp>
 
 namespace fort {
 namespace artemis {
@@ -30,7 +31,7 @@ public:
 
 	void QueueFrame(
 	    const std::shared_ptr<cv::Mat> &image,
-	    const Time	                 &frameTime,
+	    const Time                     &frameTime,
 	    const uint64_t                  frameID
 	);
 
@@ -69,6 +70,7 @@ private:
 	std::atomic<size_t> d_frameProcessed, d_frameDropped;
 
 	std::vector<uint64_t> d_headerData;
+	slog::Logger<1>       d_logger;
 };
 
 } // namespace artemis

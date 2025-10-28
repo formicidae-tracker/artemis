@@ -7,7 +7,7 @@ uniform sampler2D frameSampler;
 
 out vec4 color;
 
-void main(){
-	float value = texture(frameSampler,UV).r;
-	color = vec4(value,value,value,1.0);
+void main() {
+	float value = texture(frameSampler, UV).r;
+	color       = vec4(value, value, value, 1.0);
 }

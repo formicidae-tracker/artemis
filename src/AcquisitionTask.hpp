@@ -7,6 +7,7 @@
 #include "Options.hpp"
 
 #include <atomic>
+#include <slog++/Logger.hpp>
 
 namespace fort {
 namespace artemis {
@@ -35,6 +36,7 @@ private:
 	FrameGrabber::Ptr   d_grabber;
 	ProcessFrameTaskPtr d_processFrame;
 	std::atomic<bool>   d_quit;
+	slog::Logger<1>     d_logger;
 };
 
 } // namespace artemis

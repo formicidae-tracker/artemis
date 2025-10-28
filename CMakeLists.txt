@@ -113,7 +113,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(fort-charis fort-hermes fort-tags readwriterqueue)
 FetchContent_GetProperties(fort-charis)
 
-find_package(GLog REQUIRED)
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -122,8 +121,8 @@ find_package(Protobuf 3.3.0 REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(
-	${EGRABBER_INCLUDE_DIRS} ${GLOG_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS}
-	${EIGEN3_INCLUDE_DIRS} ${PROTOBUF_INCLUDE_DIRS}
+	${EGRABBER_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS}
+	${PROTOBUF_INCLUDE_DIRS}
 )
 
 set(INSTALL_GTEST Off)

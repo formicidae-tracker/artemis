@@ -1,14 +1,27 @@
+#include <chrono>
+#include <climits>
+
+#include <ctime>
+#include <filesystem>
+#include <pwd.h>
+
+#include <linux/limits.h>
+
 #include "Application.hpp"
 
 #include "Options.hpp"
 
 #include <Eigen/Core>
-#include <glog/logging.h>
 
-#include <linux/limits.h>
 #include <opencv2/core.hpp>
 
+#include <slog++/Config.hpp>
+#include <slog++/Level.hpp>
+#include <slog++/TeeSink.hpp>
+#include <slog++/slog++.hpp>
+
 #include <artemis-config.h>
+#include <unistd.h>
 
 #include "AcquisitionTask.hpp"
 #include "FullFrameExportTask.hpp"
@@ -29,7 +42,7 @@ void Application::Execute(int argc, char **argv) {
 		return;
 	}
 
-	InitGoogleLogging(argv[0], options);
+	InitLogging(argv[0], options);
 	InitGlobalDependencies();
 
 	Application application(options);
@@ -55,24 +68,116 @@ bool Application::InterceptCommand(const Options &options) {
 	return false;
 }
 
-void Application::InitGoogleLogging(
-    char *applicationName, const Options &options
-) {
-	if (options.LogDir.empty() == false) {
-		// likely runned by leto and we are saving data to dedicated
-		// files. So we do not need as much log to stderr, and no
-		// color.
-		FLAGS_log_dir          = options.LogDir.c_str();
-		FLAGS_stderrthreshold  = 3;
-		FLAGS_colorlogtostderr = false; // maybe we should need less log
-	} else {
-		// we output all logs, and likely we are not beeing runned by
-		// leto, so we output everything with colors.
-		FLAGS_stderrthreshold  = 0;
-		FLAGS_colorlogtostderr = true;
+struct LogfileName {
+	std::string           name, hostname, username, timestamp;
+	std::filesystem::path logpath;
+
+	LogfileName(const char *argv0, const std::string &logdir) {
+		if (logdir.empty()) {
+			logpath = std::filesystem::current_path();
+		} else {
+			logpath = logdir;
+		}
+		std::filesystem::create_directories(logpath);
+
+		auto now = std::chrono::system_clock::now();
+
+		name = std::filesystem::path(argv0).filename();
+
+		char hostname[HOST_NAME_MAX];
+		if (gethostname(hostname, sizeof(hostname)) != 0) {
+			this->hostname = hostname;
+		} else {
+			this->hostname = "unknown";
+		}
+
+		struct passwd *pw = getpwuid(getuid());
+		username          = pw ? pw->pw_name : "unknown";
+
+		auto               pid = getpid();
+		std::ostringstream oss;
+		auto               t = std::chrono::system_clock::to_time_t(now);
+		std::tm            tm_time;
+		localtime_r(&t, &tm_time);
+		oss << std::put_time(&tm_time, "%Y%m%d-%H%M%S") << "." << pid;
+		timestamp = oss.str();
 	}
-	::google::InitGoogleLogging(applicationName);
-	::google::InstallFailureSignalHandler();
+
+	static const char *levelname(slog::Level lvl) {
+
+		switch (lvl) {
+		case slog::Level::Trace:
+			return "TRACE";
+			break;
+		case slog::Level::Debug:
+			return "DEBUG";
+			break;
+		case slog::Level::Info:
+			return "INFO";
+			break;
+		case slog::Level::Warn:
+			return "WARNING";
+			break;
+		case slog::Level::Error:
+		default:
+			return "ERROR";
+			break;
+		}
+	}
+
+	std::string filename(slog::Level lvl) const {
+		return name + "." + hostname + "." + username + ".log." +
+		       levelname(lvl) + "." + timestamp;
+	}
+
+	std::string Get(slog::Level lvl) {
+		auto linkpath   = logpath / (name + "." + levelname(lvl));
+		auto targetpath = logpath / filename(lvl);
+		std::filesystem::remove(linkpath);
+		std::filesystem::create_symlink(targetpath, linkpath);
+		return targetpath.string();
+	}
+};
+
+void Application::InitLogging(const char *argv0, const Options &options) {
+
+	LogfileName filenames{argv0, options.LogDir};
+
+	auto stderr = slog::BuildSink();
+#ifndef NDEBUG
+	auto filedebug = slog::BuildSink(slog::WithFileOutput(
+	    filenames.Get(slog::Level::Debug),
+	    slog::FromLevel(slog::Level::Debug),
+	    slog::WithFormat(slog::OutputFormat::JSON)
+	));
+#endif
+	auto fileinfo  = slog::BuildSink(slog::WithFileOutput(
+        filenames.Get(slog::Level::Info),
+        slog::FromLevel(slog::Level::Info),
+        slog::WithFormat(slog::OutputFormat::JSON)
+    ));
+	auto filewarn  = slog::BuildSink(slog::WithFileOutput(
+        filenames.Get(slog::Level::Warn),
+        slog::FromLevel(slog::Level::Warn),
+        slog::WithFormat(slog::OutputFormat::JSON)
+    ));
+	auto fileerror = slog::BuildSink(slog::WithFileOutput(
+	    filenames.Get(slog::Level::Error),
+	    slog::FromLevel(slog::Level::Error),
+	    slog::WithFormat(slog::OutputFormat::JSON)
+	));
+
+#ifndef NDEBUG
+	slog::DefaultLogger().SetSink(
+	    slog::TeeSink(stderr, fileerror, filewarn, fileinfo, filedebug)
+	);
+	slog::DefaultLogger().From(slog::Level::Debug);
+#else
+	slog::DefaultLogger().SetSink(
+	    slog::TeeSink(stderr, fileerror, filewarn, fileinfo)
+	);
+
+#endif
 }
 
 void Application::InitGlobalDependencies() {
@@ -140,15 +245,16 @@ void Application::SpawnIOContext() {
 	// putting a wait on SIGINT will ensure that the context remains
 	// active throughout execution.
 	d_signals.async_wait([this](const boost::system::error_code &, int) {
-		LOG(INFO) << "Terminating (SIGINT)";
+		slog::Info("Terminating (SIGINT)");
 		d_acquisition->Stop();
 	});
 	// starts the context in a single threads, and remind to join it
 	// once we got the SIGINT
 	d_ioThread = std::thread([this]() {
-		LOG(INFO) << "[IOTask]: started";
+		auto logger = slog::With(slog::String("task", "IO"));
+		logger.Info("started");
 		d_context.run();
-		LOG(INFO) << "[IOTask]: ended";
+		logger.Info("ended");
 	});
 }
 

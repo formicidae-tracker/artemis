@@ -26,8 +26,7 @@ private:
 	static bool InterceptCommand(const Options &options);
 
 	static void InitGlobalDependencies();
-	static void
-	InitGoogleLogging(char *applicationName, const Options &options);
+	static void InitLogging(const char *argv0, const Options &options);
 
 	Application(const Options &options);
 

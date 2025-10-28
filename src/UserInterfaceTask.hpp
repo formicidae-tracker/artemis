@@ -41,6 +41,7 @@ private:
 	UserInterface::Options         d_config;
 	const cv::Rect                 d_defaultROI;
 	UserInterface::ROIChannelPtr   d_roiChannel;
+	slog::Logger<1>                d_logger;
 };
 
 } // namespace artemis
