@@ -67,20 +67,6 @@ private:
 	void DrawPrompt();
 	void DrawROI(const DrawBuffer &buffer);
 
-	static void UploadMatrix(
-	    GLuint programID, const std::string &name, const Eigen::Matrix3f &matrix
-	);
-
-	static void UploadColor(
-	    GLuint programID, const std::string &name, const cv::Vec3f &color
-	);
-
-	static void UploadColor(
-	    GLuint programID, const std::string &name, const cv::Vec4f &color
-	);
-
-	static void UploadFloat(GLuint programID, const std::string &name, float f);
-
 	static void ComputeRectVertices(Eigen::MatrixXf &mat, const cv::Rect &rect);
 
 	static void ComputeProjection(const cv::Rect &roi, Eigen::Matrix3f &res);
@@ -107,11 +93,11 @@ private:
 
 	const size_t d_ROISize;
 
-	static const cv::Vec4f OVERLAY_GLYPH_FOREGROUND;
-	static const cv::Vec4f OVERLAY_GLYPH_BACKGROUND;
-	static const cv::Vec4f OVERLAY_BACKGROUND;
-	static const cv::Vec4f LABEL_FOREGROUND;
-	static const cv::Vec4f LABEL_BACKGROUND;
+	static const Eigen::Vector4f OVERLAY_GLYPH_FOREGROUND;
+	static const Eigen::Vector4f OVERLAY_GLYPH_BACKGROUND;
+	static const Eigen::Vector4f OVERLAY_BACKGROUND;
+	static const Eigen::Vector4f LABEL_FOREGROUND;
+	static const Eigen::Vector4f LABEL_BACKGROUND;
 
 	constexpr static size_t OVERLAY_COLS           = 30;
 	constexpr static size_t OVERLAY_ROWS           = 8;

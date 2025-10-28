@@ -48,13 +48,13 @@ void GLFWErrorCallback(int error, const char *description) {
 }
 }
 
-int glfwGetError(const char ** description) {
+int glfwGetError(const char **description) {
 	std::lock_guard<std::mutex> lock(fort::artemis::GLFWErrorMutex);
-	if ( fort::artemis::GLFWErrorStack.empty() ) {
+	if (fort::artemis::GLFWErrorStack.empty()) {
 		return 0;
 	}
 	auto res = fort::artemis::GLFWErrorStack.front();
-	if ( description != nullptr ) {
+	if (description != nullptr) {
 		*description = res.second;
 	}
 	fort::artemis::GLFWErrorStack.pop_front();
@@ -94,41 +94,60 @@ GLUserInterface::GLUserInterface(
 }
 
 void GLUserInterface::OnKey(int key, int scancode, int action, int mods) {
-	if ( PromptAndValue().empty() == false ) {
-		if ( action == GLFW_PRESS && mods == 0 && key == GLFW_KEY_ENTER ) {
+	if (PromptAndValue().empty() == false) {
+		if (action == GLFW_PRESS && mods == 0 && key == GLFW_KEY_ENTER) {
 			LeaveHighlightPrompt();
 			Draw();
 		}
 		return;
 	}
 
-	if ( action != GLFW_PRESS ) {
+	if (action != GLFW_PRESS) {
 		return;
 	}
 
-	static std::map<std::pair<int,int>,std::function<void()>> actions
-		= {
-		   {{GLFW_KEY_UP,0},[this](){ Displace({0.0f,0.2f}); }},
-		   {{GLFW_KEY_DOWN,0},[this](){ Displace({0.0f,-0.2f});  }},
-		   {{GLFW_KEY_LEFT,0},[this](){ Displace({-0.2f,0.0f}); }},
-		   {{GLFW_KEY_RIGHT,0},[this](){ Displace({0.2f,0.0f});  }},
-		   {{GLFW_KEY_I,0},[this](){ Zoom(+1); }},
-		   {{GLFW_KEY_O,0},[this](){ Zoom(-1); }},
-		   {{GLFW_KEY_I,GLFW_MOD_SHIFT},[this](){ Zoom(2000); }},
-		   {{GLFW_KEY_O,GLFW_MOD_SHIFT},[this](){ Zoom(-this->d_currentScaleFactor); }},
-		   {{GLFW_KEY_H,0}, [this]() { ToggleDisplayHelp(); Draw(); }},
-		   {{GLFW_KEY_R,0}, [this]() { ToggleDisplayROI(); Draw(); }},
-		   {{GLFW_KEY_D,0}, [this]() { ToggleDisplayOverlay(); Draw(); }},
-		   {{GLFW_KEY_L,0}, [this]() { ToggleDisplayLabels(); Draw(); }},
-		   {{GLFW_KEY_T,0}, [this]() { EnterHighlightPrompt(); Draw(); }},
+	static std::map<std::pair<int, int>, std::function<void()>> actions = {
+	    {{GLFW_KEY_UP, 0}, [this]() { Displace({0.0f, 0.2f}); }},
+	    {{GLFW_KEY_DOWN, 0}, [this]() { Displace({0.0f, -0.2f}); }},
+	    {{GLFW_KEY_LEFT, 0}, [this]() { Displace({-0.2f, 0.0f}); }},
+	    {{GLFW_KEY_RIGHT, 0}, [this]() { Displace({0.2f, 0.0f}); }},
+	    {{GLFW_KEY_I, 0}, [this]() { Zoom(+1); }},
+	    {{GLFW_KEY_O, 0}, [this]() { Zoom(-1); }},
+	    {{GLFW_KEY_I, GLFW_MOD_SHIFT}, [this]() { Zoom(2000); }},
+	    {{GLFW_KEY_O, GLFW_MOD_SHIFT},
+	     [this]() { Zoom(-this->d_currentScaleFactor); }},
+	    {{GLFW_KEY_H, 0},
+	     [this]() {
+		     ToggleDisplayHelp();
+		     Draw();
+	     }},
+	    {{GLFW_KEY_R, 0},
+	     [this]() {
+		     ToggleDisplayROI();
+		     Draw();
+	     }},
+	    {{GLFW_KEY_D, 0},
+	     [this]() {
+		     ToggleDisplayOverlay();
+		     Draw();
+	     }},
+	    {{GLFW_KEY_L, 0},
+	     [this]() {
+		     ToggleDisplayLabels();
+		     Draw();
+	     }},
+	    {{GLFW_KEY_T, 0},
+	     [this]() {
+		     EnterHighlightPrompt();
+		     Draw();
+	     }},
 
 	};
-	auto fi = actions.find({key,mods});
-	if ( fi == actions.end() ) {
+	auto fi = actions.find({key, mods});
+	if (fi == actions.end()) {
 		return;
 	}
 	fi->second();
-
 }
 
 void GLUserInterface::Zoom(int increment) {
@@ -144,18 +163,19 @@ void GLUserInterface::Zoom(int increment) {
 	UpdateROI(GetROICenteredAt(d_currentPOI, wantedSize, d_fullSize));
 }
 
-void GLUserInterface::Displace(const Eigen::Vector2f & offset ) {
-	d_currentPOI.x += offset.x() / d_roiProjection(0,0);
-	d_currentPOI.y += offset.y() / d_roiProjection(1,1);
-	UpdateROI(GetROICenteredAt(d_currentPOI,d_ROI.size(),d_fullSize));
+void GLUserInterface::Displace(const Eigen::Vector2f &offset) {
+	d_currentPOI.x += offset.x() / d_roiProjection(0, 0);
+	d_currentPOI.y += offset.y() / d_roiProjection(1, 1);
+	UpdateROI(GetROICenteredAt(d_currentPOI, d_ROI.size(), d_fullSize));
 }
 
-void GLUserInterface::UpdateROI(const cv::Rect & ROI) {
-	auto & buffer = d_buffer[d_index];
-	d_ROI = ROI;
-	d_currentPOI = cv::Point(d_ROI.x + + d_ROI.width/2,d_ROI.y + d_ROI.height/2);
-	ComputeProjection(d_ROI,d_roiProjection);
-	if ( buffer.FullUploaded == false ) {
+void GLUserInterface::UpdateROI(const cv::Rect &ROI) {
+	auto &buffer = d_buffer[d_index];
+	d_ROI        = ROI;
+	d_currentPOI =
+	    cv::Point(d_ROI.x + +d_ROI.width / 2, d_ROI.y + d_ROI.height / 2);
+	ComputeProjection(d_ROI, d_roiProjection);
+	if (buffer.FullUploaded == false) {
 		UploadTexture(buffer);
 	}
 	Draw();
@@ -163,33 +183,21 @@ void GLUserInterface::UpdateROI(const cv::Rect & ROI) {
 }
 
 void GLUserInterface::OnText(unsigned int codepoint) {
-	if ( PromptAndValue().empty()
-	     || ( Value().empty() && codepoint == 't') ) {
+	if (PromptAndValue().empty() || (Value().empty() && codepoint == 't')) {
 		return;
 	}
 
-
-	if ( codepoint < 255 ) {
+	if (codepoint < 255) {
 		AppendPromptValue(codepoint);
 		Draw();
 	}
-
 }
 
+void GLUserInterface::OnMouseMove(double x, double y) {}
 
-void GLUserInterface::OnMouseMove(double x, double y) {
+void GLUserInterface::OnMouseInput(int button, int action, int mods) {}
 
-}
-
-
-void GLUserInterface::OnMouseInput(int button, int action, int mods) {
-
-}
-
-
-void GLUserInterface::OnScroll(double xOffset,double yOffset) {
-
-}
+void GLUserInterface::OnScroll(double xOffset, double yOffset) {}
 
 GLUserInterface::~GLUserInterface() {}
 
@@ -218,35 +226,42 @@ void GLUserInterface::UpdateFrame(
 }
 
 void GLUserInterface::ComputeViewport() {
-	float windowRatio = float(d_windowSize.height) / float(d_workingSize.height);
+	float windowRatio =
+	    float(d_windowSize.height) / float(d_workingSize.height);
 	int wantedWidth = d_workingSize.width * windowRatio;
-	if ( wantedWidth <= d_windowSize.width ) {
-		DLOG(INFO) << "[GLUserInterface]: Viewport with full height " << wantedWidth << "x" << d_windowSize.height;
+	if (wantedWidth <= d_windowSize.width) {
+		DLOG(INFO) << "[GLUserInterface]: Viewport with full height "
+		           << wantedWidth << "x" << d_windowSize.height;
 
-		glViewport((d_windowSize.width - wantedWidth) / 2,
-		           0,
-		           wantedWidth,
-		           d_windowSize.height);
-		d_viewSize = cv::Size(wantedWidth,d_windowSize.height);
+		glViewport(
+		    (d_windowSize.width - wantedWidth) / 2,
+		    0,
+		    wantedWidth,
+		    d_windowSize.height
+		);
+		d_viewSize = cv::Size(wantedWidth, d_windowSize.height);
 	} else {
 		wantedWidth = d_windowSize.width;
 		windowRatio = float(d_windowSize.width) / float(d_workingSize.width);
 		int wantedHeight = d_workingSize.height * windowRatio;
-		DLOG(INFO) << "[GLUserInterface]: Viewport with full width " << d_windowSize.width << "x" << wantedHeight;
-		glViewport(0,
-		           (d_windowSize.height - wantedHeight) / 2,
-		           d_windowSize.width,
-		           wantedHeight);
-		d_viewSize = cv::Size(d_windowSize.width,wantedHeight);
+		DLOG(INFO) << "[GLUserInterface]: Viewport with full width "
+		           << d_windowSize.width << "x" << wantedHeight;
+		glViewport(
+		    0,
+		    (d_windowSize.height - wantedHeight) / 2,
+		    d_windowSize.width,
+		    wantedHeight
+		);
+		d_viewSize = cv::Size(d_windowSize.width, wantedHeight);
 	}
 }
 
-void GLUserInterface::OnSizeChanged(int width,int height) {
+void GLUserInterface::OnSizeChanged(int width, int height) {
 	DLOG(INFO) << "New framebuffer size " << width << "x" << height;
 
-	d_windowSize = cv::Size(width,height);
+	d_windowSize = cv::Size(width, height);
 	ComputeViewport();
-	ComputeProjection(cv::Rect(cv::Point(0,0),d_viewSize),d_viewProjection);
+	ComputeProjection(cv::Rect(cv::Point(0, 0), d_viewSize), d_viewProjection);
 	Draw();
 }
 
@@ -255,28 +270,27 @@ void GLUserInterface::Draw() {
 	Draw(currentBuffer);
 }
 
-void GLUserInterface::UploadTexture(DrawBuffer & buffer) {
+void GLUserInterface::UploadTexture(DrawBuffer &buffer) {
 	std::shared_ptr<cv::Mat> toUpload = buffer.Frame.Full;
-	buffer.FullUploaded = true;
-	if ( buffer.Frame.Zoomed
-	     && d_ROI == buffer.Frame.CurrentROI ) {
-		toUpload = buffer.Frame.Zoomed;
+	buffer.FullUploaded               = true;
+	if (buffer.Frame.Zoomed && d_ROI == buffer.Frame.CurrentROI) {
+		toUpload            = buffer.Frame.Zoomed;
 		buffer.FullUploaded = false;
 	}
 
-	if ( !toUpload ) {
+	if (!toUpload) {
 		return;
 	}
 
 	size_t frameSize = toUpload->cols * toUpload->rows;
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,buffer.PBO);
-	glBufferData(GL_PIXEL_UNPACK_BUFFER,frameSize,0,GL_STREAM_DRAW);
-	auto ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER,GL_WRITE_ONLY);
-	if ( ptr != nullptr ) {
-		memcpy(ptr,toUpload->data,frameSize);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer.PBO);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, frameSize, 0, GL_STREAM_DRAW);
+	auto ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+	if (ptr != nullptr) {
+		memcpy(ptr, toUpload->data, frameSize);
 		glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 	}
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
 void GLUserInterface::InitGLData() {
@@ -361,11 +375,13 @@ void GLUserInterface::InitGLData() {
 	ComputeProjection(cv::Rect(cv::Point(0, 0), d_viewSize), d_viewProjection);
 }
 
-void GLUserInterface::ComputeProjection(const cv::Rect & roi, Eigen::Matrix3f & res) {
-	res <<
-		2.0f / float(roi.width),  0.0f                     , -1.0f - 2.0f * float(roi.x) / float(roi.width),
-		0.0f                   , -2.0f / float(roi.height) ,  1.0f + 2.0f * float(roi.y) / float(roi.height),
-		0.0f                   ,  0.0f                     ,  1.0f;
+void GLUserInterface::ComputeProjection(
+    const cv::Rect &roi, Eigen::Matrix3f &res
+) {
+	res << 2.0f / float(roi.width), 0.0f,
+	    -1.0f - 2.0f * float(roi.x) / float(roi.width), 0.0f,
+	    -2.0f / float(roi.height),
+	    1.0f + 2.0f * float(roi.y) / float(roi.height), 0.0f, 0.0f, 1.0f;
 }
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer &buffer) {
@@ -374,9 +390,9 @@ void GLUserInterface::DrawMovieFrame(const DrawBuffer &buffer) {
 	if (d_ROI == buffer.Frame.CurrentROI) {
 		// we use an higher resolution zoomed frame, we therefore use the full
 		// ROI projection
-		UploadMatrix(d_frameProgram, "scaleMat", d_fullProjection);
+		fort::gl::Upload(d_frameProgram, "scaleMat", d_fullProjection);
 	} else {
-		UploadMatrix(d_frameProgram, "scaleMat", d_roiProjection);
+		fort::gl::Upload(d_frameProgram, "scaleMat", d_roiProjection);
 	}
 
 	glActiveTexture(GL_TEXTURE0);
@@ -404,35 +420,6 @@ std::string FormatTagID(uint32_t tagID) {
 	return oss.str();
 }
 
-
-void GLUserInterface::UploadMatrix(GLuint programID,
-                                   const std::string & name,
-                                   const Eigen::Matrix3f & matrix) {
-	auto matID = glGetUniformLocation(programID,name.c_str());
-	glUniformMatrix3fv(matID,1,GL_FALSE,matrix.data());
-}
-
-void GLUserInterface::UploadColor(GLuint programID,
-                                  const std::string & name,
-                                  const cv::Vec3f & color) {
-	auto colorID = glGetUniformLocation(programID,name.c_str());
-	glUniform3fv(colorID,1,&color[0]);
-}
-
-void GLUserInterface::UploadColor(GLuint programID,
-                                  const std::string & name,
-                                  const cv::Vec4f & color) {
-	auto colorID = glGetUniformLocation(programID,name.c_str());
-	glUniform4fv(colorID,1,&color[0]);
-}
-
-void GLUserInterface::UploadFloat(GLuint programID,
-                                  const std::string & name,
-                                  float f) {
-	auto fID = glGetUniformLocation(programID,name.c_str());
-	glUniform1f(fID,f);
-}
-
 void GLUserInterface::UploadPoints(DrawBuffer &buffer) {
 	if (!buffer.Frame.Message) {
 		return;
@@ -441,8 +428,10 @@ void GLUserInterface::UploadPoints(DrawBuffer &buffer) {
 }
 
 float GLUserInterface::FullToWindowScaleFactor() const {
-	return std::min(float(d_windowSize.width)/float(d_fullSize.width),
-	                float(d_windowSize.height)/float(d_fullSize.height));
+	return std::min(
+	    float(d_windowSize.width) / float(d_fullSize.width),
+	    float(d_windowSize.height) / float(d_fullSize.height)
+	);
 }
 
 void GLUserInterface::DrawROI(const DrawBuffer &buffer) {
@@ -456,12 +445,20 @@ void GLUserInterface::DrawROI(const DrawBuffer &buffer) {
 	}
 	auto floatPointSize = float(d_ROISize) * factor;
 
-	UploadMatrix(d_roiProgram, "scaleMat", d_roiProjection);
+	fort::gl::Upload(d_roiProgram, "scaleMat", d_roiProjection);
 
-	UploadColor(d_roiProgram, "boxColor", cv::Vec3f(0.0f, 1.0f, 1.0f));
+	fort::gl::Upload(
+	    d_roiProgram,
+	    "boxColor",
+	    Eigen::Vector3f{0.0f, 1.0f, 1.0f}
+	);
 	glPointSize(floatPointSize);
-	UploadFloat(d_roiProgram, "lineWidth", 3.0f * 2.0f / floatPointSize);
-	UploadColor(d_roiProgram, "boxColor", cv::Vec3f(1.0f, 0.0f, 0.0f));
+	fort::gl::Upload(d_roiProgram, "lineWidth", 3.0f * 2.0f / floatPointSize);
+	fort::gl::Upload(
+	    d_roiProgram,
+	    "boxColor",
+	    Eigen::Vector3f{1.0f, 0.0f, 0.0f}
+	);
 }
 
 void GLUserInterface::DrawPoints(const DrawBuffer &buffer) {
@@ -473,13 +470,21 @@ void GLUserInterface::DrawPoints(const DrawBuffer &buffer) {
 	if (d_ROI.size() != d_fullSize) {
 		factor *= float(d_fullSize.width) / float(d_ROI.width);
 	}
-	UploadMatrix(d_pointProgram, "scaleMat", d_roiProjection);
+	fort::gl::Upload(d_pointProgram, "scaleMat", d_roiProjection);
 
-	UploadColor(d_pointProgram, "circleColor", cv::Vec3f(0.0f, 1.0f, 1.0f));
+	fort::gl::Upload(
+	    d_pointProgram,
+	    "circleColor",
+	    Eigen::Vector3f{0.0f, 1.0f, 1.0f}
+	);
 	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor);
 
 	glPointSize(float(NORMAL_POINT_SIZE) * factor);
-	UploadColor(d_pointProgram, "circleColor", cv::Vec3f(1.0f, 0.0f, 0.0f));
+	fort::gl::Upload(
+	    d_pointProgram,
+	    "circleColor",
+	    Eigen::Vector3f{1.0f, 0.0f, 0.0f}
+	);
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer &buffer) {
@@ -496,14 +501,10 @@ void GLUserInterface::DrawLabels(const DrawBuffer &buffer) {
 }
 
 template <typename T>
-std::string printLine(const std::string & label, size_t size,const T & value) {
+std::string printLine(const std::string &label, size_t size, const T &value) {
 	std::ostringstream oss;
-	oss << " " << label << ":"
-	    << std::setw(size - label.size() -1)
-	    << std::setfill(' ')
-	    << std::right
-	    << std::fixed
-	    << std::setprecision(2)
+	oss << " " << label << ":" << std::setw(size - label.size() - 1)
+	    << std::setfill(' ') << std::right << std::fixed << std::setprecision(2)
 	    << value << " ";
 	return oss.str();
 }
@@ -515,9 +516,9 @@ void GLUserInterface::DrawInformations(const DrawBuffer &buffer) {
 
 	glUseProgram(d_primitiveProgram);
 
-	UploadColor(d_primitiveProgram, "primitiveColor", OVERLAY_BACKGROUND);
+	fort::gl::Upload(d_primitiveProgram, "primitiveColor", OVERLAY_BACKGROUND);
 
-	UploadMatrix(d_primitiveProgram, "scaleMat", d_viewProjection);
+	fort::gl::Upload(d_primitiveProgram, "scaleMat", d_viewProjection);
 
 	std::ostringstream dropOss;
 	dropOss
@@ -589,15 +590,15 @@ void GLUserInterface::Draw(const DrawBuffer &buffer) {
 
 void GLUserInterface::DrawWatermark() {}
 
-template <typename T>
-std::string Centered(const T & t, size_t nChars) {
+template <typename T> std::string Centered(const T &t, size_t nChars) {
 	std::ostringstream oss;
 	oss << t;
-	if ( oss.str().size() >= nChars ) {
+	if (oss.str().size() >= nChars) {
 		return oss.str();
 	}
 	int left = (nChars - oss.str().size()) / 2;
-	return std::string(left,' ') + oss.str() + std::string(' ',nChars - oss.str().size() - left);
+	return std::string(left, ' ') + oss.str() +
+	       std::string(' ', nChars - oss.str().size() - left);
 }
 
 void GLUserInterface::DrawHelp() {
@@ -631,17 +632,25 @@ void GLUserInterface::DrawPrompt() {
 		return;
 	}
 	glUseProgram(d_primitiveProgram);
-	UploadMatrix(d_primitiveProgram, "scaleMat", d_viewProjection);
-	UploadColor(d_primitiveProgram, "primitiveColor", OVERLAY_BACKGROUND);
+	fort::gl::Upload(d_primitiveProgram, "scaleMat", d_viewProjection);
+	fort::gl::Upload(d_primitiveProgram, "primitiveColor", OVERLAY_BACKGROUND);
 }
 
-const cv::Vec4f GLUserInterface::OVERLAY_GLYPH_FOREGROUND = cv::Vec4f(1.0f,1.0f,1.0f,1.0f);
-const cv::Vec4f GLUserInterface::OVERLAY_GLYPH_BACKGROUND = cv::Vec4f(1.0f,1.0f,1.0f,0.0f);
-const cv::Vec4f GLUserInterface::OVERLAY_BACKGROUND = cv::Vec4f(0.05,0.1f,0.2f,0.7f);
-const cv::Vec4f GLUserInterface::LABEL_FOREGROUND = cv::Vec4f(1.0f,1.0f,1.0f,1.0f);
-const cv::Vec4f GLUserInterface::LABEL_BACKGROUND = cv::Vec4f(0.0f,0.0f,0.0f,1.0f);
-
-
+const Eigen::Vector4f GLUserInterface::OVERLAY_GLYPH_FOREGROUND = {
+    1.0f, 1.0f, 1.0f, 1.0f
+};
+const Eigen::Vector4f GLUserInterface::OVERLAY_GLYPH_BACKGROUND = {
+    1.0f, 1.0f, 1.0f, 0.0f
+};
+const Eigen::Vector4f GLUserInterface::OVERLAY_BACKGROUND = {
+    0.05, 0.1f, 0.2f, 0.7f
+};
+const Eigen::Vector4f GLUserInterface::LABEL_FOREGROUND = {
+    1.0f, 1.0f, 1.0f, 1.0f
+};
+const Eigen::Vector4f GLUserInterface::LABEL_BACKGROUND = {
+    0.0f, 0.0f, 0.0f, 1.0f
+};
 
 } // namespace artemis
 } // namespace fort
