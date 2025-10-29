@@ -20,7 +20,7 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	GLUserInterface(
 	    const Size                   &workingResolution,
-	    const Size                   &fullResolution,
+	    const Size                   &inputResolution,
 	    const UserInterface::Options &options,
 	    const ROIChannelPtr          &roiChannel
 	);
@@ -36,11 +36,12 @@ private:
 	using CompiledTextPtr = std::shared_ptr<gl::CompiledText>;
 
 	struct DrawBuffer {
-		FrameToDisplay Frame;
-		DataToDisplay  Data;
-		cv::Size       TrackingSize;
-		bool           FullUploaded;
-		GLuint         PBO;
+		FrameToDisplay   Frame;
+		DataToDisplay    Data;
+		cv::Size         TrackingSize;
+		bool             FullUploaded;
+		GLuint           PBO;
+		gl::CompiledText Overlay;
 
 		std::unique_ptr<fort::gl::VertexArrayObject>        Points;
 		std::vector<std::tuple<CompiledTextPtr, cv::Point>> Labels;
@@ -64,6 +65,7 @@ private:
 	void Draw() override;
 	void UploadTexture(DrawBuffer &buffer);
 	void UploadPoints(DrawBuffer &buffer);
+	void UploadInformations(DrawBuffer &buffer);
 
 	void Draw(const DrawBuffer &buffer);
 
@@ -86,7 +88,7 @@ private:
 	DrawBuffer d_buffers[2];
 	size_t     d_index;
 
-	const Size            d_workingSize, d_fullSize;
+	const Size            d_workingSize, d_inputSize;
 	Size                  d_windowSize, d_viewSize;
 	int                   d_currentScaleFactor;
 	Eigen::Vector2i       d_currentPOI;
