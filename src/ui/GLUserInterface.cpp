@@ -696,53 +696,76 @@ void GLUserInterface::Draw(const DrawBuffer &buffer) {
 void GLUserInterface::DrawWatermark() {}
 
 template <typename T> std::string Centered(const T &t, size_t nChars) {
-		std::ostringstream oss;
-		oss << t;
-		if (oss.str().size() >= nChars) {
-			return oss.str();
-		}
-		int left = (nChars - oss.str().size()) / 2;
-		return std::string(left, ' ') + oss.str() +
-		       std::string(' ', nChars - oss.str().size() - left);
+	std::ostringstream oss;
+	oss << t;
+	if (oss.str().size() >= nChars) {
+		return oss.str();
+	}
+	int left = (nChars - oss.str().size()) / 2;
+	return std::string(left, ' ') + oss.str() +
+	       std::string(' ', nChars - oss.str().size() - left);
+}
+
+void GLUserInterface::UploadHelpText() {
+	const static size_t COLS = 50;
+	std::ostringstream  help;
+	help << std::string(COLS + 2, ' ') << std::endl
+	     << Centered("-- Artemis User Interface Commands --", COLS + 2)
+	     << std::endl
+	     << std::endl
+	     << printLine("<T>", COLS, "Enters prompt to modify tag highlights")
+	     << std::endl
+	     << printLine("<R>", COLS, "Toggles displays of new ant ROI")
+	     << std::endl
+	     << printLine("<L>", COLS, "Toggles displays of tag labels")
+	     << std::endl
+	     << printLine("<D>", COLS, "Toggles displays of data overlay")
+	     << std::endl
+	     << printLine("<I>", COLS, "Zooms In") << std::endl
+	     << printLine("<O>", COLS, "Zooms Out") << std::endl
+	     << printLine("<Shift+I>", COLS, "Maximum Zoom IN") << std::endl
+	     << printLine("<Shift+O>", COLS, "Zooms Out") << std::endl
+	     << std::string(COLS + 2, ' ');
+
+	d_helpText = d_overlayFont.Compile(help.str(), 20);
 }
 
 void GLUserInterface::DrawHelp() {
-		if (DisplayHelp() == false) {
-			return;
-		}
+	if (DisplayHelp() == false) {
+		return;
+	}
 
-		const static size_t COLS = 50;
-		std::ostringstream  help;
-		help << std::string(COLS + 2, '|') << std::endl
-		     << Centered("-- Artemis User Interface Commands --", COLS + 2)
-		     << std::endl
-		     << std::endl
-		     << printLine("<T>", COLS, "Enters prompt to modify tag highlights")
-		     << std::endl
-		     << printLine("<R>", COLS, "Toggles displays of new ant ROI")
-		     << std::endl
-		     << printLine("<L>", COLS, "Toggles displays of tag labels")
-		     << std::endl
-		     << printLine("<D>", COLS, "Toggles displays of data overlay")
-		     << std::endl
-		     << printLine("<I>", COLS, "Zooms In") << std::endl
-		     << printLine("<O>", COLS, "Zooms Out") << std::endl
-		     << printLine("<Shift+I>", COLS, "Maximum Zoom IN") << std::endl
-		     << printLine("<Shift+O>", COLS, "Zooms Out") << std::endl
-		     << std::string(COLS + 2, '|');
+	auto  bbox = d_helpText.BoundingBox({
+	     .ViewportSize = d_viewSize,
+	     .Position     = {0, 0},
+	     .Size         = OVERLAY_FONT_SIZE,
+    });
+	float textWidth{bbox.z() - bbox.x()}, textHeight{bbox.w() - bbox.y()};
+	d_helpText.SetColor(OVERLAY_GLYPH_FOREGROUND);
+	d_helpText.SetBackgroundColor(OVERLAY_GLYPH_BACKGROUND);
+	d_helpText.Render(
+	    {
+	        .ViewportSize = d_viewSize,
+	        .Position =
+	            {(d_viewSize.width() - textWidth) / 2,
+	             (d_viewSize.height() - textHeight) / 2},
+	        .Size = OVERLAY_FONT_SIZE,
+	    },
+	    true
+	);
 }
 
 void GLUserInterface::DrawPrompt() {
-		if (PromptAndValue().empty() == true) {
-			return;
-		}
-		glUseProgram(d_primitiveProgram);
-		fort::gl::Upload(d_primitiveProgram, "scaleMat", d_viewProjection);
-		fort::gl::Upload(
-		    d_primitiveProgram,
-		    "primitiveColor",
-		    OVERLAY_BACKGROUND
-		);
+        if (PromptAndValue().empty() == true) {
+            return;
+        }
+        glUseProgram(d_primitiveProgram);
+        fort::gl::Upload(d_primitiveProgram, "scaleMat", d_viewProjection);
+        fort::gl::Upload(
+            d_primitiveProgram,
+            "primitiveColor",
+            OVERLAY_BACKGROUND
+        );
 }
 
 const Eigen::Vector4f GLUserInterface::OVERLAY_GLYPH_FOREGROUND = {

@@ -59,6 +59,7 @@ private:
 	void Zoom(int increment);
 	void Displace(const Eigen::Vector2f &offset);
 	void UpdateROI(const Rect &ROI);
+	void UploadHelpText();
 
 	void ComputeViewport();
 
@@ -104,6 +105,8 @@ private:
 
 	gl::TextRenderer d_labelFont, d_overlayFont;
 	utils::LRUCache<256, std::function<CompiledTextPtr(uint32_t)>> d_labelCache;
+
+	gl::CompiledText           d_helpText;
 
 	const size_t d_individualROISize;
 
