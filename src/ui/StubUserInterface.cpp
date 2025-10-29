@@ -6,11 +6,12 @@
 namespace fort {
 namespace artemis {
 
-StubUserInterface::StubUserInterface(const cv::Size & workingResolution,
-                                     const Options & options,
-                                     const ROIChannelPtr & roiChannel)
-	: UserInterface(workingResolution,options,roiChannel) {
-}
+StubUserInterface::StubUserInterface(
+    const Size          &workingResolution,
+    const Options       &options,
+    const ROIChannelPtr &roiChannel
+)
+    : UserInterface(workingResolution, options, roiChannel) {}
 
 void StubUserInterface::Task() {}
 

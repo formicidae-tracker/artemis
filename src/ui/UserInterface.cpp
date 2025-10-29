@@ -9,7 +9,7 @@ namespace fort {
 namespace artemis {
 
 UserInterface::UserInterface(
-    const cv::Size      &workingResolution,
+    const Size          &workingResolution,
     const Options       &options,
     const ROIChannelPtr &roiChannel
 )
@@ -29,7 +29,7 @@ void UserInterface::ToggleHighlight(uint32_t tagID) {
 	}
 }
 
-void UserInterface::ROIChanged(const cv::Rect &roi) {
+void UserInterface::ROIChanged(const Rect &roi) {
 	d_roiChannel->enqueue(roi);
 }
 

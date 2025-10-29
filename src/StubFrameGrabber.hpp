@@ -36,7 +36,7 @@ public:
 
 	void AbordPending() override {}
 
-	cv::Size Resolution() const override;
+	Size Resolution() const override;
 
 private:
 	typedef std::chrono::high_resolution_clock clock;

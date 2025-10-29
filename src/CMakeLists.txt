@@ -52,7 +52,7 @@ set(SRC_FILES
 	ui/UserInterface.cpp
 	ui/StubUserInterface.cpp
 	ui/GLUserInterface.cpp
-	Utils.cpp
+	Rect.cpp
 	main.cpp
 )
 
@@ -77,7 +77,7 @@ set(HDR_FILES
 	ui/StubUserInterface.hpp
 	ui/GLUserInterface.hpp
 	Application.hpp
-	Utils.hpp
+	Rect.hpp
 )
 
 set(UTEST_SRC_FILES

@@ -2,12 +2,14 @@
 
 #include <functional>
 
-#include <opencv2/core.hpp>
+#include "../Options.hpp"
+#include "../Rect.hpp"
+
+#include <opencv2/opencv.hpp>
+
+#include "readerwriterqueue.h"
 
 #include <fort/hermes/FrameReadout.pb.h>
-
-#include "../Options.hpp"
-#include "readerwriterqueue.h"
 
 namespace fort {
 namespace artemis {
@@ -29,7 +31,7 @@ public:
 		std::shared_ptr<cv::Mat>              Full, Zoomed;
 		std::shared_ptr<hermes::FrameReadout> Message;
 
-		cv::Rect CurrentROI;
+		Rect CurrentROI;
 
 		// Other data
 		Time   FrameTime;
@@ -40,11 +42,11 @@ public:
 		size_t VideoOutputDropped;
 	};
 
-	typedef moodycamel::ReaderWriterQueue<cv::Rect> ROIChannel;
+	typedef moodycamel::ReaderWriterQueue<Rect>     ROIChannel;
 	typedef std::shared_ptr<ROIChannel>             ROIChannelPtr;
 
 	UserInterface(
-	    const cv::Size               &workingResolution,
+	    const Size                   &workingResolution,
 	    const UserInterface::Options &options,
 	    const ROIChannelPtr          &zoomChannel
 	);
@@ -61,7 +63,7 @@ protected:
 	virtual void
 	UpdateFrame(const FrameToDisplay &frame, const DataToDisplay &data) = 0;
 
-	void ROIChanged(const cv::Rect &roi);
+	void ROIChanged(const Rect &roi);
 	void ToggleHighlight(uint32_t tagID);
 	void ToggleDisplayROI();
 	void ToggleDisplayLabels();

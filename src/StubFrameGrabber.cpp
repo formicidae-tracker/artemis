@@ -71,8 +71,8 @@ void StubFrameGrabber::Start() {
 
 void StubFrameGrabber::Stop() {}
 
-cv::Size StubFrameGrabber::Resolution() const {
-	return d_images.front().size();
+Size StubFrameGrabber::Resolution() const {
+	return {d_images.front().size().width, d_images.front().size().height};
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {

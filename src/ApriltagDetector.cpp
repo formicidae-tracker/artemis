@@ -22,7 +22,7 @@ namespace fort {
 namespace artemis {
 
 ApriltagDetector::ApriltagDetector(
-    size_t maxParallel, const cv::Size &size, const ApriltagOptions &options
+    size_t maxParallel, const Size &size, const ApriltagOptions &options
 ) {
 	d_minimumDetectionDistanceSquared =
 	    options.QuadMinClusterPixel * options.QuadMinClusterPixel;
@@ -36,11 +36,7 @@ ApriltagDetector::ApriltagDetector(
 		    std::move(CreateDetector(options, d_families.back().get()))
 		);
 		Partition partition;
-		PartitionRectangle(
-		    ::cv::Rect(::cv::Point(0, 0), size),
-		    i + 1,
-		    partition
-		);
+		PartitionRectangle(Rect{{0, 0}, size}, i + 1, partition);
 		AddMargin(size, 75, partition);
 		d_partitions.push_back(partition);
 	}
@@ -68,6 +64,10 @@ void ApriltagDetector::Detect(
 	}
 }
 
+static inline cv::Rect toCVRect(const Rect &r) {
+	return {cv::Point{r.x(), r.y()}, cv::Size{r.width(), r.height()}};
+}
+
 std::vector<zarray_t *> ApriltagDetector::PartionnedDetection(
     const cv::Mat &image, tf::Executor &executor, const Partition &partition
 ) {
@@ -75,12 +75,13 @@ std::vector<zarray_t *> ApriltagDetector::PartionnedDetection(
 	std::vector<zarray_t *> detections(partition.size(), nullptr);
 	tf::Taskflow            taskflow;
 	taskflow.for_each_index(0, partition.size(), 1, [&](int i) {
-		auto     cloned = cv::Mat(image, partition[i]).clone();
+		auto     cloned = cv::Mat(image, toCVRect(partition[i])).clone();
 		image_u8 img    = {
 		       .width  = cloned.cols,
 		       .height = cloned.rows,
 		       .stride = cloned.cols,
-		       .buf    = cloned.data};
+		       .buf    = cloned.data
+        };
 		detections[i] = apriltag_detector_detect(d_detectors[i].get(), &img);
 	});
 
@@ -102,9 +103,14 @@ double ApriltagDetector::ComputeAngleFromCorner(const apriltag_detection_t *q) {
 }
 
 std::tuple<uint32_t, double, double, double> ApriltagDetector::ConvertDetection(
-    const apriltag_detection_t *q, const cv::Rect &roi
+    const apriltag_detection_t *q, const Rect &roi
 ) {
-	return {q->id, q->c[0] + roi.x, q->c[1] + roi.y, ComputeAngleFromCorner(q)};
+	return {
+	    q->id,
+	    q->c[0] + roi.x(),
+	    q->c[1] + roi.y(),
+	    ComputeAngleFromCorner(q)
+	};
 }
 
 void ApriltagDetector::MergeDetection(
@@ -132,7 +138,7 @@ void ApriltagDetector::MergeDetection(
 		for (int j = 0; j < zarray_size(localDetections); ++j) {
 			zarray_get(localDetections, j, &q);
 			const auto &[tagID, x, y, angle] = ConvertDetection(q, roi);
-			Eigen::Vector2d currentPoint(x, y);
+			Eigen::Vector2d currentPoint{x, y};
 			auto            fi = std::find_if(
                 points[tagID].cbegin(),
                 points[tagID].cend(),

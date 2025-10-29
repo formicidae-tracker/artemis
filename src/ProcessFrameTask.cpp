@@ -14,7 +14,6 @@
 #include "UserInterfaceTask.hpp"
 #include "VideoOutputTask.hpp"
 
-#include "Utils.hpp"
 #include "taskflow/core/taskflow.hpp"
 
 namespace fort {
@@ -23,7 +22,7 @@ namespace artemis {
 ProcessFrameTask::ProcessFrameTask(
     const Options           &options,
     boost::asio::io_context &context,
-    const cv::Size          &inputResolution
+    const Size              &inputResolution
 )
     : d_maximumThreads{size_t(cv::getNumThreads())}
     , d_config{options}
@@ -31,12 +30,10 @@ ProcessFrameTask::ProcessFrameTask(
     , d_logger{slog::With(slog::String("task", "process"))} {
 	d_actualThreads              = d_maximumThreads;
 	const auto workingResolution = options.VideoOutput.WorkingResolution(
-	    {inputResolution.width, inputResolution.height}
+	    {inputResolution.width(), inputResolution.height()}
 	);
-	d_workingResolution = cv::Size(
-	    std::get<0>(workingResolution),
-	    std::get<1>(workingResolution)
-	);
+	d_workingResolution =
+	    Size(std::get<0>(workingResolution), std::get<1>(workingResolution));
 
 	SetUpDetection(inputResolution, options.Apriltag);
 	SetUpUserInterface(d_workingResolution, inputResolution, options);
@@ -85,7 +82,7 @@ void ProcessFrameTask::SetUpVideoOutputTask(
 }
 
 void ProcessFrameTask::SetUpDetection(
-    const cv::Size &inputResolution, const ApriltagOptions &options
+    const Size &inputResolution, const ApriltagOptions &options
 ) {
 	if (options.Family() == tags::Family::Undefined) {
 		return;
@@ -124,9 +121,9 @@ void ProcessFrameTask::SetUpConnection(
 }
 
 void ProcessFrameTask::SetUpUserInterface(
-    const cv::Size &workingResolution,
-    const cv::Size &fullResolution,
-    const Options  &options
+    const Size    &workingResolution,
+    const Size    &fullResolution,
+    const Options &options
 ) {
 	d_userInterface = std::make_shared<artemis::UserInterfaceTask>(
 	    workingResolution,
@@ -140,15 +137,15 @@ void ProcessFrameTask::SetUpUserInterface(
 void ProcessFrameTask::SetUpPoolObjects() {
 	d_grayImagePool.Reserve(
 	    GrayscaleImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	    d_workingResolution.height,
-	    d_workingResolution.width,
+	    d_workingResolution.height(),
+	    d_workingResolution.width(),
 	    CV_8UC1
 	);
 
 	d_rgbImagePool.Reserve(
 	    RGBImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	    d_workingResolution.height,
-	    d_workingResolution.width,
+	    d_workingResolution.height(),
+	    d_workingResolution.width(),
 	    CV_8UC3
 	);
 }
@@ -210,7 +207,7 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr &frame) {
 	cv::resize(
 	    frame->ToCV(),
 	    *d_downscaled,
-	    d_workingResolution,
+	    {d_workingResolution.width(), d_workingResolution.height()},
 	    0,
 	    0,
 	    cv::INTER_NEAREST
@@ -365,15 +362,18 @@ void ProcessFrameTask::ExportROI(
 	std::ostringstream oss;
 	oss << d_config.NewAntOutputDir << "/ant_" << tagID << "_" << frameID
 	    << ".png";
+
+	auto roi = GetROICenteredAt(
+	    {int(x), int(y)},
+	    Size(d_config.NewAntROISize, d_config.NewAntROISize),
+	    {image.size().width, image.size().height}
+	);
+
 	cv::imwrite(
 	    oss.str(),
 	    cv::Mat(
 	        image,
-	        GetROICenteredAt(
-	            {int(x), int(y)},
-	            cv::Size(d_config.NewAntROISize, d_config.NewAntROISize),
-	            image.size()
-	        )
+	        {cv::Point{roi.x(), roi.y()}, cv::Size{roi.width(), roi.height()}}
 	    )
 	);
 }
@@ -386,13 +386,15 @@ void ProcessFrameTask::DisplayFrame(
 
 	std::shared_ptr<cv::Mat> zoomed;
 
-	if (d_wantedROI.size() != frame->ToCV().size()) {
+	auto frameSize = frame->ToCV().size();
+
+	if (d_wantedROI.Size() != Size{frameSize.width, frameSize.height}) {
 		zoomed        = d_grayImagePool.Get();
 		cv::Size size = frame->ToCV().size();
 		cv::resize(
-		    cv::Mat(frame->ToCV(), d_wantedROI),
+		    cv::Mat(frame->ToCV(), {d_wantedROI.width(), d_wantedROI.height()}),
 		    *zoomed,
-		    d_workingResolution,
+		    {d_workingResolution.width(), d_workingResolution.height()},
 		    0,
 		    0,
 		    cv::INTER_NEAREST

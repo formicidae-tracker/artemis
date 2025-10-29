@@ -40,7 +40,7 @@ public:
 	ProcessFrameTask(
 	    const Options           &options,
 	    boost::asio::io_context &context,
-	    const cv::Size          &inputResolution
+	    const Size              &inputResolution
 	);
 
 	virtual ~ProcessFrameTask();
@@ -62,14 +62,13 @@ private:
 	    boost::asio::io_context  &context,
 	    bool                      legacyMode
 	);
-	void SetUpDetection(
-	    const cv::Size &inputResolution, const ApriltagOptions &options
-	);
+	void
+	SetUpDetection(const Size &inputResolution, const ApriltagOptions &options);
 	void SetUpCataloguing(const Options &options);
 	void SetUpUserInterface(
-	    const cv::Size &workingresolution,
-	    const cv::Size &fullresolution,
-	    const Options  &options
+	    const Size    &workingresolution,
+	    const Size    &fullresolution,
+	    const Options &options
 	);
 	void SetUpPoolObjects();
 
@@ -160,8 +159,8 @@ private:
 	Time               d_nextAntCatalog;
 	std::set<uint32_t> d_exportedID;
 
-	cv::Size d_workingResolution;
-	cv::Rect d_wantedROI;
+	Size     d_workingResolution;
+	Rect     d_wantedROI;
 	size_t   d_frameDropped;
 	size_t   d_frameProcessed;
 	Time     d_start;

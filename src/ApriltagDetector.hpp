@@ -8,6 +8,7 @@
 #include "Options.hpp"
 #include "utils/Partitions.hpp"
 
+#include "Rect.hpp"
 #include <functional>
 
 namespace fort {
@@ -16,7 +17,7 @@ namespace artemis {
 class ApriltagDetector {
 public:
 	ApriltagDetector(
-	    size_t maxParallel, const cv::Size &size, const ApriltagOptions &options
+	    size_t maxParallel, const Size &size, const ApriltagOptions &options
 	);
 
 	void Detect(
@@ -42,7 +43,7 @@ private:
 	static double ComputeAngleFromCorner(const apriltag_detection_t *q);
 
 	std::tuple<uint32_t, double, double, double>
-	ConvertDetection(const apriltag_detection_t *q, const cv::Rect &roi);
+	ConvertDetection(const apriltag_detection_t *q, const Rect &roi);
 
 	std::vector<zarray_t *> PartionnedDetection(
 	    const cv::Mat &image, tf::Executor &executor, const Partition &partition

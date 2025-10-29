@@ -6,14 +6,14 @@ namespace fort {
 namespace artemis {
 
 UserInterfaceTask::UserInterfaceTask(
-    const cv::Size &workingResolution,
-    const cv::Size &fullResolution,
-    const Options  &options
+    const Size    &workingResolution,
+    const Size    &fullResolution,
+    const Options &options
 )
     : d_workingResolution(workingResolution)
     , d_fullResolution(fullResolution)
     , d_config(options)
-    , d_defaultROI(cv::Point(0, 0), fullResolution)
+    , d_defaultROI({0, 0}, fullResolution)
     , d_roiChannel(std::make_shared<UserInterface::ROIChannel>())
     , d_logger{slog::With(slog::String("task", "UserInterface"))} {
 	// UI not initialized here to ensure that it is initialized from
@@ -52,15 +52,15 @@ void UserInterfaceTask::Run() {
 	d_logger.Info("ended");
 }
 
-const cv::Rect &UserInterfaceTask::DefaultROI() const {
+const Rect &UserInterfaceTask::DefaultROI() const {
 	return d_defaultROI;
 }
 
-cv::Rect UserInterfaceTask::UpdateROI(const cv::Rect &previous) {
-	cv::Rect previous_ = previous;
+Rect UserInterfaceTask::UpdateROI(const Rect &previous) {
+	Rect previous_ = previous;
 	while (d_roiChannel->try_dequeue(previous_) == true) {
 	}
-	return previous_;
+	return previous;
 }
 
 void UserInterfaceTask::QueueFrame(

@@ -5,7 +5,9 @@
 #include <GLFW/glfw3.h>
 
 #include "UserInterface.hpp"
+#include "fort/gl/TextRenderer.hpp"
 #include "fort/gl/VAOPool.hpp"
+#include "fort/utils/LRUCache.hpp"
 
 #include <fort/gl/Window.hpp>
 #include <memory>
@@ -15,9 +17,10 @@ namespace artemis {
 
 class GLUserInterface : public UserInterface, public fort::gl::Window {
 public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	GLUserInterface(
-	    const cv::Size               &workingResolution,
-	    const cv::Size               &fullResolution,
+	    const Size                   &workingResolution,
+	    const Size                   &fullResolution,
 	    const UserInterface::Options &options,
 	    const ROIChannelPtr          &roiChannel
 	);
@@ -30,6 +33,8 @@ public:
 	    override;
 
 private:
+	using CompiledTextPtr = std::shared_ptr<gl::CompiledText>;
+
 	struct DrawBuffer {
 		FrameToDisplay Frame;
 		DataToDisplay  Data;
@@ -37,7 +42,8 @@ private:
 		bool           FullUploaded;
 		GLuint         PBO;
 
-		std::unique_ptr<fort::gl::VertexArrayObject> Points;
+		std::unique_ptr<fort::gl::VertexArrayObject>        Points;
+		std::vector<std::tuple<CompiledTextPtr, cv::Point>> Labels;
 	};
 
 	void InitGLData();
@@ -51,7 +57,7 @@ private:
 
 	void Zoom(int increment);
 	void Displace(const Eigen::Vector2f &offset);
-	void UpdateROI(const cv::Rect &ROI);
+	void UpdateROI(const Rect &ROI);
 
 	void ComputeViewport();
 
@@ -68,11 +74,11 @@ private:
 	void DrawWatermark();
 	void DrawHelp();
 	void DrawPrompt();
-	void DrawROI(const DrawBuffer &buffer);
+	void DrawIndividualsROI(const DrawBuffer &buffer);
 
 	static void ComputeRectVertices(Eigen::MatrixXf &mat, const cv::Rect &rect);
 
-	static void ComputeProjection(const cv::Rect &roi, Eigen::Matrix3f &res);
+	static void ComputeProjection(const Rect &roi, Eigen::Matrix3f &res);
 	void        UpdateProjections();
 
 	float FullToWindowScaleFactor() const;
@@ -80,16 +86,13 @@ private:
 	DrawBuffer d_buffers[2];
 	size_t     d_index;
 
-	const cv::Size d_workingSize, d_fullSize;
-	cv::Size       d_windowSize, d_viewSize;
-	int            d_currentScaleFactor;
-	cv::Point      d_currentPOI;
-	cv::Rect       d_ROI;
+	const Size            d_workingSize, d_fullSize;
+	Size                  d_windowSize, d_viewSize;
+	int                   d_currentScaleFactor;
+	Eigen::Vector2i       d_currentPOI;
+	Rect                  d_ROI;
 
 	Eigen::Matrix3f d_fullProjection, d_viewProjection, d_roiProjection;
-
-	cv::Size d_overlayGlyphSize;
-	cv::Rect d_watermarkBox;
 
 	GLuint d_frameProgram, d_frameTexture, d_pointProgram, d_primitiveProgram,
 	    d_fontProgram, d_roiProgram;
@@ -97,7 +100,10 @@ private:
 
 	slog::Logger<1> d_logger;
 
-	const size_t d_ROISize;
+	gl::TextRenderer d_labelFont, d_overlayFont;
+	utils::LRUCache<256, std::function<CompiledTextPtr(uint32_t)>> d_labelCache;
+
+	const size_t d_individualROISize;
 
 	static const Eigen::Vector4f OVERLAY_GLYPH_FOREGROUND;
 	static const Eigen::Vector4f OVERLAY_GLYPH_BACKGROUND;

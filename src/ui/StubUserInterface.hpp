@@ -8,7 +8,7 @@ namespace artemis {
 class StubUserInterface : public UserInterface {
 public:
 	StubUserInterface(
-	    const cv::Size      &workingResolution,
+	    const Size          &workingResolution,
 	    const Options       &options,
 	    const ROIChannelPtr &roiChannel
 	);

@@ -93,7 +93,8 @@ bool Application::InterceptCommand(const Options &options) {
 		                      options.Camera
 		)
 		                      ->Resolution();
-		std::cout << resolution.width << " " << resolution.height << std::endl;
+		std::cout << resolution.width() << " " << resolution.height()
+		          << std::endl;
 		return true;
 	}
 
