@@ -196,18 +196,32 @@ void GLUserInterface::UpdateFrame(
 }
 
 void GLUserInterface::ComputeViewport() {
+	auto logger = d_logger.With(
+	    slog::Group(
+	        "window",
+	        slog::Int("width", d_windowSize.width()),
+	        slog::Int("height", d_windowSize.height())
+	    ),
+	    slog::Group(
+	        "frame",
+	        slog::Int("width", d_workingSize.width()),
+	        slog::Int("height", d_workingSize.height())
+	    )
+	);
 	float windowRatio =
 	    float(d_windowSize.height()) / float(d_workingSize.height());
 	int wantedWidth = d_workingSize.width() * windowRatio;
-	if (wantedWidth <= d_windowSize.x()) {
-		d_logger.DInfo(
+	if (wantedWidth <= d_windowSize.width()) {
+		logger.DInfo(
 		    "Viewport with full height",
 		    slog::Int("width", wantedWidth),
-		    slog::Int("height", d_windowSize.height())
+		    slog::Int("height", d_windowSize.height()),
+		    slog::Int("x", (d_windowSize.width() - wantedWidth) / 2),
+		    slog::Int("y", 0)
 		);
 
 		glViewport(
-		    (d_windowSize.x() - wantedWidth) / 2,
+		    (d_windowSize.width() - wantedWidth) / 2,
 		    0,
 		    wantedWidth,
 		    d_windowSize.height()
@@ -216,12 +230,14 @@ void GLUserInterface::ComputeViewport() {
 	} else {
 		wantedWidth = d_windowSize.width();
 		windowRatio =
-		    float(d_windowSize.height()) / float(d_workingSize.height());
+		    float(d_windowSize.width()) / float(d_workingSize.width());
 		int wantedHeight = d_workingSize.height() * windowRatio;
-		d_logger.DInfo(
+		logger.DInfo(
 		    "Viewport with full width",
 		    slog::Int("width", d_windowSize.width()),
-		    slog::Int("height", wantedHeight)
+		    slog::Int("height", wantedHeight),
+		    slog::Int("x", 0),
+		    slog::Int("y", (d_windowSize.height() - wantedHeight) / 2)
 		);
 		glViewport(
 		    0,

@@ -176,13 +176,18 @@ void Application::InitLogging(const char *argv0, const Options &options) {
 
 	LogfileName filenames{argv0, options.LogDir};
 
-	auto stderr = slog::BuildSink();
 #ifndef NDEBUG
+	auto stderr    = slog::BuildSink(slog::WithProgramOutput(
+        slog::FromLevel(slog::Level::Debug),
+        slog::WithFormat(slog::OutputFormat::TEXT)
+    ));
 	auto filedebug = slog::BuildSink(slog::WithFileOutput(
 	    filenames.Get(slog::Level::Debug),
 	    slog::FromLevel(slog::Level::Debug),
 	    slog::WithFormat(slog::OutputFormat::JSON)
 	));
+#else
+	auto stderr = slog::BuildSink();
 #endif
 	auto fileinfo  = slog::BuildSink(slog::WithFileOutput(
         filenames.Get(slog::Level::Info),
@@ -204,7 +209,6 @@ void Application::InitLogging(const char *argv0, const Options &options) {
 	slog::DefaultLogger().SetSink(
 	    slog::TeeSink(stderr, fileerror, filewarn, fileinfo, filedebug)
 	);
-	slog::DefaultLogger().From(slog::Level::Debug);
 #else
 	slog::DefaultLogger().SetSink(
 	    slog::TeeSink(stderr, fileerror, filewarn, fileinfo)
