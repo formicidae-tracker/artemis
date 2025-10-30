@@ -6,6 +6,7 @@
 
 #include "GLUserInterface.hpp"
 
+#include "Rect.hpp"
 #include "artemis-common_rc.h"
 #include "fort/gl/Shader.hpp"
 #include "fort/gl/TextRenderer.hpp"
@@ -48,6 +49,7 @@ GLUserInterface::GLUserInterface(
     , d_workingSize{workingResolution}
     , d_inputSize(fullSize)
     , d_inputToWorkingRatio{float(fullSize.width()) / float(workingResolution.width())}
+    , d_individualROISize{options.NewAntROISize}
     , d_windowSize{workingResolution}
     , d_currentScaleFactor{0}
     , d_currentPOI{fullSize.width() / 2, fullSize.height() / 2}
@@ -58,8 +60,7 @@ GLUserInterface::GLUserInterface(
 	    return std::make_shared<gl::CompiledText>(
 	        std::move(d_labelFont.Compile(FormatTagID(tagID), 2))
 	    );
-    }}
-    , d_individualROISize{options.NewAntROISize} {
+    }} {
 
 	InitGLData();
 }
@@ -197,10 +198,37 @@ void GLUserInterface::OnText(unsigned int codepoint) {
 }
 
 void GLUserInterface::OnMouseMove(double x, double y) {
-	d_logger.DDebug("OnMouseMove", slog::Float("x", x), slog::Float("y", y));
+	d_mousePosition = {x, y};
+	if (d_mouseDrag.has_value() == false) {
+		return;
+	}
+
+	auto factor = float(d_inputSize.width()) / float(d_ROI.width());
+	auto delta  = (d_mousePosition - d_mouseDrag.value().Mouse) * factor;
+
+	d_currentPOI = d_mouseDrag.value().POI - delta.cast<int>();
+	UpdateROI(GetROICenteredAt(d_currentPOI, d_ROI.Size(), d_inputSize));
 }
 
-void GLUserInterface::OnMouseInput(int button, int action, int mods) {}
+void GLUserInterface::OnMouseInput(int button, int action, int mods) {
+	d_logger.DDebug(
+	    "OnMouseInput",
+	    slog::Int("button", button),
+	    slog::Int("action", action),
+	    slog::Int("mods", mods)
+	);
+	if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_1 &&
+	    d_mouseDrag.has_value() == false) {
+		d_mouseDrag = {.Mouse = d_mousePosition, .POI = d_currentPOI};
+		return;
+	}
+
+	if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_1 &&
+	    d_mouseDrag.has_value() == true) {
+		d_mouseDrag = std::nullopt;
+		return;
+	}
+}
 
 void GLUserInterface::OnScroll(double xOffset, double yOffset) {}
 
@@ -612,8 +640,7 @@ void GLUserInterface::DrawLabels(const DrawBuffer &buffer) {
 	gl::CompiledText::TextScreenPosition textArgs{
 	    .ViewportSize =
 	        {d_inputSize.width() * factor, d_inputSize.height() * factor},
-	    .Size = LABEL_FONT_SIZE * float(d_inputSize.width()) /
-	            float(d_viewSize.width()),
+	    .Size = LABEL_FONT_SIZE / FullToWindowScaleFactor(),
 	};
 	const auto &firstLabel = std::get<0>(buffer.Labels.front());
 	firstLabel->SetColor(LABEL_FOREGROUND);

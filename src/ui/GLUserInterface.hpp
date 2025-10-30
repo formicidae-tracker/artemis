@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Eigen/Dense>
+#include <Eigen/src/Core/Matrix.h>
+#include <Eigen/src/Core/util/Constants.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -11,6 +13,7 @@
 
 #include <fort/gl/Window.hpp>
 #include <memory>
+#include <optional>
 
 namespace fort {
 namespace artemis {
@@ -89,12 +92,14 @@ private:
 	DrawBuffer d_buffers[2];
 	size_t     d_index;
 
-	const Size            d_workingSize, d_inputSize;
-	const float           d_inputToWorkingRatio;
-	Size                  d_windowSize, d_viewSize;
-	int                   d_currentScaleFactor;
-	Eigen::Vector2i       d_currentPOI;
-	Rect                  d_ROI;
+	const Size   d_workingSize, d_inputSize;
+	const float  d_inputToWorkingRatio;
+	const size_t d_individualROISize;
+
+	Size            d_windowSize, d_viewSize;
+	int             d_currentScaleFactor;
+	Eigen::Vector2i d_currentPOI;
+	Rect            d_ROI;
 
 	Eigen::Matrix3f d_fullProjection, d_viewProjection, d_roiProjection;
 
@@ -108,13 +113,20 @@ private:
 	gl::TextRenderer d_labelFont, d_overlayFont;
 	utils::LRUCache<256, std::function<CompiledTextPtr(uint32_t)>> d_labelCache;
 
-	gl::CompiledText d_helpText;
-	gl::CompiledText d_promptText;
+	gl::CompiledText                       d_helpText;
+	gl::CompiledText                       d_promptText;
 	std::unique_ptr<gl::VertexArrayObject> d_promptBackground;
 
-	const size_t d_individualROISize;
+	struct MouseDragStart {
+		Eigen::Vector2d Mouse;
+		Eigen::Vector2i POI;
+	};
+
+	Eigen::Vector2d               d_mousePosition;
+	std::optional<MouseDragStart> d_mouseDrag;
 
 	static const Eigen::Vector4f OVERLAY_FOREGROUND;
+
 	static const Eigen::Vector4f OVERLAY_BACKGROUND;
 	static const Eigen::Vector4f LABEL_FOREGROUND;
 	static const Eigen::Vector4f LABEL_BACKGROUND;
