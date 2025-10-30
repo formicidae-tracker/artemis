@@ -82,9 +82,9 @@ Connection::Connection(
     Duration                 reconnectPeriod
 )
     : d_context{context}
-    , d_strand{context}
     , d_host{host}
     , d_port{port}
+    , d_strand{context}
     , d_sending{false}
     , d_bufferQueue{16}
     , d_reconnectPeriod{reconnectPeriod}

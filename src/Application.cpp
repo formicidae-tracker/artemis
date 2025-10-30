@@ -44,8 +44,8 @@ void printBacktrace(int signo, siginfo_t *info, void *context) {
 	void *stack[MAX_STACKSIZE];
 	auto  depth = backtrace(stack, MAX_STACKSIZE);
 	auto  msg   = backtrace_symbols(stack, depth);
-	for (size_t i = 0; i < depth; ++i) {
-		fprintf(stderr, "[%zu]: %s\n", i, msg[i]);
+	for (int i = 0; i < depth; ++i) {
+		fprintf(stderr, "[%d]: %s\n", i, msg[i]);
 	}
 	_exit(1);
 }

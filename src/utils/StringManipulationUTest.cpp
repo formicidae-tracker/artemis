@@ -195,45 +195,49 @@ TEST_F(StringUTest,TrimSpaces) {
 	}
 }
 
-TEST_F(StringUTest,SplitString) {
+TEST_F(StringUTest, SplitString) {
 	// The following test data is extracted from golang sources
 
-	std::string abcd = "abcd";
-	std::string faces = u8"☺☻☹";
+	std::string abcd   = "abcd";
+	std::string faces  = "☺☻☹";
 	std::string commas = "1,2,3,4";
-	std::string dots = "1....2....3....4";
+	std::string dots   = "1....2....3....4";
 
 	struct TestData {
-		std::string Base;
-		std::string Sep;
+		std::string              Base;
+		std::string              Sep;
 		std::vector<std::string> Result;
 	};
 
 	std::vector<TestData> data = {
-		{abcd, "a", {"", "bcd"}},
-		{abcd, "z", {"abcd"}},
-		{abcd, "", {"a", "b", "c", "d"}},
-		{commas, ",", {"1", "2", "3", "4"}},
-		{dots, "...", {"1", ".2", ".3", ".4"}},
-		{faces, "☹", {"☺☻", ""}},
-		{faces, "~", {faces}},
-		{faces, "", {"☺", "☻", "☹"}},
-		{"1 2 3 4", " ", {"1", "2", "3", "4"}},
-		{"1 2", " ", {"1", "2"}},
+	    {abcd, "a", {"", "bcd"}},
+	    {abcd, "z", {"abcd"}},
+	    {abcd, "", {"a", "b", "c", "d"}},
+	    {commas, ",", {"1", "2", "3", "4"}},
+	    {dots, "...", {"1", ".2", ".3", ".4"}},
+	    {faces, "☹", {"☺☻", ""}},
+	    {faces, "~", {faces}},
+	    {faces, "", {"☺", "☻", "☹"}},
+	    {"1 2 3 4", " ", {"1", "2", "3", "4"}},
+	    {"1 2", " ", {"1", "2"}},
 	};
 
-	for( auto d : data ) {
+	for (auto d : data) {
 		std::vector<std::string> splitted;
 		splitted.reserve(d.Result.size());
-		base::SplitString(d.Base.cbegin(),d.Base.cend(),d.Sep,
-		                  std::back_inserter<std::vector<std::string>>(splitted));
-		EXPECT_EQ(d.Result.size(),splitted.size()) << "When splitting '" << d.Base
-		                                           << "' with '" << d.Sep << "'";
-		for( size_t i = 0; i < std::min(d.Result.size(),splitted.size()); ++i) {
-			EXPECT_EQ(d.Result[i],splitted[i]) << "On chunk " << i
-			                                   << " when splitting '" << d.Base
-			                                   << "' with '" << d.Sep << "'";
+		base::SplitString(
+		    d.Base.cbegin(),
+		    d.Base.cend(),
+		    d.Sep,
+		    std::back_inserter<std::vector<std::string>>(splitted)
+		);
+		EXPECT_EQ(d.Result.size(), splitted.size())
+		    << "When splitting '" << d.Base << "' with '" << d.Sep << "'";
+		for (size_t i = 0; i < std::min(d.Result.size(), splitted.size());
+		     ++i) {
+			EXPECT_EQ(d.Result[i], splitted[i])
+			    << "On chunk " << i << " when splitting '" << d.Base
+			    << "' with '" << d.Sep << "'";
 		}
 	}
-
 }

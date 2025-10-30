@@ -18,11 +18,15 @@ namespace fort {
 namespace artemis {
 
 class IncommingConnection {
-public :
-	IncommingConnection(boost::asio::io_context & context, Barrier & closed) : d_closed(closed), d_socket(context), d_continue(true), d_received(0) , d_headerRead(true) {
-	}
-	~IncommingConnection() {
-	}
+public:
+	IncommingConnection(boost::asio::io_context &context, Barrier &closed)
+	    : d_closed(closed)
+	    , d_socket(context)
+	    , d_continue(true)
+	    , d_headerRead(true)
+	    , d_received(0) {}
+
+	~IncommingConnection() {}
 	Barrier &                     d_closed;
 	boost::asio::ip::tcp::socket  d_socket;
 	uint8_t                       d_data[8];

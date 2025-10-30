@@ -12,8 +12,8 @@ namespace fort {
 namespace artemis {
 
 StubFrame::StubFrame(const cv::Mat &mat, uint64_t ID)
-    : d_mat(mat.clone())
-    , d_ID(ID) {}
+    : d_ID(ID)
+    , d_mat(mat.clone()) {}
 
 StubFrame::~StubFrame() {}
 

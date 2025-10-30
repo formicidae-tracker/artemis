@@ -11,7 +11,7 @@ void PartitionRectangle(const Rect &rect, size_t partitions, Partition &result);
 
 void PartitionImage(const cv::Mat &img, size_t partitions, Partition &result);
 
-void AddMargin(const Size &maxSize, size_t margin, Partition &result);
+void AddMargin(const Size &maxSize, int margin, Partition &result);
 
 } // namespace artemis
 } // namespace fort

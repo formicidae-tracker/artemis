@@ -54,7 +54,7 @@ cv::Rect ImageTextRenderer::RenderTextAt(
 		size_t yy = position.y + iy;
 		size_t ic = 0;
 		for (auto c : text) {
-			uint8_t xdata = s_fontData[c][iy];
+			uint8_t xdata = s_fontData[size_t(c)][iy];
 			for (size_t ix = 0; ix < GLYPH_WIDTH; ++ix) {
 				size_t xx = position.x + TOTAL_GLYPH_WIDTH * ic + ix;
 				if ((xdata & (1 << (7 - ix))) != 0) {

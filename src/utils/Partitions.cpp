@@ -41,7 +41,7 @@ void PartitionRectangle(
 	PartitionRectangle(b, partitions / 2, results);
 }
 
-void AddMargin(const Size &size, size_t margin, Partition &partitions) {
+void AddMargin(const Size &size, int margin, Partition &partitions) {
 	for (auto &p : partitions) {
 		if (p.x() >= margin) {
 			p.x() -= margin;

@@ -4,7 +4,6 @@
 #include <opencv2/imgproc.hpp>
 
 #include <slog++/Attribute.hpp>
-#include <taskflow/algorithm/for_each.hpp>
 
 #include <artemis-config.h>
 
@@ -14,7 +13,7 @@
 #include "UserInterfaceTask.hpp"
 #include "VideoOutputTask.hpp"
 
-#include "taskflow/core/taskflow.hpp"
+#include "include_taskflow.hpp"
 
 namespace fort {
 namespace artemis {
@@ -24,8 +23,8 @@ ProcessFrameTask::ProcessFrameTask(
     boost::asio::io_context &context,
     const Size              &inputResolution
 )
-    : d_maximumThreads{size_t(cv::getNumThreads())}
-    , d_config{options}
+    : d_config{options}
+    , d_maximumThreads{size_t(cv::getNumThreads())}
     , d_executor{d_maximumThreads}
     , d_logger{slog::With(slog::String("task", "process"))} {
 	d_actualThreads              = d_maximumThreads;
@@ -389,8 +388,7 @@ void ProcessFrameTask::DisplayFrame(
 	auto frameSize = frame->ToCV().size();
 
 	if (d_wantedROI.Size() != Size{frameSize.width, frameSize.height}) {
-		zoomed        = d_grayImagePool.Get();
-		cv::Size size = frame->ToCV().size();
+		zoomed = d_grayImagePool.Get();
 		cv::resize(
 		    cv::Mat(frame->ToCV(), {d_wantedROI.width(), d_wantedROI.height()}),
 		    *zoomed,

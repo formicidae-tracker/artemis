@@ -3,7 +3,8 @@
 #include <apriltag/apriltag.h>
 #include <fort/hermes/FrameReadout.pb.h>
 
-#include <taskflow/core/executor.hpp>
+// convenience header that disable some warnings.
+#include "include_taskflow.hpp" // IWYU pragma: keep
 
 #include "Options.hpp"
 #include "utils/Partitions.hpp"

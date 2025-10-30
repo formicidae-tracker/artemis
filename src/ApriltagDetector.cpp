@@ -1,7 +1,4 @@
 #include "ApriltagDetector.hpp"
-#include "taskflow/core/executor.hpp"
-
-#include <taskflow/algorithm/for_each.hpp>
 
 #include <apriltag/tag16h5.h>
 #include <apriltag/tag25h9.h>

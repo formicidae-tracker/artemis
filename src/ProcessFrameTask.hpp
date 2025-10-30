@@ -1,7 +1,6 @@
 #pragma once
 
 #include <slog++/Logger.hpp>
-#include <taskflow/core/executor.hpp>
 
 #include <opencv2/core.hpp>
 
@@ -16,6 +15,8 @@
 
 #include "readerwriterqueue.h"
 #include "ui/UserInterface.hpp"
+
+#include "include_taskflow.hpp"
 
 namespace cv {
 class Mat;

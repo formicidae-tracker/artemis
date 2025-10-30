@@ -90,6 +90,7 @@ private:
 	size_t     d_index;
 
 	const Size            d_workingSize, d_inputSize;
+	const float           d_inputToWorkingRatio;
 	Size                  d_windowSize, d_viewSize;
 	int                   d_currentScaleFactor;
 	Eigen::Vector2i       d_currentPOI;

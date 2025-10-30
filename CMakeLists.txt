@@ -10,9 +10,13 @@ project(
 	LANGUAGES C CXX
 )
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	add_definitions(-Wall -Wpedantic -Werror)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED 1)
 
 option(EURESYS_FRAMEGRABBER_SUPPORT
@@ -70,6 +74,7 @@ else()
 		GIT_TAG 3df2c8929118298e8776e0ef3ca0c05b700dc43a
 	)
 endif()
+
 if(EXISTS ${PROJECT_SOURCE_DIR}/deps/charis)
 	FetchContent_Declare(
 		fort-hermes SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/hermes
@@ -82,12 +87,17 @@ else()
 	)
 endif()
 
-FetchContent_Declare(
-	fort-tags
-	GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
-	GIT_TAG v1.4.2
-)
-
+if(EXISTS ${PROJECT_SOURCE_DIR}/deps/fort-tags)
+	FetchContent_Declare(
+		fort-tags SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/fort-tags
+	)
+else()
+	FetchContent_Declare(
+		fort-tags
+		GIT_REPOSITORY https://github.com/formicidae-tracker/fort-tags.git
+		GIT_TAG v1.4.3
+	)
+endif()
 FetchContent_Declare(
 	taskflow
 	GIT_REPOSITORY https://github.com/taskflow/taskflow
