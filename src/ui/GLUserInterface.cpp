@@ -388,6 +388,8 @@ void GLUserInterface::InitGLData() {
 	ComputeProjection(Rect({0, 0}, d_inputSize), d_fullProjection);
 	ComputeProjection(d_ROI, d_roiProjection);
 	ComputeProjection(Rect({0, 0}, d_viewSize), d_viewProjection);
+
+	UploadHelpText();
 }
 
 void GLUserInterface::InitPBOs() {
@@ -592,8 +594,8 @@ void GLUserInterface::DrawLabels(const DrawBuffer &buffer) {
 	firstLabel->SetBackgroundColor(LABEL_BACKGROUND);
 	constexpr static int OFFSET = 0.4 * NORMAL_POINT_SIZE;
 	for (const auto &[text, pos] : buffer.Labels) {
-		textArgs.Position =
-		    Eigen::Vector2i{pos.x + OFFSET, pos.y - OFFSET} - d_ROI.TopLeft();
+		textArgs.Position = Eigen::Vector2f{pos.x + OFFSET, pos.y - OFFSET} -
+		                    d_ROI.TopLeft().cast<float>();
 		text->Render(textArgs, true);
 	}
 }
@@ -665,7 +667,7 @@ void GLUserInterface::DrawInformations(const DrawBuffer &buffer) {
 		return;
 	}
 	buffer.Overlay.SetBackgroundColor(OVERLAY_BACKGROUND);
-	buffer.Overlay.SetColor(OVERLAY_GLYPH_FOREGROUND);
+	buffer.Overlay.SetColor(OVERLAY_FOREGROUND);
 	buffer.Overlay.Render(
 	    {
 	        .ViewportSize = d_viewSize,
@@ -741,8 +743,8 @@ void GLUserInterface::DrawHelp() {
 	     .Size         = OVERLAY_FONT_SIZE,
     });
 	float textWidth{bbox.z() - bbox.x()}, textHeight{bbox.w() - bbox.y()};
-	d_helpText.SetColor(OVERLAY_GLYPH_FOREGROUND);
-	d_helpText.SetBackgroundColor(OVERLAY_GLYPH_BACKGROUND);
+	d_helpText.SetColor(OVERLAY_FOREGROUND);
+	d_helpText.SetBackgroundColor(OVERLAY_BACKGROUND);
 	d_helpText.Render(
 	    {
 	        .ViewportSize = d_viewSize,
@@ -768,11 +770,8 @@ void GLUserInterface::DrawPrompt() {
         );
 }
 
-const Eigen::Vector4f GLUserInterface::OVERLAY_GLYPH_FOREGROUND = {
+const Eigen::Vector4f GLUserInterface::OVERLAY_FOREGROUND = {
     1.0f, 1.0f, 1.0f, 1.0f
-};
-const Eigen::Vector4f GLUserInterface::OVERLAY_GLYPH_BACKGROUND = {
-    1.0f, 1.0f, 1.0f, 0.0f
 };
 const Eigen::Vector4f GLUserInterface::OVERLAY_BACKGROUND = {
     0.05, 0.1f, 0.2f, 0.7f

@@ -110,8 +110,7 @@ private:
 
 	const size_t d_individualROISize;
 
-	static const Eigen::Vector4f OVERLAY_GLYPH_FOREGROUND;
-	static const Eigen::Vector4f OVERLAY_GLYPH_BACKGROUND;
+	static const Eigen::Vector4f OVERLAY_FOREGROUND;
 	static const Eigen::Vector4f OVERLAY_BACKGROUND;
 	static const Eigen::Vector4f LABEL_FOREGROUND;
 	static const Eigen::Vector4f LABEL_BACKGROUND;
