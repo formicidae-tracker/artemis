@@ -230,7 +230,18 @@ void GLUserInterface::OnMouseInput(int button, int action, int mods) {
 	}
 }
 
-void GLUserInterface::OnScroll(double xOffset, double yOffset) {}
+void GLUserInterface::OnScroll(double xOffset, double yOffset) {
+	d_logger.DDebug(
+	    "OnScroll",
+	    slog::Float("xOffset", xOffset),
+	    slog::Float("yOffset", yOffset)
+	);
+	if (yOffset > 0) {
+		Zoom(1);
+	} else if (yOffset < 0) {
+		Zoom(-1);
+	}
+}
 
 GLUserInterface::~GLUserInterface() {}
 
