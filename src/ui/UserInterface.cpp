@@ -143,5 +143,12 @@ void UserInterface::AppendPromptValue(char c) {
 	d_value += c;
 }
 
+void UserInterface::ErasePromptLastValue() {
+	if (d_value.empty()) {
+		return;
+	}
+	d_value.pop_back();
+}
+
 } // namespace artemis
 } // namespace fort

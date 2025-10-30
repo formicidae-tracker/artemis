@@ -6,6 +6,6 @@ layout(location = 0) in vec2 vertexPosition;
 uniform mat3 scaleMat;
 
 void main() {
-	gl_Position.xyz = scaleMat * vec3(vertexPosition.x,vertexPosition.y,1.0);
-	gl_Position.w = 1.0;
+	gl_Position.xyz = scaleMat * vec3(vertexPosition.x, vertexPosition.y, 1.0);
+	gl_Position.w   = 1.0;
 }

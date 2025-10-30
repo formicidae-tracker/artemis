@@ -26,8 +26,6 @@ set(RESOURCE_FILES
 	ui/shaders/primitive.vertexshader
 	ui/shaders/primitive.fragmentshader
 	ui/shaders/circle.fragmentshader
-	ui/shaders/font.vertexshader
-	ui/shaders/font.fragmentshader
 	ui/shaders/roi.fragmentshader
 	fonts/vga.fon
 )

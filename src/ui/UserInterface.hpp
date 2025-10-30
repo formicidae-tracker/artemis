@@ -74,6 +74,7 @@ protected:
 	void               EnterHighlightPrompt();
 	void               LeaveHighlightPrompt();
 	void               AppendPromptValue(char c);
+	void               ErasePromptLastValue();
 	const std::string &Value() const;
 
 	bool               DisplayROI() const;

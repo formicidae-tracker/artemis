@@ -98,7 +98,8 @@ private:
 	Eigen::Matrix3f d_fullProjection, d_viewProjection, d_roiProjection;
 
 	GLuint d_frameProgram, d_frameTexture, d_pointProgram, d_primitiveProgram,
-	    d_fontProgram, d_roiProgram;
+	    d_roiProgram;
+
 	std::unique_ptr<fort::gl::VertexArrayObject> d_frameBuffer;
 
 	slog::Logger<1> d_logger;
@@ -106,7 +107,9 @@ private:
 	gl::TextRenderer d_labelFont, d_overlayFont;
 	utils::LRUCache<256, std::function<CompiledTextPtr(uint32_t)>> d_labelCache;
 
-	gl::CompiledText           d_helpText;
+	gl::CompiledText d_helpText;
+	gl::CompiledText d_promptText;
+	std::unique_ptr<gl::VertexArrayObject> d_promptBackground;
 
 	const size_t d_individualROISize;
 
