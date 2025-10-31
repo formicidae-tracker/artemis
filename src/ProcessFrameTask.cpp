@@ -133,15 +133,19 @@ void ProcessFrameTask::SetUpUserInterface(
 	d_wantedROI = d_userInterface->DefaultROI();
 }
 
+cv::Mat *ProcessFrameTask::newImage(int rows, int cols, int type) {
+	return new cv::Mat(rows, cols, type);
+}
+
 void ProcessFrameTask::SetUpPoolObjects() {
-	d_grayImagePool.Reserve(
+	d_grayImagePool->Reserve(
 	    GrayscaleImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
 	    d_workingResolution.height(),
 	    d_workingResolution.width(),
 	    CV_8UC1
 	);
 
-	d_rgbImagePool.Reserve(
+	d_rgbImagePool->Reserve(
 	    RGBImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
 	    d_workingResolution.height(),
 	    d_workingResolution.width(),
@@ -202,7 +206,11 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr &frame) {
 	if (!d_videoOutput && !d_userInterface) {
 		return;
 	}
-	d_downscaled = d_grayImagePool.Get();
+	d_downscaled = d_grayImagePool->Get(
+	    d_workingResolution.height(),
+	    d_workingResolution.width(),
+	    CV_8UC1
+	);
 	cv::resize(
 	    frame->ToCV(),
 	    *d_downscaled,
@@ -213,9 +221,14 @@ void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr &frame) {
 	);
 
 	if (d_videoOutput) {
-		auto converted = d_rgbImagePool.Get();
+		auto converted = d_rgbImagePool->Get(
+		    d_workingResolution.height(),
+		    d_workingResolution.width(),
+		    CV_8UC3
+		);
 		cv::cvtColor(*d_downscaled, *converted, cv::COLOR_GRAY2RGB);
-		d_videoOutput->QueueFrame(converted, frame->Time(), frame->ID());
+		d_videoOutput
+		    ->QueueFrame(std::move(converted), frame->Time(), frame->ID());
 	}
 
 	// user interface communication will happen after in DisplayFrame.
@@ -264,7 +277,7 @@ void ProcessFrameTask::ProcessFrame(const Frame::Ptr &frame) {
 
 std::shared_ptr<hermes::FrameReadout>
 ProcessFrameTask::PrepareMessage(const Frame::Ptr &frame) {
-	auto m = d_messagePool.Get();
+	auto m = d_messagePool->Get();
 	m->Clear();
 	m->set_timestamp(frame->Timestamp());
 	m->set_frameid(frame->ID());
@@ -388,7 +401,11 @@ void ProcessFrameTask::DisplayFrame(
 	auto frameSize = frame->ToCV().size();
 
 	if (d_wantedROI.Size() != Size{frameSize.width, frameSize.height}) {
-		zoomed = d_grayImagePool.Get();
+		zoomed = d_grayImagePool->Get(
+		    d_workingResolution.height(),
+		    d_workingResolution.width(),
+		    CV_8UC1
+		);
 		cv::resize(
 		    cv::Mat(frame->ToCV(), {d_wantedROI.width(), d_wantedROI.height()}),
 		    *zoomed,

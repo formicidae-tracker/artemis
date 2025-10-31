@@ -79,18 +79,20 @@ set(HDR_FILES
 )
 
 set(UTEST_SRC_FILES
-	main-check.cpp
-	utils/StringManipulationUTest.cpp
-	ConnectionUTest.cpp
-	utils/PartitionsUTest.cpp
-	OptionsUTest.cpp
+	main-check.cpp #
+	utils/StringManipulationUTest.cpp #
+	ConnectionUTest.cpp #
+	utils/PartitionsUTest.cpp #
+	OptionsUTest.cpp #
 	TaskUTest.cpp
-	ObjectPoolUTest.cpp
 )
 
 set(UTEST_HDR_FILES
-	utils/StringManipulationUTest.hpp utils/PartitionsUTest.hpp
-	ConnectionUTest.hpp OptionsUTest.hpp TaskUTest.hpp ObjectPoolUTest.hpp
+	utils/StringManipulationUTest.hpp #
+	utils/PartitionsUTest.hpp #
+	ConnectionUTest.hpp #
+	OptionsUTest.hpp
+	TaskUTest.hpp
 )
 
 if(EURESYS_FRAMEGRABBER_SUPPORT)

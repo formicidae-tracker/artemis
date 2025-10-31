@@ -9,10 +9,10 @@
 #include <boost/asio/io_context.hpp>
 
 #include "FrameGrabber.hpp"
-#include "ObjectPool.hpp"
 #include "Options.hpp"
 #include "Task.hpp"
 
+#include "fort/utils/ObjectPool.hpp"
 #include "readerwriterqueue.h"
 #include "ui/UserInterface.hpp"
 
@@ -26,15 +26,15 @@ namespace fort {
 namespace artemis {
 
 class VideoOutputTask;
-typedef std::shared_ptr<VideoOutputTask>     VideoOutputTaskPtr;
+typedef std::shared_ptr<VideoOutputTask> VideoOutputTaskPtr;
 class UserInterfaceTask;
-typedef std::shared_ptr<UserInterfaceTask>   UserInterfaceTaskPtr;
+typedef std::shared_ptr<UserInterfaceTask> UserInterfaceTaskPtr;
 class Connection;
-typedef std::shared_ptr<Connection>          ConnectionPtr;
+typedef std::shared_ptr<Connection> ConnectionPtr;
 class FullFrameExportTask;
 typedef std::shared_ptr<FullFrameExportTask> FullFrameExportTaskPtr;
 class ApriltagDetector;
-typedef std::shared_ptr<ApriltagDetector>    ApriltagDetectorPtr;
+typedef std::shared_ptr<ApriltagDetector> ApriltagDetectorPtr;
 
 class ProcessFrameTask : public Task {
 public:
@@ -146,13 +146,19 @@ private:
 
 	FullFrameExportTaskPtr d_fullFrameExport;
 
-	ObjectPool<cv::Mat> d_grayImagePool;
-	ObjectPool<cv::Mat> d_rgbImagePool;
+	using MatObjectPool =
+	    utils::ObjectPool<cv::Mat, cv::Mat *(*)(int, int, int)>;
 
-	ObjectPool<hermes::FrameReadout> d_messagePool;
-	std::shared_ptr<cv::Mat>         d_downscaled;
-	const size_t                     d_maximumThreads;
-	size_t                           d_actualThreads;
+	static cv::Mat *newImage(int rows, int cols, int type);
+
+	MatObjectPool::Ptr d_grayImagePool = MatObjectPool::Create(&newImage);
+	MatObjectPool::Ptr d_rgbImagePool  = MatObjectPool::Create(&newImage);
+
+	utils::ObjectPool<hermes::FrameReadout>::Ptr d_messagePool =
+	    utils::ObjectPool<hermes::FrameReadout>::Create();
+	std::shared_ptr<cv::Mat> d_downscaled;
+	const size_t             d_maximumThreads;
+	size_t                   d_actualThreads;
 
 	ApriltagDetectorPtr d_detector;
 
@@ -160,11 +166,11 @@ private:
 	Time               d_nextAntCatalog;
 	std::set<uint32_t> d_exportedID;
 
-	Size     d_workingResolution;
-	Rect     d_wantedROI;
-	size_t   d_frameDropped;
-	size_t   d_frameProcessed;
-	Time     d_start;
+	Size   d_workingResolution;
+	Rect   d_wantedROI;
+	size_t d_frameDropped;
+	size_t d_frameProcessed;
+	Time   d_start;
 
 	tf::Executor    d_executor;
 	slog::Logger<1> d_logger;

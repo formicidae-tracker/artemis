@@ -177,7 +177,6 @@ void GLUserInterface::UpdateROI(const Rect &ROI) {
 	ComputeProjection(d_ROI, d_roiProjection);
 	// If the full details is not uploaded, upload it.
 	if (buffer.FullUploaded == false) {
-
 		UploadTexture(buffer);
 	}
 	Update();
@@ -563,9 +562,10 @@ void GLUserInterface::DrawIndividualsROI(const DrawBuffer &buffer) {
 		return;
 	}
 	glUseProgram(d_roiProgram);
+
 	auto factor = FullToWindowScaleFactor();
 	if (d_ROI.Size() != d_inputSize) {
-		factor *= float(d_inputSize.x()) / float(d_ROI.y());
+		factor *= float(d_inputSize.width()) / float(d_ROI.width());
 	}
 	auto floatPointSize = float(d_individualROISize) * factor;
 
@@ -577,7 +577,7 @@ void GLUserInterface::DrawIndividualsROI(const DrawBuffer &buffer) {
 	    Eigen::Vector3f{0.0f, 1.0f, 1.0f}
 	);
 	glPointSize(floatPointSize);
-	fort::gl::Upload(d_roiProgram, "lineWidth", 3.0f * 2.0f / floatPointSize);
+	fort::gl::Upload(d_roiProgram, "lineWidth", 6.0f / floatPointSize);
 
 	glBindVertexArray(buffer.Points->VAO);
 	Defer {
