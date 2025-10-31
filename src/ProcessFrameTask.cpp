@@ -407,7 +407,13 @@ void ProcessFrameTask::DisplayFrame(
 		    CV_8UC1
 		);
 		cv::resize(
-		    cv::Mat(frame->ToCV(), {d_wantedROI.width(), d_wantedROI.height()}),
+		    cv::Mat(
+		        frame->ToCV(),
+		        {
+		            cv::Point{d_wantedROI.x(), d_wantedROI.y()},
+		            cv::Size{d_wantedROI.width(), d_wantedROI.height()},
+		        }
+		    ),
 		    *zoomed,
 		    {d_workingResolution.width(), d_workingResolution.height()},
 		    0,

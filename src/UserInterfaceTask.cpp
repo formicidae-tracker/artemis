@@ -60,7 +60,7 @@ Rect UserInterfaceTask::UpdateROI(const Rect &previous) {
 	Rect previous_ = previous;
 	while (d_roiChannel->try_dequeue(previous_) == true) {
 	}
-	return previous;
+	return previous_;
 }
 
 void UserInterfaceTask::QueueFrame(
