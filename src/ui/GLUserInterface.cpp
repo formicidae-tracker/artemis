@@ -203,8 +203,7 @@ void GLUserInterface::OnMouseMove(double x, double y) {
 		return;
 	}
 
-	auto factor = float(d_inputSize.width()) / float(d_ROI.width());
-	auto delta  = (d_mousePosition - d_mouseDrag.value().Mouse) * factor;
+	auto delta = (d_mousePosition - d_mouseDrag.value().Mouse);
 
 	d_currentPOI = d_mouseDrag.value().POI - delta.cast<int>();
 	UpdateROI(GetROICenteredAt(d_currentPOI, d_ROI.Size(), d_inputSize));
