@@ -37,6 +37,7 @@ namespace artemis {
 static std::once_flag handler_installed;
 
 void printBacktrace(int signo, siginfo_t *info, void *context) {
+
 	fprintf(stderr, "got SIGSEGV signal:\n");
 
 	constexpr size_t MAX_STACKSIZE = 128;
@@ -165,10 +166,10 @@ struct LogfileName {
 
 	std::string Get(slog::Level lvl) {
 		auto linkpath   = logpath / (name + "." + levelname(lvl));
-		auto targetpath = logpath / filename(lvl);
+		auto targetpath = filename(lvl);
 		std::filesystem::remove(linkpath);
 		std::filesystem::create_symlink(targetpath, linkpath);
-		return targetpath.string();
+		return (logpath / targetpath).string();
 	}
 };
 

@@ -1,4 +1,10 @@
 #include "ApriltagDetector.hpp"
+#include "Options.hpp"
+#include "Rect.hpp"
+#include "fort/options/details/Option.hpp"
+#include "taskflow/core/runtime.hpp"
+#include "taskflow/core/taskflow.hpp"
+#include "utils/Partitions.hpp"
 
 #include <apriltag/tag16h5.h>
 #include <apriltag/tag25h9.h>
@@ -8,19 +14,110 @@
 #include <apriltag/tagCustom48h12.h>
 #include <apriltag/tagStandard41h12.h>
 #include <apriltag/tagStandard52h13.h>
+#include <chrono>
+#include <cstdint>
 #include <fort/tags/fort-tags.hpp>
 #include <fort/tags/tag36ARTag.h>
 #include <fort/tags/tag36h10.h>
 
 #include <Eigen/Core>
 #include <Eigen/StdVector>
+#include <memory>
+#include <slog++/slog++.hpp>
+#include <stdexcept>
+#include <thread>
 
 namespace fort {
 namespace artemis {
 
+// allocate a new 64 byte alligned image_u8_t image with 64 bytes alligned
+// stride.
+std::unique_ptr<image_u8_t, void (*)(image_u8_t *)>
+allocNewImage(const Size &size) {
+	slog::DDebug(
+	    "aligned image allocation",
+	    slog::Int("width", size.width()),
+	    slog::Int("height", size.height())
+	);
+
+	int32_t  stride = (size.width() + 63) & ~63;
+	uint8_t *buf =
+	    static_cast<uint8_t *>(aligned_alloc(64, stride * size.height()));
+	image_u8_t *img = new image_u8_t{
+	    .width  = size.width(),
+	    .height = size.height(),
+	    .stride = stride,
+	    .buf    = buf
+	};
+	return std::unique_ptr<image_u8_t, void (*)(image_u8_t *)>(
+	    img,
+	    [](image_u8_t *img) {
+		    slog::DDebug("aligned image dealloc");
+		    free(img->buf);
+		    delete img;
+	    }
+	);
+}
+
+void image_u8_cpy(image_u8_t &dst, const image_u8_t &src) {
+	if (dst.width != src.width || dst.height != src.height) {
+		throw std::invalid_argument{"Size must match"};
+	}
+	if (dst.stride == src.stride) {
+		memcpy(dst.buf, src.buf, src.height * src.stride * sizeof(uint8_t));
+		return;
+	}
+
+	for (int32_t i = 0; i < src.height; ++i) {
+		memcpy(
+		    &dst.buf[i * dst.stride],
+		    &src.buf[i * src.stride],
+		    std::min(dst.stride, src.stride) * sizeof(uint8_t)
+		);
+	}
+}
+
+image_u8_t image_u8_get_ROI(const image_u8_t &src, const Rect &ROI) {
+	if (src.width < (ROI.x() + ROI.width()) ||
+	    src.height < (ROI.y() + ROI.height())) {
+		throw std::invalid_argument{"ROI does not fit in src"};
+	}
+
+	return {
+	    .width  = ROI.width(),
+	    .height = ROI.height(),
+	    .stride = src.stride,
+	    .buf    = &src.buf[ROI.y() * src.stride + ROI.x()],
+	};
+}
+
+image_u8_t image_u8_copy_ROI_from_buf(
+    const image_u8_t &buffer, const image_u8_t &src, const Rect &ROI
+) {
+	image_u8_t res = {
+	    .width  = ROI.width(),
+	    .height = ROI.height(),
+	    .stride = (ROI.width() + 63) & ~63,
+	    .buf    = buffer.buf,
+	};
+	size_t needed    = res.stride * res.height;
+	size_t available = src.stride * src.height;
+
+	if (needed > available) {
+		throw std::invalid_argument(
+		    "Not enough space in buffer (needed:" + std::to_string(needed) +
+		    " available: " + std::to_string(available) + ")"
+		);
+	}
+	image_u8_cpy(res, image_u8_get_ROI(src, ROI));
+	return res;
+}
+
 ApriltagDetector::ApriltagDetector(
     size_t maxParallel, const Size &size, const ApriltagOptions &options
-) {
+)
+    : d_family{CreateFamily(options.Family())}
+    , d_maximumConcurrency{uint32_t(maxParallel)} {
 	d_minimumDetectionDistanceSquared =
 	    options.QuadMinClusterPixel * options.QuadMinClusterPixel;
 
@@ -28,63 +125,73 @@ ApriltagDetector::ApriltagDetector(
 	d_detectors.reserve(maxParallel);
 
 	for (size_t i = 0; i < maxParallel; ++i) {
-		d_families.push_back(std::move(CreateFamily(options.Family())));
-		d_detectors.push_back(
-		    std::move(CreateDetector(options, d_families.back().get()))
+
+		d_detectors.push_back(std::move(CreateDetector(options, d_family.get()))
 		);
 		Partition partition;
 		PartitionRectangle(Rect{{0, 0}, size}, i + 1, partition);
 		AddMargin(size, 75, partition);
+
+		// the first image is always the biggest one.
+		d_images.emplace_back(allocNewImage(partition[i].Size()));
 		d_partitions.push_back(partition);
 	}
-}
 
-void ApriltagDetector::Detect(
-    const cv::Mat        &image,
-    size_t                nThreads,
-    tf::Executor         &executor,
-    hermes::FrameReadout &m
-) {
+	d_taskflow.emplace([this](tf::Runtime &rt) {
+		const size_t            task_size  = d_maximumConcurrency.load();
+		const auto             &partitions = d_partitions[task_size - 1];
+		std::vector<zarray_t *> detections{task_size, nullptr};
 
-	nThreads = std::min(std::max(nThreads, size_t(1)), d_detectors.size());
+		for (size_t i = 0; i < task_size; ++i) {
+			rt.silent_async([&partitions, i, this, &detections]() {
+				try {
+					auto img = image_u8_copy_ROI_from_buf(
+					    *d_images[i],
+					    *d_input,
+					    partitions[i]
+					);
+					detections[i] =
+					    apriltag_detector_detect(d_detectors[i].get(), &img);
 
-	const auto &partition  = d_partitions[nThreads - 1];
-	auto        detections = PartionnedDetection(image, executor, partition);
-	MergeDetection(detections, partition, m);
-	size_t nQuads = 0;
-	for (size_t i = 0; i < nThreads; ++i) {
-		nQuads += d_detectors[i]->nquads;
-	}
-	m.set_quads(nQuads);
-	for (auto &d : detections) {
-		apriltag_detections_destroy(d);
-	}
-}
+				} catch (const std::exception &e) {
+					slog::Error(
+					    "apriltag error",
+					    slog::Err(e),
+					    slog::Int("i", i)
+					);
+				}
+			});
+		}
+		rt.corun();
+		d_readout.clear_tags();
+		uint32_t quads{0};
+		MergeDetection(detections, partitions, d_readout);
+		for (size_t i = 0; i < task_size; ++i) {
+			quads += d_detectors[i]->nquads;
+		}
 
-static inline cv::Rect toCVRect(const Rect &r) {
-	return {cv::Point{r.x(), r.y()}, cv::Size{r.width(), r.height()}};
-}
+		d_readout.set_quads(quads);
 
-std::vector<zarray_t *> ApriltagDetector::PartionnedDetection(
-    const cv::Mat &image, tf::Executor &executor, const Partition &partition
-) {
-
-	std::vector<zarray_t *> detections(partition.size(), nullptr);
-	tf::Taskflow            taskflow;
-	taskflow.for_each_index(0, partition.size(), 1, [&](int i) {
-		auto     cloned = cv::Mat(image, toCVRect(partition[i])).clone();
-		image_u8 img    = {
-		       .width  = cloned.cols,
-		       .height = cloned.rows,
-		       .stride = cloned.cols,
-		       .buf    = cloned.data
-        };
-		detections[i] = apriltag_detector_detect(d_detectors[i].get(), &img);
+		for (auto d : detections) {
+			if (d != nullptr) {
+				apriltag_detections_destroy(d);
+			}
+		}
 	});
+}
 
-	executor.run(taskflow).wait();
+size_t ApriltagDetector::MaxConcurrency() const {
+	return d_maximumConcurrency.load();
+}
 
-	return detections;
+void ApriltagDetector::SetMaxConcurrency(size_t maxConcurrency) {
+	d_maximumConcurrency.store(
+	    std::clamp(maxConcurrency, size_t(1U), d_images.size())
+	);
+}
+
+tf::Taskflow &ApriltagDetector::Taskflow() {
+	return d_taskflow;
 }
 
 double ApriltagDetector::ComputeAngleFromCorner(const apriltag_detection_t *q) {
@@ -160,11 +267,11 @@ void ApriltagDetector::MergeDetection(
 
 ApriltagDetector::FamilyPtr ApriltagDetector::CreateFamily(tags::Family family
 ) {
-	typedef std::function<apriltag_family_t *()>     FamilyConstructor;
-	typedef std::function<void(apriltag_family_t *)> FamilyDestructor;
+	typedef apriltag_family_t *(*FamilyConstructor)();
+	typedef void (*FamilyDestructor)(apriltag_family_t *);
 
 	static std::
-	    map<tags::Family, std::pair<FamilyConstructor, FamilyDestructor>>
+	    map<tags::Family, std::tuple<FamilyConstructor, FamilyDestructor>>
 	        families = {
 	            {tags::Family::Tag16h5, {tag16h5_create, tag16h5_destroy}},
 	            {tags::Family::Tag25h9, {tag25h9_create, tag25h9_destroy}},
@@ -188,14 +295,14 @@ ApriltagDetector::FamilyPtr ApriltagDetector::CreateFamily(tags::Family family
 		throw std::invalid_argument("Family is not defined");
 	}
 
-	auto fi = families.find(family);
-	if (fi == families.cend()) {
+	if (families.count(family) == 0) {
 		throw std::runtime_error(
 		    "Unknown fort::tags::Family(" + std::to_string(int(family)) + ")"
 		);
 	}
+	const auto &f = families.at(family);
 
-	return FamilyPtr(fi->second.first(), fi->second.second);
+	return {std::get<0>(f)(), std::get<1>(f)};
 }
 
 ApriltagDetector::DetectorPtr ApriltagDetector::CreateDetector(
@@ -216,6 +323,14 @@ ApriltagDetector::DetectorPtr ApriltagDetector::CreateDetector(
 	d->qtp.deglitch             = options.QuadDeglitch ? 1 : 0;
 
 	return DetectorPtr(d, apriltag_detector_destroy);
+}
+
+void ApriltagDetector::SetInput(const image_u8_t *image) {
+	d_input = image;
+}
+
+const hermes::FrameReadout &ApriltagDetector::Readout() const {
+	return d_readout;
 }
 
 } // namespace artemis

@@ -85,6 +85,7 @@ set(UTEST_SRC_FILES
 	utils/PartitionsUTest.cpp #
 	OptionsUTest.cpp #
 	TaskUTest.cpp
+	TaskflowTest.cpp
 )
 
 set(UTEST_HDR_FILES

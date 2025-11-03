@@ -120,7 +120,15 @@ FetchContent_Declare(
 	GIT_TAG v1.0.7
 )
 
-FetchContent_MakeAvailable(fort-charis fort-hermes fort-tags readwriterqueue)
+FetchContent_Declare(
+	libyuv
+	GIT_REPOSITORY https://chromium.googlesource.com/libyuv/libyuv
+	GIT_TAG 900da61d3cadba86ec593c8226de736b5e6b2c43
+)
+
+FetchContent_MakeAvailable(
+	fort-charis fort-hermes fort-tags readwriterqueue libyuv
+)
 FetchContent_GetProperties(fort-charis)
 
 find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)

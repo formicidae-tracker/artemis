@@ -1,5 +1,6 @@
 #include "ProcessFrameTask.hpp"
 
+#include <cstdint>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -307,7 +308,23 @@ void ProcessFrameTask::Detect(
     const Frame::Ptr &frame, hermes::FrameReadout &m
 ) {
 	if (d_detector) {
-		d_detector->Detect(frame->ToCV(), d_actualThreads, d_executor, m);
+		image_u8_t input{
+		    .width  = int32_t(frame->Width()),
+		    .height = int32_t(frame->Height()),
+		    .stride = int32_t(frame->Height()),
+		    .buf    = (uint8_t *)frame->Data()
+		};
+
+		d_detector->SetInput(&input);
+		d_detector->SetMaxConcurrency(d_actualThreads);
+
+		d_executor.run(d_detector->Taskflow()).wait();
+
+		m.set_quads(d_detector->Readout().quads());
+		m.mutable_tags()->Assign(
+		    d_detector->Readout().tags().cbegin(),
+		    d_detector->Readout().tags().cend()
+		);
 	}
 }
 

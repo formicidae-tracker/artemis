@@ -1,16 +1,15 @@
 #pragma once
 
 #include <apriltag/apriltag.h>
+#include <cstdint>
 #include <fort/hermes/FrameReadout.pb.h>
 
-// convenience header that disable some warnings.
-#include "include_taskflow.hpp" // IWYU pragma: keep
+#include <taskflow/taskflow.hpp>
 
 #include "Options.hpp"
 #include "utils/Partitions.hpp"
 
 #include "Rect.hpp"
-#include <functional>
 
 namespace fort {
 namespace artemis {
@@ -21,21 +20,20 @@ public:
 	    size_t maxParallel, const Size &size, const ApriltagOptions &options
 	);
 
-	void Detect(
-	    const cv::Mat        &mat,
-	    size_t                nThreads,
-	    tf::Executor         &executor,
-	    hermes::FrameReadout &m
-	);
+	tf::Taskflow &Taskflow();
+
+	size_t MaxConcurrency() const;
+	void   SetMaxConcurrency(size_t maxConcurrency);
+	void   SetInput(const image_u8_t *image);
+
+	const hermes::FrameReadout &Readout() const;
 
 private:
+	typedef std::unique_ptr<apriltag_family_t, void (*)(apriltag_family_t *)>
+	    FamilyPtr;
 	typedef std::
-	    unique_ptr<apriltag_family_t, std::function<void(apriltag_family_t *)>>
-	        FamilyPtr;
-	typedef std::unique_ptr<
-	    apriltag_detector_t,
-	    std::function<void(apriltag_detector_t *)>>
-	    DetectorPtr;
+	    unique_ptr<apriltag_detector_t, void (*)(apriltag_detector_t *)>
+	        DetectorPtr;
 
 	static FamilyPtr CreateFamily(tags::Family family);
 	static DetectorPtr
@@ -46,9 +44,8 @@ private:
 	std::tuple<uint32_t, double, double, double>
 	ConvertDetection(const apriltag_detection_t *q, const Rect &roi);
 
-	std::vector<zarray_t *> PartionnedDetection(
-	    const cv::Mat &image, tf::Executor &executor, const Partition &partition
-	);
+	std::vector<zarray_t *>
+	PartionnedDetection(image_u8_t *image, const Partition &partition);
 
 	void MergeDetection(
 	    const std::vector<zarray_t *> detections,
@@ -56,11 +53,19 @@ private:
 	    hermes::FrameReadout         &m
 	);
 
-	std::vector<FamilyPtr>   d_families;
+	using ImageU8Ptr = std::unique_ptr<image_u8_t, void (*)(image_u8_t *)>;
+
+	FamilyPtr                d_family;
 	std::vector<DetectorPtr> d_detectors;
 	std::vector<Partition>   d_partitions;
 
-	double d_minimumDetectionDistanceSquared;
+	const image_u8_t       *d_input;
+	hermes::FrameReadout    d_readout;
+	std::vector<ImageU8Ptr> d_images;
+
+	double                d_minimumDetectionDistanceSquared;
+	std::atomic<uint32_t> d_maximumConcurrency;
+	tf::Taskflow          d_taskflow;
 };
 
 } // namespace artemis
