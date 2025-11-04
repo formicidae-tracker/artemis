@@ -126,12 +126,21 @@ FetchContent_Declare(
 	GIT_TAG 900da61d3cadba86ec593c8226de736b5e6b2c43
 )
 
+FetchContent_Declare(
+	spng
+	GIT_REPOSITORY https://github.com/randy408/libspng.git
+	GIT_TAG v0.7.4
+)
+
 FetchContent_MakeAvailable(
-	fort-charis fort-hermes fort-tags readwriterqueue libyuv
+	fort-charis fort-hermes fort-tags readwriterqueue libyuv spng
 )
 FetchContent_GetProperties(fort-charis)
+FetchContent_GetProperties(libyuv)
 
-find_package(OpenCV REQUIRED core highgui imgproc imgcodecs)
+add_library(libyuv::libyuv ALIAS yuv)
+target_include_directories(yuv INTERFACE ${libyuv_SOURCE_DIR}/include)
+
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
@@ -139,8 +148,7 @@ find_package(Protobuf 3.3.0 REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(
-	${EGRABBER_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS}
-	${PROTOBUF_INCLUDE_DIRS}
+	${EGRABBER_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${PROTOBUF_INCLUDE_DIRS}
 )
 
 set(INSTALL_GTEST Off)

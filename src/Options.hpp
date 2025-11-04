@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Rect.hpp"
 #include <cstdint>
 #include <istream>
 #include <set>
@@ -37,8 +38,8 @@ struct LetoOptions : public options::Group {
 };
 
 struct VideoOutputOptions : public options::Group {
-	std::tuple<size_t, size_t>
-	WorkingResolution(const std::tuple<size_t, size_t> &inputResolution) const;
+	Size WorkingResolution(const std::tuple<size_t, size_t> &inputResolution
+	) const;
 
 	size_t &Height =
 	    AddOption<size_t>("height", "Video output height").SetDefault(1080);

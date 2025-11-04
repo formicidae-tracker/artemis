@@ -1,27 +1,25 @@
 #pragma once
 
-#include <opencv2/core/core.hpp>
-
 #include "FrameGrabber.hpp"
 
 namespace fort {
 namespace artemis {
 
 class StubFrame : public Frame {
-public :
-	StubFrame(const cv::Mat & mat, uint64_t ID);
+public:
+	StubFrame(const ImageU8 &image, uint64_t ID);
 	virtual ~StubFrame();
 
+	virtual void    *Data() override;
+	virtual size_t   Width() const override;
+	virtual size_t   Height() const override;
+	virtual uint64_t Timestamp() const override;
+	virtual uint64_t ID() const override;
+	ImageU8          ToImageU8() override;
 
-	virtual void * Data();
-	virtual size_t Width() const;
-	virtual size_t Height() const;
-	virtual uint64_t Timestamp() const;
-	virtual uint64_t ID() const;
-	const cv::Mat & ToCV();
-private :
+private:
 	uint64_t d_ID;
-	cv::Mat d_mat;
+	ImageU8  d_image;
 };
 
 class StubFrameGrabber : public FrameGrabber {
@@ -41,7 +39,7 @@ public:
 private:
 	typedef std::chrono::high_resolution_clock clock;
 	typedef clock::time_point                  time;
-	std::vector<cv::Mat>                       d_images;
+	std::vector<ImageU8>                       d_images;
 	uint64_t                                   d_ID, d_timestamp;
 	Time                                       d_last;
 	Duration                                   d_period;

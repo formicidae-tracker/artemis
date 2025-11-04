@@ -4,9 +4,7 @@
 
 #include <fort/time/Time.hpp>
 
-#include <opencv2/core.hpp>
-
-#include "Rect.hpp"
+#include "ImageU8.hpp"
 
 namespace fort {
 namespace artemis {
@@ -18,13 +16,13 @@ public:
 	Frame();
 	virtual ~Frame();
 
-	virtual void          *Data()            = 0;
-	virtual size_t         Width() const     = 0;
-	virtual size_t         Height() const    = 0;
-	virtual uint64_t       Timestamp() const = 0;
-	virtual uint64_t       ID() const        = 0;
-	virtual const cv::Mat &ToCV()            = 0;
-	const fort::Time      &Time() const;
+	virtual void     *Data()            = 0;
+	virtual size_t    Width() const     = 0;
+	virtual size_t    Height() const    = 0;
+	virtual uint64_t  Timestamp() const = 0;
+	virtual uint64_t  ID() const        = 0;
+	virtual ImageU8   ToImageU8()       = 0;
+	const fort::Time &Time() const;
 
 private:
 	fort::Time d_time;

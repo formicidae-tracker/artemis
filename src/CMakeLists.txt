@@ -34,6 +34,7 @@ set(SRC_FILES
 	utils/PosixCall.cpp
 	utils/StringManipulation.cpp
 	utils/Partitions.cpp
+	ImageU8.cpp
 	Task.cpp
 	Options.cpp
 	FrameGrabber.cpp
@@ -43,9 +44,7 @@ set(SRC_FILES
 	AcquisitionTask.cpp
 	ProcessFrameTask.cpp
 	ApriltagDetector.cpp
-	FullFrameExportTask.cpp
 	UserInterfaceTask.cpp
-	VideoOutputTask.cpp
 	ImageTextRenderer.cpp
 	ui/UserInterface.cpp
 	ui/StubUserInterface.cpp
@@ -67,15 +66,14 @@ set(HDR_FILES
 	AcquisitionTask.hpp
 	ProcessFrameTask.hpp
 	ApriltagDetector.hpp
-	FullFrameExportTask.hpp
 	UserInterfaceTask.hpp
-	VideoOutputTask.hpp
 	ImageTextRenderer.hpp
 	ui/UserInterface.hpp
 	ui/StubUserInterface.hpp
 	ui/GLUserInterface.hpp
 	Application.hpp
 	Rect.hpp
+	ImageU8.hpp
 )
 
 set(UTEST_SRC_FILES
@@ -127,12 +125,13 @@ target_link_libraries(
 		   fort-charis::libfort-gl
 		   fort-hermes::libfort-hermes
 		   fort-tags::libfort-tags
-		   ${OpenCV_LIBS}
 		   boost_system
 		   "-ldl"
 		   cpptrace::cpptrace
 		   readerwriterqueue
 		   taskflow::taskflow
+		   libyuv::libyuv
+		   spng
 )
 add_executable(artemis main.cpp)
 

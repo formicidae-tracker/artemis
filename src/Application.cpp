@@ -1,7 +1,6 @@
 #include <chrono>
 #include <climits>
 
-#include <atomic>
 #include <cpptrace/utils.hpp>
 #include <ctime>
 #include <execinfo.h>
@@ -15,8 +14,6 @@
 
 #include <Eigen/Core>
 
-#include <opencv2/core.hpp>
-
 #include <slog++/Config.hpp>
 #include <slog++/Level.hpp>
 #include <slog++/TeeSink.hpp>
@@ -26,10 +23,8 @@
 #include <unistd.h>
 
 #include "AcquisitionTask.hpp"
-#include "FullFrameExportTask.hpp"
 #include "ProcessFrameTask.hpp"
-#include "UserInterfaceTask.hpp"
-#include "VideoOutputTask.hpp"
+#include "UserInterfaceTask.hpp" // IWYU pragma: keep
 
 namespace fort {
 namespace artemis {
@@ -223,13 +218,12 @@ void Application::InitGlobalDependencies() {
 	Eigen::initParallel();
 	// reduce the number of threads for OpenCV to allow some room for
 	// other task (Display & IO)
-	auto numThreads = cv::getNumThreads();
+	auto numThreads = std::thread::hardware_concurrency();
 	if (numThreads == 2) {
 		numThreads = 1;
 	} else if (numThreads > 2) {
 		numThreads -= 2;
 	}
-	cv::setNumThreads(numThreads);
 }
 
 Application::Application(const Options &options)
@@ -251,14 +245,6 @@ Application::Application(const Options &options)
 }
 
 void Application::SpawnTasks() {
-	if (d_process->FullFrameExportTask()) {
-		d_threads.push_back(Task::Spawn(*d_process->FullFrameExportTask(), 20));
-	}
-
-	if (d_process->VideoOutputTask()) {
-		d_threads.push_back(Task::Spawn(*d_process->VideoOutputTask(), 0));
-	}
-
 	if (d_process->UserInterfaceTask()) {
 		d_threads.push_back(Task::Spawn(*d_process->UserInterfaceTask(), 1));
 	}

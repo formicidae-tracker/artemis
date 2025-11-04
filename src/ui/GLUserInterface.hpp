@@ -41,13 +41,13 @@ private:
 	struct DrawBuffer {
 		FrameToDisplay   Frame;
 		DataToDisplay    Data;
-		cv::Size         TrackingSize;
+		Size             TrackingSize;
 		bool             FullUploaded;
 		GLuint           PBO;
 		gl::CompiledText Overlay;
 
-		std::unique_ptr<fort::gl::VertexArrayObject>        Points;
-		std::vector<std::tuple<CompiledTextPtr, cv::Point>> Labels;
+		std::unique_ptr<fort::gl::VertexArrayObject>              Points;
+		std::vector<std::tuple<CompiledTextPtr, Eigen::Vector2i>> Labels;
 	};
 
 	void InitGLData();
@@ -82,7 +82,7 @@ private:
 	void DrawPrompt();
 	void DrawIndividualsROI(const DrawBuffer &buffer);
 
-	static void ComputeRectVertices(Eigen::MatrixXf &mat, const cv::Rect &rect);
+	static void ComputeRectVertices(Eigen::MatrixXf &mat, const Rect &rect);
 
 	static void ComputeProjection(const Rect &roi, Eigen::Matrix3f &res);
 	void        UpdateProjections();

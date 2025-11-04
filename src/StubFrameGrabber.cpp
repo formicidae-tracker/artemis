@@ -1,8 +1,7 @@
 #include "StubFrameGrabber.hpp"
+#include "ImageU8.hpp"
 
 #include <thread>
-
-#include <opencv2/highgui/highgui.hpp>
 
 #include <unistd.h>
 
@@ -11,22 +10,22 @@
 namespace fort {
 namespace artemis {
 
-StubFrame::StubFrame(const cv::Mat &mat, uint64_t ID)
+StubFrame::StubFrame(const ImageU8 &image, uint64_t ID)
     : d_ID(ID)
-    , d_mat(mat.clone()) {}
+    , d_image{image} {}
 
 StubFrame::~StubFrame() {}
 
 void *StubFrame::Data() {
-	return d_mat.data;
+	return d_image.buffer;
 }
 
 size_t StubFrame::Width() const {
-	return d_mat.cols;
+	return d_image.width;
 }
 
 size_t StubFrame::Height() const {
-	return d_mat.rows;
+	return d_image.height;
 }
 
 uint64_t StubFrame::Timestamp() const {
@@ -37,8 +36,8 @@ uint64_t StubFrame::ID() const {
 	return d_ID;
 }
 
-const cv::Mat &StubFrame::ToCV() {
-	return d_mat;
+ImageU8 StubFrame::ToImageU8() {
+	return ImageU8{d_image};
 }
 
 StubFrameGrabber::StubFrameGrabber(
@@ -51,11 +50,14 @@ StubFrameGrabber::StubFrameGrabber(
 		throw std::invalid_argument("No paths given to StubFrameGrabber");
 	}
 	for (const auto &p : paths) {
-		d_images.push_back(cv::imread(p, 0));
-		if (d_images.back().data == NULL) {
+
+		// TODO read png
+		d_images.emplace_back(ImageU8::ReadPNG(p));
+		if (d_images.back().buffer == NULL) {
 			throw std::runtime_error("Could not load '" + p + "'");
 		}
-		if (d_images.back().size() != d_images[0].size()) {
+		if (d_images.back().width != d_images[0].width ||
+		    d_images.back().height != d_images[0].height) {
 			throw std::runtime_error(
 			    "'" + paths[0] + "' and '" + p + "' have different sizes"
 			);
@@ -72,7 +74,7 @@ void StubFrameGrabber::Start() {
 void StubFrameGrabber::Stop() {}
 
 Size StubFrameGrabber::Resolution() const {
-	return {d_images.front().size().width, d_images.front().size().height};
+	return {d_images.front().width, d_images.front().height};
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {

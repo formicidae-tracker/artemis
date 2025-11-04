@@ -255,10 +255,10 @@ void GLUserInterface::UpdateFrame(
 	buffer.Frame = frame;
 	buffer.Data  = data;
 	if (!frame.Message) {
-		buffer.TrackingSize = cv::Size(0, 0);
+		buffer.TrackingSize = Size{0, 0};
 	} else {
 		buffer.TrackingSize =
-		    cv::Size(frame.Message->width(), frame.Message->height());
+		    Size{frame.Message->width(), frame.Message->height()};
 	}
 	UploadTexture(buffer);
 	UploadPoints(buffer);
@@ -334,7 +334,7 @@ void GLUserInterface::Draw() {
 }
 
 void GLUserInterface::UploadTexture(DrawBuffer &buffer) {
-	std::shared_ptr<cv::Mat> toUpload = buffer.Frame.Full;
+	std::shared_ptr<ImageU8> toUpload = buffer.Frame.Full;
 	buffer.FullUploaded               = true;
 	if (buffer.Frame.Zoomed && d_ROI == buffer.Frame.CurrentROI) {
 		toUpload            = buffer.Frame.Zoomed;
@@ -345,12 +345,12 @@ void GLUserInterface::UploadTexture(DrawBuffer &buffer) {
 		return;
 	}
 
-	size_t frameSize = toUpload->cols * toUpload->rows;
+	size_t frameSize = toUpload->width * toUpload->stride;
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer.PBO);
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, frameSize, 0, GL_STREAM_DRAW);
 	auto ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
 	if (ptr != nullptr) {
-		memcpy(ptr, toUpload->data, frameSize);
+		memcpy(ptr, toUpload->buffer, frameSize);
 		glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 	}
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -533,7 +533,7 @@ void GLUserInterface::UploadPoints(DrawBuffer &buffer) {
 		points.push_back(t.y());
 		buffer.Labels.emplace_back(std::make_tuple(
 		    d_labelCache(t.id()),
-		    cv::Point{int(t.x()), int(t.y())}
+		    Eigen::Vector2i{int(t.x()), int(t.y())}
 		));
 	}
 	for (const auto nIndex : buffer.Data.NormalIndexes) {
@@ -542,7 +542,7 @@ void GLUserInterface::UploadPoints(DrawBuffer &buffer) {
 		points.push_back(t.y());
 		buffer.Labels.emplace_back(std::make_tuple(
 		    d_labelCache(t.id()),
-		    cv::Point{int(t.x()), int(t.y())}
+		    Eigen::Vector2i{int(t.x()), int(t.y())}
 		));
 	}
 	buffer.Points
@@ -657,8 +657,9 @@ void GLUserInterface::DrawLabels(const DrawBuffer &buffer) {
 	firstLabel->SetBackgroundColor(LABEL_BACKGROUND);
 	constexpr static int OFFSET = 0.4 * NORMAL_POINT_SIZE;
 	for (const auto &[text, pos] : buffer.Labels) {
-		textArgs.Position = Eigen::Vector2f{pos.x + OFFSET, pos.y - OFFSET} -
-		                    d_ROI.TopLeft().cast<float>();
+		textArgs.Position =
+		    Eigen::Vector2f{pos.x() + OFFSET, pos.y() - OFFSET} -
+		    d_ROI.TopLeft().cast<float>();
 		text->Render(textArgs, true);
 	}
 }

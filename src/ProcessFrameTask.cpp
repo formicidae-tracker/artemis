@@ -1,23 +1,30 @@
 #include "ProcessFrameTask.hpp"
 
 #include <cstdint>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
 
+#include <fort/hermes/FrameReadout.pb.h>
 #include <slog++/Attribute.hpp>
 
 #include <artemis-config.h>
+#include <sstream>
 
 #include "ApriltagDetector.hpp"
 #include "Connection.hpp"
-#include "FullFrameExportTask.hpp"
+#include "ImageU8.hpp"
 #include "UserInterfaceTask.hpp"
-#include "VideoOutputTask.hpp"
-
-#include "include_taskflow.hpp"
 
 namespace fort {
 namespace artemis {
+
+Size workingResolution(
+    const Size &windowResolution, const Size &inputResolution
+) {
+	return {
+	    int(inputResolution.width() * float(windowResolution.height()) /
+	        float(inputResolution.height())),
+	    windowResolution.height()
+	};
+}
 
 ProcessFrameTask::ProcessFrameTask(
     const Options           &options,
@@ -25,21 +32,17 @@ ProcessFrameTask::ProcessFrameTask(
     const Size              &inputResolution
 )
     : d_config{options}
-    , d_maximumThreads{size_t(cv::getNumThreads())}
+    , d_maximumThreads{std::thread::hardware_concurrency() > 2 ? std::thread::hardware_concurrency() - 2 : 1}
+    , d_workingResolution{workingResolution({1920, 1080}, inputResolution)}
     , d_executor{d_maximumThreads}
-    , d_logger{slog::With(slog::String("task", "process"))} {
-	d_actualThreads              = d_maximumThreads;
-	const auto workingResolution = options.VideoOutput.WorkingResolution(
-	    {inputResolution.width(), inputResolution.height()}
-	);
-	d_workingResolution =
-	    Size(std::get<0>(workingResolution), std::get<1>(workingResolution));
+    , d_logger{slog::With(slog::String("task", "process"))}
+    , d_current{} {
+	d_actualThreads = d_maximumThreads;
 
 	SetUpDetection(inputResolution, options.Apriltag);
 	SetUpUserInterface(d_workingResolution, inputResolution, options);
 	SetUpVideoOutputTask(options.VideoOutput, context, options.LegacyMode);
 	SetUpCataloguing(options);
-	SetUpPoolObjects();
 	SetUpConnection(options.Leto, context);
 
 	std::string ids, prefix;
@@ -52,18 +55,156 @@ ProcessFrameTask::ProcessFrameTask(
 	    slog::String("IDs", ids),
 	    slog::Int("stride", options.Process.FrameStride)
 	);
+
+	SetUpTaskflow();
 }
 
-VideoOutputTaskPtr ProcessFrameTask::VideoOutputTask() const {
-	return d_videoOutput;
+void ProcessFrameTask::SetUpTaskflow() {
+	d_taskflow.emplace([]() {
+		// TODO send to video output;
+	});
+
+	auto overflowCondition =
+	    d_taskflow.emplace([this]() { return d_frameQueue.peek() != nullptr; }
+	    ).name("overflowCondition");
+
+	auto dropCondition =
+	    d_taskflow
+	        .emplace([this]() { return ShouldProcess(d_current.Frame->ID()); })
+	        .name("dropCondition");
+
+	auto [init, noDetection] = d_taskflow.emplace(
+	    [this]() { d_current.AsImage = d_current.Frame->ToImageU8(); },
+	    []() { return 0; }
+	);
+	init.name("init");
+	noDetection.name("noDetection");
+
+	auto prepare = d_taskflow
+	                   .emplace([this]() {
+		                   d_current.Readout = d_messagePool->Get(
+		                   ); // otherwise we keep the last one.
+		                   PrepareMessage(d_current.Frame, *d_current.Readout);
+		                   d_detector->SetInputOutput(
+		                       d_current.AsImage,
+		                       d_current.Readout.get()
+		                   );
+	                   })
+	                   .name("prepare");
+
+	auto dropFrame = d_taskflow
+	                     .emplace([this]() {
+		                     DropFrame(d_current.Frame);
+		                     return 0;
+	                     })
+	                     .name("drop");
+
+	auto detect = d_taskflow.composed_of(d_detector->Taskflow()).name("detect");
+	auto detectionDone =
+	    d_taskflow.emplace([]() { return 0; }).name("detectionDone");
+
+	init.precede(dropCondition);
+	dropCondition.precede(noDetection, overflowCondition);
+	overflowCondition.precede(prepare, dropFrame);
+	prepare.precede(detect);
+	detect.precede(detectionDone);
+
+	if (d_connection) {
+		auto upstream = d_taskflow.emplace([this]() {
+			Connection::PostMessage(d_connection, *d_current.Readout);
+		});
+		upstream.succeed(detect);
+	}
+
+	if (d_config.NewAntOutputDir.empty() == false) {
+		auto exportFullFrame =
+		    d_taskflow
+		        .emplace([this]() {
+			        if (d_current.Frame->Time().Before(d_nextFrameExport)) {
+				        return;
+			        }
+			        d_detector->SetMaxConcurrency(d_maximumThreads - 1);
+			        d_executor.silent_async([this, frame = d_current.Frame]() {
+				        ExportFullFrame(d_current.Frame);
+				        d_detector->SetMaxConcurrency(d_maximumThreads);
+			        });
+		        })
+		        .name("exportFull");
+		auto catalogAnt =
+		    d_taskflow
+		        .emplace([this](tf::Runtime &rt) {
+			        CatalogAnt(d_current.Frame, d_current.Readout, rt);
+		        })
+		        .name("catalogIndividuals");
+		detect.precede(catalogAnt, exportFullFrame);
+	}
+
+	if (d_userInterface) {
+		auto fullResize = d_taskflow
+		                      .emplace([this]() {
+			                      d_current.Full = d_imagePool->Get(
+			                          d_workingResolution.width(),
+			                          d_workingResolution.height()
+			                      );
+			                      ImageU8::Resize(
+			                          *d_current.Full,
+			                          d_current.AsImage,
+			                          ImageU8::ScaleMode::None
+			                      );
+		                      })
+		                      .name("fullScaleDown");
+		auto zoomResize =
+		    d_taskflow
+		        .emplace([this]() {
+			        d_wantedROI = d_userInterface->UpdateROI(d_wantedROI);
+			        if (d_wantedROI.Size() == d_current.AsImage.Size()) {
+				        d_current.Zoomed = nullptr;
+			        }
+			        d_current.Zoomed = d_imagePool->Get(
+			            d_workingResolution.width(),
+			            d_workingResolution.height()
+			        );
+			        ImageU8::Resize(
+			            *d_current.Zoomed,
+			            ImageU8{d_current.AsImage, d_wantedROI},
+			            ImageU8::ScaleMode::None
+			        );
+		        })
+		        .name("ROIScaleDown");
+
+		auto display = d_taskflow
+		                   .emplace([this]() {
+			                   DisplayFrame(d_current.Frame, d_current.Readout);
+		                   })
+		                   .name("display");
+		init.precede(fullResize, zoomResize);
+		// will only display if the resize are done, or either detection or
+		// noDetection or dropped frame is done.
+		display.succeed(
+		    fullResize,
+		    zoomResize,
+		    detectionDone,
+		    noDetection,
+		    dropFrame
+		);
+	}
+}
+
+void ProcessFrameTask::ExportFullFrame(const Frame::Ptr &frame) {
+	d_nextFrameExport = d_nextFrameExport.Add(d_config.ImageRenewPeriod);
+	std::ostringstream oss;
+	oss << "frame_" << frame->ID() << ".png";
+	auto filepath = d_config.NewAntOutputDir / oss.str();
+	d_logger.Info(
+	    "full frame export",
+	    slog::String("path", filepath.string()),
+	    slog::Int("ID", frame->ID())
+	);
+	frame->ToImageU8().WritePNG(filepath);
 }
 
 UserInterfaceTaskPtr ProcessFrameTask::UserInterfaceTask() const {
 	return d_userInterface;
-}
-
-FullFrameExportTaskPtr ProcessFrameTask::FullFrameExportTask() const {
-	return d_fullFrameExport;
 }
 
 void ProcessFrameTask::SetUpVideoOutputTask(
@@ -74,11 +215,6 @@ void ProcessFrameTask::SetUpVideoOutputTask(
 	if (options.ToStdout == false) {
 		return;
 	}
-	d_videoOutput = std::make_shared<artemis::VideoOutputTask>(
-	    options,
-	    context,
-	    legacyMode
-	);
 }
 
 void ProcessFrameTask::SetUpDetection(
@@ -101,9 +237,6 @@ void ProcessFrameTask::SetUpCataloguing(const Options &options) {
 
 	d_nextAntCatalog  = Time::Now();
 	d_nextFrameExport = d_nextAntCatalog.Add(10 * Duration::Second);
-
-	d_fullFrameExport =
-	    std::make_shared<artemis::FullFrameExportTask>(options.NewAntOutputDir);
 }
 
 void ProcessFrameTask::SetUpConnection(
@@ -134,116 +267,43 @@ void ProcessFrameTask::SetUpUserInterface(
 	d_wantedROI = d_userInterface->DefaultROI();
 }
 
-cv::Mat *ProcessFrameTask::newImage(int rows, int cols, int type) {
-	return new cv::Mat(rows, cols, type);
-}
-
-void ProcessFrameTask::SetUpPoolObjects() {
-	d_grayImagePool->Reserve(
-	    GrayscaleImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	    d_workingResolution.height(),
-	    d_workingResolution.width(),
-	    CV_8UC1
-	);
-
-	d_rgbImagePool->Reserve(
-	    RGBImagePerCycle() * ARTEMIS_FRAME_QUEUE_CAPACITY,
-	    d_workingResolution.height(),
-	    d_workingResolution.width(),
-	    CV_8UC3
-	);
-}
-
 ProcessFrameTask::~ProcessFrameTask() {}
 
 void ProcessFrameTask::TearDown() {
 	if (d_userInterface) {
 		d_userInterface->CloseQueue();
 	}
-
-	if (d_fullFrameExport) {
-		d_fullFrameExport->CloseQueue();
-	}
-
-	if (d_videoOutput) {
-		d_videoOutput->CloseQueue();
-	}
 }
 
 void ProcessFrameTask::Run() {
 	d_logger.Info("started");
-	Frame::Ptr frame;
 	d_frameDropped   = 0;
 	d_frameProcessed = 0;
 	d_start          = Time::Now();
 	for (;;) {
-		d_frameQueue.wait_dequeue(frame);
-		if (!frame) {
+		d_frameQueue.wait_dequeue(d_current.Frame);
+		if (!d_current.Frame) {
 			break;
 		}
-
-		if (d_fullFrameExport && d_fullFrameExport->IsFree()) {
-			d_actualThreads = d_maximumThreads;
-			cv::setNumThreads(d_actualThreads);
-		}
-
-		ProcessFrameMandatory(frame);
-
-		if (d_frameQueue.peek() != nullptr) {
-			if (ShouldProcess(frame->ID()) == true) {
-				DropFrame(frame);
-			}
-			continue;
-		}
-
-		ProcessFrame(frame);
+		d_executor.run(d_taskflow).wait();
+		// release all memory from here.
+		d_current.Frame   = nullptr;
+		d_current.AsImage = ImageU8{};
 	}
 	d_logger.Info("tear down");
 	TearDown();
 	d_logger.Info("end");
 }
 
-void ProcessFrameTask::ProcessFrameMandatory(const Frame::Ptr &frame) {
-	if (!d_videoOutput && !d_userInterface) {
-		return;
-	}
-	d_downscaled = d_grayImagePool->Get(
-	    d_workingResolution.height(),
-	    d_workingResolution.width(),
-	    CV_8UC1
-	);
-	cv::resize(
-	    frame->ToCV(),
-	    *d_downscaled,
-	    {d_workingResolution.width(), d_workingResolution.height()},
-	    0,
-	    0,
-	    cv::INTER_NEAREST
-	);
-
-	if (d_videoOutput) {
-		auto converted = d_rgbImagePool->Get(
-		    d_workingResolution.height(),
-		    d_workingResolution.width(),
-		    CV_8UC3
-		);
-		cv::cvtColor(*d_downscaled, *converted, cv::COLOR_GRAY2RGB);
-		d_videoOutput
-		    ->QueueFrame(std::move(converted), frame->Time(), frame->ID());
-	}
-
-	// user interface communication will happen after in DisplayFrame.
-}
-
 void ProcessFrameTask::DropFrame(const Frame::Ptr &frame) {
 	++d_frameDropped;
 	d_logger.Warn(
 	    "frame dropped due to over-processing",
-	    slog::Int("total_dropped", d_frameDropped),
+	    slog::Int("total_dropped", d_frameDropped.load()),
 	    slog::Float(
 	        "percent_dropped",
-	        100.0 * float(d_frameDropped) /
-	            float(d_frameDropped + d_frameProcessed)
+	        100.0 * float(d_frameDropped.load()) /
+	            float(d_frameDropped.load() + d_frameProcessed.load())
 	    )
 	);
 
@@ -251,42 +311,26 @@ void ProcessFrameTask::DropFrame(const Frame::Ptr &frame) {
 		return;
 	}
 
-	auto m = PrepareMessage(frame);
-	m->set_error(hermes::FrameReadout::PROCESS_OVERFLOW);
+	d_current.Readout = d_messagePool->Get();
 
-	Connection::PostMessage(d_connection, *m);
+	PrepareMessage(frame, *d_current.Readout);
+	d_current.Readout->set_error(hermes::FrameReadout::PROCESS_OVERFLOW);
+
+	Connection::PostMessage(d_connection, *d_current.Readout);
 }
 
-void ProcessFrameTask::ProcessFrame(const Frame::Ptr &frame) {
-	auto m = PrepareMessage(frame);
+void ProcessFrameTask::ProcessFrame(const Frame::Ptr &frame) {}
 
-	if (ShouldProcess(frame->ID()) == true) {
-		Detect(frame, *m);
-		if (d_connection) {
-			Connection::PostMessage(d_connection, *m);
-		}
-
-		CatalogAnt(frame, *m);
-
-		ExportFullFrame(frame);
-
-		++d_frameProcessed;
-	}
-
-	DisplayFrame(frame, m);
-}
-
-std::shared_ptr<hermes::FrameReadout>
-ProcessFrameTask::PrepareMessage(const Frame::Ptr &frame) {
-	auto m = d_messagePool->Get();
-	m->Clear();
-	m->set_timestamp(frame->Timestamp());
-	m->set_frameid(frame->ID());
-	frame->Time().ToTimestamp(m->mutable_time());
-	m->set_producer_uuid(d_config.UUID);
-	m->set_width(frame->Width());
-	m->set_height(frame->Height());
-	return m;
+void ProcessFrameTask::PrepareMessage(
+    const Frame::Ptr &frame, hermes::FrameReadout &m
+) {
+	m.Clear();
+	m.set_timestamp(frame->Timestamp());
+	m.set_frameid(frame->ID());
+	frame->Time().ToTimestamp(m.mutable_time());
+	m.set_producer_uuid(d_config.UUID);
+	m.set_width(frame->Width());
+	m.set_height(frame->Height());
 }
 
 bool ProcessFrameTask::ShouldProcess(uint64_t ID) {
@@ -304,39 +348,8 @@ void ProcessFrameTask::CloseFrameQueue() {
 	d_frameQueue.enqueue(nullptr);
 }
 
-void ProcessFrameTask::Detect(
-    const Frame::Ptr &frame, hermes::FrameReadout &m
-) {
-	if (d_detector) {
-		image_u8_t input{
-		    .width  = int32_t(frame->Width()),
-		    .height = int32_t(frame->Height()),
-		    .stride = int32_t(frame->Width()),
-		    .buf    = (uint8_t *)frame->Data()
-		};
-
-		d_detector->SetInputOutput(&input, &m);
-		d_detector->SetMaxConcurrency(d_actualThreads);
-
-		d_executor.run(d_detector->Taskflow()).wait();
-	}
-}
-
-void ProcessFrameTask::ExportFullFrame(const Frame::Ptr &frame) {
-	if (!d_fullFrameExport || frame->Time().Before(d_nextFrameExport)) {
-		return;
-	}
-
-	if (d_fullFrameExport->QueueExport(frame) == false) {
-		return;
-	}
-	d_actualThreads = d_maximumThreads - 1;
-	cv::setNumThreads(d_actualThreads);
-	d_nextFrameExport = frame->Time().Add(d_config.ImageRenewPeriod);
-}
-
 void ProcessFrameTask::CatalogAnt(
-    const Frame::Ptr &frame, const hermes::FrameReadout &m
+    Frame::Ptr frame, std::shared_ptr<hermes::FrameReadout> m, tf::Runtime &rt
 ) {
 	if (d_config.NewAntOutputDir.empty()) {
 		return;
@@ -344,13 +357,20 @@ void ProcessFrameTask::CatalogAnt(
 
 	ResetExportedID(frame->Time());
 
-	auto         toExport = FindUnexportedID(m);
-	tf::Taskflow taskflow;
-	taskflow.for_each_index(0, toExport.size(), 1, [&](size_t index) {
-		const auto &[tagID, x, y] = toExport[index];
-		ExportROI(frame->ToCV(), frame->ID(), tagID, x, y);
-	});
-	d_executor.run(taskflow).wait();
+	auto toExport = FindUnexportedID(*m);
+
+	for (auto [tagID, x, y] : toExport) {
+		rt.silent_async([image   = frame->ToImageU8(),
+		                 frameID = frame->ID(),
+		                 tagID,
+		                 x,
+		                 y,
+		                 this]() {
+			this->ExportROI(image, frameID, tagID, x, y);
+		});
+	}
+	rt.corun();
+
 	for (const auto &[tagID, x, y] : toExport) {
 		d_exportedID.insert(tagID);
 	}
@@ -379,63 +399,26 @@ ProcessFrameTask::FindUnexportedID(const hermes::FrameReadout &m) {
 }
 
 void ProcessFrameTask::ExportROI(
-    const cv::Mat &image, uint64_t frameID, uint32_t tagID, double x, double y
+    const ImageU8 &image, uint64_t frameID, uint32_t tagID, double x, double y
 ) {
-
 	std::ostringstream oss;
-	oss << d_config.NewAntOutputDir << "/ant_" << tagID << "_" << frameID
-	    << ".png";
+	oss << "ant" << tagID << "_" << frameID << ".png";
 
 	auto roi = GetROICenteredAt(
 	    {int(x), int(y)},
 	    Size(d_config.NewAntROISize, d_config.NewAntROISize),
-	    {image.size().width, image.size().height}
+	    {image.width, image.height}
 	);
-
-	cv::imwrite(
-	    oss.str(),
-	    cv::Mat(
-	        image,
-	        {cv::Point{roi.x(), roi.y()}, cv::Size{roi.width(), roi.height()}}
-	    )
-	);
+	ImageU8(image, roi).WritePNG(d_config.NewAntOutputDir / oss.str());
 }
 
 void ProcessFrameTask::DisplayFrame(
-    const Frame::Ptr frame, const std::shared_ptr<hermes::FrameReadout> &m
+    const Frame::Ptr &frame, const std::shared_ptr<hermes::FrameReadout> &m
 ) {
 
-	d_wantedROI = d_userInterface->UpdateROI(d_wantedROI);
-
-	std::shared_ptr<cv::Mat> zoomed;
-
-	auto frameSize = frame->ToCV().size();
-
-	if (d_wantedROI.Size() != Size{frameSize.width, frameSize.height}) {
-		zoomed = d_grayImagePool->Get(
-		    d_workingResolution.height(),
-		    d_workingResolution.width(),
-		    CV_8UC1
-		);
-		cv::resize(
-		    cv::Mat(
-		        frame->ToCV(),
-		        {
-		            cv::Point{d_wantedROI.x(), d_wantedROI.y()},
-		            cv::Size{d_wantedROI.width(), d_wantedROI.height()},
-		        }
-		    ),
-		    *zoomed,
-		    {d_workingResolution.width(), d_workingResolution.height()},
-		    0,
-		    0,
-		    cv::INTER_NEAREST
-		);
-	}
-
 	UserInterface::FrameToDisplay toDisplay = {
-	    .Full                 = d_downscaled,
-	    .Zoomed               = zoomed,
+	    .Full                 = std::move(d_current.Full),
+	    .Zoomed               = std::move(d_current.Zoomed),
 	    .Message              = m,
 	    .CurrentROI           = d_wantedROI,
 	    .FrameTime            = frame->Time(),
@@ -446,29 +429,7 @@ void ProcessFrameTask::DisplayFrame(
 	    .VideoOutputDropped   = -1UL,
 	};
 
-	if (d_videoOutput != nullptr) {
-		toDisplay.VideoOutputProcessed = d_videoOutput->FrameProcessed();
-		toDisplay.VideoOutputDropped   = d_videoOutput->FrameDropped();
-	}
-
 	d_userInterface->QueueFrame(toDisplay);
-}
-
-size_t ProcessFrameTask::RGBImagePerCycle() const {
-	if (d_videoOutput) {
-		return 1;
-	}
-	return 0;
-}
-
-size_t ProcessFrameTask::GrayscaleImagePerCycle() const {
-	if (!d_videoOutput && !d_userInterface) {
-		return 0;
-	}
-	if (d_userInterface) {
-		return 2;
-	}
-	return 1;
 }
 
 double ProcessFrameTask::CurrentFPS(const Time &time) {

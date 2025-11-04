@@ -5,8 +5,7 @@
 #include "../Options.hpp"
 #include "../Rect.hpp"
 
-#include <opencv2/opencv.hpp>
-
+#include "ImageU8.hpp"
 #include "readerwriterqueue.h"
 
 #include <fort/hermes/FrameReadout.pb.h>
@@ -28,7 +27,7 @@ public:
 	};
 
 	struct FrameToDisplay {
-		std::shared_ptr<cv::Mat>              Full, Zoomed;
+		std::shared_ptr<ImageU8>              Full, Zoomed;
 		std::shared_ptr<hermes::FrameReadout> Message;
 
 		Rect CurrentROI;
@@ -42,8 +41,8 @@ public:
 		size_t VideoOutputDropped;
 	};
 
-	typedef moodycamel::ReaderWriterQueue<Rect>     ROIChannel;
-	typedef std::shared_ptr<ROIChannel>             ROIChannelPtr;
+	typedef moodycamel::ReaderWriterQueue<Rect> ROIChannel;
+	typedef std::shared_ptr<ROIChannel>         ROIChannelPtr;
 
 	UserInterface(
 	    const Size                   &workingResolution,
