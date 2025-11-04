@@ -7,6 +7,7 @@
 #include <taskflow/taskflow.hpp>
 
 #include "Options.hpp"
+
 #include "utils/Partitions.hpp"
 
 #include "Rect.hpp"
@@ -24,9 +25,7 @@ public:
 
 	size_t MaxConcurrency() const;
 	void   SetMaxConcurrency(size_t maxConcurrency);
-	void   SetInput(const image_u8_t *image);
-
-	const hermes::FrameReadout &Readout() const;
+	void SetInputOutput(const image_u8_t *image, hermes::FrameReadout *readout);
 
 private:
 	typedef std::unique_ptr<apriltag_family_t, void (*)(apriltag_family_t *)>
@@ -53,6 +52,8 @@ private:
 	    hermes::FrameReadout         &m
 	);
 
+	void Detect(tf::Runtime &tf);
+
 	using ImageU8Ptr = std::unique_ptr<image_u8_t, void (*)(image_u8_t *)>;
 
 	FamilyPtr                d_family;
@@ -60,7 +61,7 @@ private:
 	std::vector<Partition>   d_partitions;
 
 	const image_u8_t       *d_input;
-	hermes::FrameReadout    d_readout;
+	hermes::FrameReadout   *d_readout = nullptr;
 	std::vector<ImageU8Ptr> d_images;
 
 	double                d_minimumDetectionDistanceSquared;

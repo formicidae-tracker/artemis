@@ -16,6 +16,7 @@
 #include <apriltag/tagStandard52h13.h>
 #include <chrono>
 #include <cstdint>
+#include <fort/hermes/FrameReadout.pb.h>
 #include <fort/tags/fort-tags.hpp>
 #include <fort/tags/tag36ARTag.h>
 #include <fort/tags/tag36h10.h>
@@ -26,6 +27,8 @@
 #include <slog++/slog++.hpp>
 #include <stdexcept>
 #include <thread>
+
+#include <opencv2/opencv.hpp>
 
 namespace fort {
 namespace artemis {
@@ -128,6 +131,7 @@ ApriltagDetector::ApriltagDetector(
 
 		d_detectors.push_back(std::move(CreateDetector(options, d_family.get()))
 		);
+
 		Partition partition;
 		PartitionRectangle(Rect{{0, 0}, size}, i + 1, partition);
 		AddMargin(size, 75, partition);
@@ -137,201 +141,259 @@ ApriltagDetector::ApriltagDetector(
 		d_partitions.push_back(partition);
 	}
 
-	d_taskflow.emplace([this](tf::Runtime &rt) {
-		const size_t            task_size  = d_maximumConcurrency.load();
-		const auto             &partitions = d_partitions[task_size - 1];
-		std::vector<zarray_t *> detections{task_size, nullptr};
+	d_taskflow.emplace([this](tf::Runtime &rt) { Detect(rt); });
+}
+
+    void ApriltagDetector::Detect(tf::Runtime & rt) {
+		static std::vector<std::chrono::microseconds> ellapsed{
+		    d_maximumConcurrency.load() * 64,
+		    std::chrono::microseconds{0}
+		};
+		static std::atomic<size_t> current{0};
+		const size_t               task_size  = d_maximumConcurrency.load();
+		const auto                &partitions = d_partitions[task_size - 1];
+		std::vector<zarray_t *>    detections{task_size, nullptr};
+		if (d_input == nullptr || d_readout == nullptr) {
+			slog::Warn("no data");
+			return;
+		}
+		cv::Mat input{
+		    d_input->height,
+		    d_input->width,
+		    CV_8UC1,
+		    d_input->buf,
+		    size_t(d_input->stride),
+		};
 
 		for (size_t i = 0; i < task_size; ++i) {
-			rt.silent_async([&partitions, i, this, &detections]() {
-				try {
-					auto img = image_u8_copy_ROI_from_buf(
-					    *d_images[i],
-					    *d_input,
-					    partitions[i]
-					);
-					detections[i] =
-					    apriltag_detector_detect(d_detectors[i].get(), &img);
+			rt.silent_async(
+			    [partition = partitions[i], i, this, &detections, &input]() {
+				    auto     start = std::chrono::steady_clock::now();
+				    cv::Rect roi{
+				        cv::Point(partition.x(), partition.y()),
+				        cv::Size(partition.width(), partition.height())
+				    };
+				    cv::Mat    img_ = cv::Mat(input, roi).clone();
+				    image_u8_t img{
+				        .width  = img_.cols,
+				        .height = img_.rows,
+				        .stride = int32_t(img_.step),
+				        .buf    = img_.data
+				    };
+				    detections[i] =
+				        apriltag_detector_detect(d_detectors[i].get(), &img);
 
-				} catch (const std::exception &e) {
-					slog::Error(
-					    "apriltag error",
-					    slog::Err(e),
-					    slog::Int("i", i)
-					);
-				}
-			});
+				    auto   end   = std::chrono::steady_clock::now();
+				    size_t index = current.fetch_add(1);
+				    while (index >= ellapsed.size()) {
+					    index -= ellapsed.size();
+				    }
+				    ellapsed[index] =
+				        std::chrono::duration_cast<std::chrono::microseconds>(
+				            end - start
+				        );
+			    }
+			);
 		}
+
 		rt.corun();
-		d_readout.clear_tags();
+
+		while (current.load() >= ellapsed.size()) {
+			current.fetch_add(-ellapsed.size());
+		}
+		if (current.load() == 0) {
+			float min  = 1.0e12;
+			float max  = 0.0f;
+			float mean = 0.0f;
+			for (auto e : ellapsed) {
+				min = std::min(min, float(e.count()));
+				max = std::max(max, float(e.count()));
+				mean += e.count();
+			}
+			mean /= ellapsed.size();
+			slog::Info(
+			    "duration",
+			    slog::Float("min", min / 1000.0),
+			    slog::Float("max", max / 1000.0),
+			    slog::Float("mean", mean / 1000.0f)
+			);
+		}
+		d_readout->clear_tags();
 		uint32_t quads{0};
-		MergeDetection(detections, partitions, d_readout);
+		MergeDetection(detections, partitions, *d_readout);
 		for (size_t i = 0; i < task_size; ++i) {
 			quads += d_detectors[i]->nquads;
 		}
 
-		d_readout.set_quads(quads);
+		d_readout->set_quads(quads);
 
 		for (auto d : detections) {
 			if (d != nullptr) {
 				apriltag_detections_destroy(d);
 			}
 		}
-	});
-}
-
-size_t ApriltagDetector::MaxConcurrency() const {
-	return d_maximumConcurrency.load();
-}
-
-void ApriltagDetector::SetMaxConcurrency(size_t maxConcurrency) {
-	d_maximumConcurrency.store(
-	    std::clamp(maxConcurrency, size_t(1U), d_images.size())
-	);
-}
-
-tf::Taskflow &ApriltagDetector::Taskflow() {
-	return d_taskflow;
-}
-
-double ApriltagDetector::ComputeAngleFromCorner(const apriltag_detection_t *q) {
-
-	Eigen::Vector2d c0(q->p[0][0], q->p[0][1]);
-	Eigen::Vector2d c1(q->p[1][0], q->p[1][1]);
-	Eigen::Vector2d c2(q->p[2][0], q->p[2][1]);
-	Eigen::Vector2d c3(q->p[3][0], q->p[3][1]);
-
-	Eigen::Vector2d delta = (c1 + c2) / 2.0 - (c0 + c3) / 2.0;
-
-	return atan2(delta.y(), delta.x());
-}
-
-std::tuple<uint32_t, double, double, double> ApriltagDetector::ConvertDetection(
-    const apriltag_detection_t *q, const Rect &roi
-) {
-	return {
-	    q->id,
-	    q->c[0] + roi.x(),
-	    q->c[1] + roi.y(),
-	    ComputeAngleFromCorner(q)
-	};
-}
-
-void ApriltagDetector::MergeDetection(
-    const std::vector<zarray_t *> detections,
-    const Partition              &partition,
-    hermes::FrameReadout         &m
-) {
-	typedef std::
-	    vector<Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vector2d>>
-	        Vector2dList;
-
-	typedef std::map<
-	    uint32_t,
-	    Vector2dList,
-	    std::less<uint32_t>,
-	    Eigen::aligned_allocator<std::pair<const uint32_t, Vector2dList>>>
-	    MapOfPoints;
-
-	MapOfPoints points;
-
-	apriltag_detection_t *q;
-	size_t                i = -1;
-	for (const auto &localDetections : detections) {
-		const auto &roi = partition[++i];
-		for (int j = 0; j < zarray_size(localDetections); ++j) {
-			zarray_get(localDetections, j, &q);
-			const auto &[tagID, x, y, angle] = ConvertDetection(q, roi);
-			Eigen::Vector2d currentPoint{x, y};
-			auto            fi = std::find_if(
-                points[tagID].cbegin(),
-                points[tagID].cend(),
-                [this, &currentPoint](const Eigen::Vector2d &p) {
-                    return (currentPoint - p).squaredNorm() <
-                           d_minimumDetectionDistanceSquared;
-                }
-            );
-			if (fi != points[tagID].cend()) {
-				continue;
-			}
-			points[tagID].push_back(currentPoint);
-
-			auto t = m.add_tags();
-			t->set_id(tagID);
-			t->set_x(x);
-			t->set_y(y);
-			t->set_theta(angle);
-		}
-	}
-}
-
-ApriltagDetector::FamilyPtr ApriltagDetector::CreateFamily(tags::Family family
-) {
-	typedef apriltag_family_t *(*FamilyConstructor)();
-	typedef void (*FamilyDestructor)(apriltag_family_t *);
-
-	static std::
-	    map<tags::Family, std::tuple<FamilyConstructor, FamilyDestructor>>
-	        families = {
-	            {tags::Family::Tag16h5, {tag16h5_create, tag16h5_destroy}},
-	            {tags::Family::Tag25h9, {tag25h9_create, tag25h9_destroy}},
-	            {tags::Family::Tag36h10, {tag36h10_create, tag36h10_destroy}},
-	            {tags::Family::Tag36h11, {tag36h11_create, tag36h11_destroy}},
-	            {tags::Family::Tag36ARTag,
-	             {tag36ARTag_create, tag36ARTag_destroy}},
-	            {tags::Family::Circle21h7,
-	             {tagCircle21h7_create, tagCircle21h7_destroy}},
-	            {tags::Family::Circle49h12,
-	             {tagCircle49h12_create, tagCircle49h12_destroy}},
-	            {tags::Family::Custom48h12,
-	             {tagCustom48h12_create, tagCustom48h12_destroy}},
-	            {tags::Family::Standard41h12,
-	             {tagStandard41h12_create, tagStandard41h12_destroy}},
-	            {tags::Family::Standard52h13,
-	             {tagStandard52h13_create, tagStandard52h13_destroy}},
-	        };
-
-	if (family == tags::Family::Undefined) {
-		throw std::invalid_argument("Family is not defined");
 	}
 
-	if (families.count(family) == 0) {
-		throw std::runtime_error(
-		    "Unknown fort::tags::Family(" + std::to_string(int(family)) + ")"
+	size_t ApriltagDetector::MaxConcurrency() const {
+		return d_maximumConcurrency.load();
+	}
+
+	void ApriltagDetector::SetMaxConcurrency(size_t maxConcurrency) {
+		d_maximumConcurrency.store(
+		    std::clamp(maxConcurrency, size_t(1U), d_images.size())
 		);
 	}
-	const auto &f = families.at(family);
 
-	return {std::get<0>(f)(), std::get<1>(f)};
-}
+	tf::Taskflow &ApriltagDetector::Taskflow() {
+		return d_taskflow;
+	}
 
-ApriltagDetector::DetectorPtr ApriltagDetector::CreateDetector(
-    const ApriltagOptions &options, apriltag_family_t *family
-) {
-	auto d = apriltag_detector_create();
-	apriltag_detector_add_family(d, family);
-	d->nthreads                 = 1;
-	d->quad_decimate            = options.QuadDecimate;
-	d->quad_sigma               = options.QuadSigma;
-	d->refine_edges             = options.RefineEdges ? 1 : 0;
-	d->debug                    = false;
-	d->qtp.min_cluster_pixels   = options.QuadMinClusterPixel;
-	d->qtp.max_nmaxima          = options.QuadMaxNMaxima;
-	d->qtp.critical_rad         = options.QuadCriticalRadian;
-	d->qtp.max_line_fit_mse     = options.QuadMaxLineMSE;
-	d->qtp.min_white_black_diff = options.QuadMinBWDiff;
-	d->qtp.deglitch             = options.QuadDeglitch ? 1 : 0;
+	double ApriltagDetector::ComputeAngleFromCorner(
+	    const apriltag_detection_t *q
+	) {
 
-	return DetectorPtr(d, apriltag_detector_destroy);
-}
+		Eigen::Vector2d c0(q->p[0][0], q->p[0][1]);
+		Eigen::Vector2d c1(q->p[1][0], q->p[1][1]);
+		Eigen::Vector2d c2(q->p[2][0], q->p[2][1]);
+		Eigen::Vector2d c3(q->p[3][0], q->p[3][1]);
 
-void ApriltagDetector::SetInput(const image_u8_t *image) {
-	d_input = image;
-}
+		Eigen::Vector2d delta = (c1 + c2) / 2.0 - (c0 + c3) / 2.0;
 
-const hermes::FrameReadout &ApriltagDetector::Readout() const {
-	return d_readout;
-}
+		return atan2(delta.y(), delta.x());
+	}
+
+	std::tuple<uint32_t, double, double, double>
+	ApriltagDetector::ConvertDetection(
+	    const apriltag_detection_t *q,
+	    const Rect                 &roi
+	) {
+		return {
+		    q->id,
+		    q->c[0] + roi.x(),
+		    q->c[1] + roi.y(),
+		    ComputeAngleFromCorner(q)
+		};
+	}
+
+	void ApriltagDetector::MergeDetection(
+	    const std::vector<zarray_t *> detections,
+	    const Partition              &partition,
+	    hermes::FrameReadout         &m
+	) {
+		typedef std::
+		    vector<Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vector2d>>
+		        Vector2dList;
+
+		typedef std::map<
+		    uint32_t,
+		    Vector2dList,
+		    std::less<uint32_t>,
+		    Eigen::aligned_allocator<std::pair<const uint32_t, Vector2dList>>>
+		    MapOfPoints;
+
+		MapOfPoints points;
+
+		apriltag_detection_t *q;
+		size_t                i = -1;
+		for (const auto &localDetections : detections) {
+			const auto &roi = partition[++i];
+			for (int j = 0; j < zarray_size(localDetections); ++j) {
+				zarray_get(localDetections, j, &q);
+				const auto &[tagID, x, y, angle] = ConvertDetection(q, roi);
+				Eigen::Vector2d currentPoint{x, y};
+				auto            fi = std::find_if(
+                    points[tagID].cbegin(),
+                    points[tagID].cend(),
+                    [this, &currentPoint](const Eigen::Vector2d &p) {
+                        return (currentPoint - p).squaredNorm() <
+                               d_minimumDetectionDistanceSquared;
+                    }
+                );
+				if (fi != points[tagID].cend()) {
+					continue;
+				}
+				points[tagID].push_back(currentPoint);
+
+				auto t = m.add_tags();
+				t->set_id(tagID);
+				t->set_x(x);
+				t->set_y(y);
+				t->set_theta(angle);
+			}
+		}
+	}
+
+	ApriltagDetector::FamilyPtr ApriltagDetector::CreateFamily(
+	    tags::Family family
+	) {
+		typedef apriltag_family_t *(*FamilyConstructor)();
+		typedef void (*FamilyDestructor)(apriltag_family_t *);
+
+		static std::map<
+		    tags::Family,
+		    std::tuple<FamilyConstructor, FamilyDestructor>>
+		    families = {
+		        {tags::Family::Tag16h5, {tag16h5_create, tag16h5_destroy}},
+		        {tags::Family::Tag25h9, {tag25h9_create, tag25h9_destroy}},
+		        {tags::Family::Tag36h10, {tag36h10_create, tag36h10_destroy}},
+		        {tags::Family::Tag36h11, {tag36h11_create, tag36h11_destroy}},
+		        {tags::Family::Tag36ARTag,
+		         {tag36ARTag_create, tag36ARTag_destroy}},
+		        {tags::Family::Circle21h7,
+		         {tagCircle21h7_create, tagCircle21h7_destroy}},
+		        {tags::Family::Circle49h12,
+		         {tagCircle49h12_create, tagCircle49h12_destroy}},
+		        {tags::Family::Custom48h12,
+		         {tagCustom48h12_create, tagCustom48h12_destroy}},
+		        {tags::Family::Standard41h12,
+		         {tagStandard41h12_create, tagStandard41h12_destroy}},
+		        {tags::Family::Standard52h13,
+		         {tagStandard52h13_create, tagStandard52h13_destroy}},
+		    };
+
+		if (family == tags::Family::Undefined) {
+			throw std::invalid_argument("Family is not defined");
+		}
+
+		if (families.count(family) == 0) {
+			throw std::runtime_error(
+			    "Unknown fort::tags::Family(" + std::to_string(int(family)) +
+			    ")"
+			);
+		}
+		const auto &f = families.at(family);
+
+		return {std::get<0>(f)(), std::get<1>(f)};
+	}
+
+	ApriltagDetector::DetectorPtr ApriltagDetector::CreateDetector(
+	    const ApriltagOptions &options,
+	    apriltag_family_t     *family
+	) {
+		auto d = apriltag_detector_create();
+		apriltag_detector_add_family(d, family);
+		d->nthreads                 = 1;
+		d->quad_decimate            = options.QuadDecimate;
+		d->quad_sigma               = options.QuadSigma;
+		d->refine_edges             = options.RefineEdges ? 1 : 0;
+		d->debug                    = false;
+		d->qtp.min_cluster_pixels   = options.QuadMinClusterPixel;
+		d->qtp.max_nmaxima          = options.QuadMaxNMaxima;
+		d->qtp.critical_rad         = options.QuadCriticalRadian;
+		d->qtp.max_line_fit_mse     = options.QuadMaxLineMSE;
+		d->qtp.min_white_black_diff = options.QuadMinBWDiff;
+		d->qtp.deglitch             = options.QuadDeglitch ? 1 : 0;
+
+		return DetectorPtr(d, apriltag_detector_destroy);
+	}
+
+	void ApriltagDetector::SetInputOutput(
+	    const image_u8_t     *image,
+	    hermes::FrameReadout *readout
+	) {
+		d_input   = image;
+		d_readout = readout;
+	}
 
 } // namespace artemis
 } // namespace fort

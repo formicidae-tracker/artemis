@@ -311,20 +311,14 @@ void ProcessFrameTask::Detect(
 		image_u8_t input{
 		    .width  = int32_t(frame->Width()),
 		    .height = int32_t(frame->Height()),
-		    .stride = int32_t(frame->Height()),
+		    .stride = int32_t(frame->Width()),
 		    .buf    = (uint8_t *)frame->Data()
 		};
 
-		d_detector->SetInput(&input);
+		d_detector->SetInputOutput(&input, &m);
 		d_detector->SetMaxConcurrency(d_actualThreads);
 
 		d_executor.run(d_detector->Taskflow()).wait();
-
-		m.set_quads(d_detector->Readout().quads());
-		m.mutable_tags()->Assign(
-		    d_detector->Readout().tags().cbegin(),
-		    d_detector->Readout().tags().cend()
-		);
 	}
 }
 
