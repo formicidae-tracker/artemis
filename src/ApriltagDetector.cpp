@@ -62,7 +62,7 @@ allocNewImage(const Size &size) {
 	);
 }
 
-void image_u8_cpy(image_u8_t &dst, const image_u8_t &src) {
+void image_u8_cpy(image_u8_t &dst, const image_u8_t &src, tf::Runtime &rt) {
 	if (dst.width != src.width || dst.height != src.height) {
 		throw std::invalid_argument{"Size must match"};
 	}
@@ -72,11 +72,13 @@ void image_u8_cpy(image_u8_t &dst, const image_u8_t &src) {
 	}
 
 	for (int32_t i = 0; i < src.height; ++i) {
-		memcpy(
-		    &dst.buf[i * dst.stride],
-		    &src.buf[i * src.stride],
-		    std::min(dst.stride, src.stride) * sizeof(uint8_t)
-		);
+		rt.silent_async([i, dst, src]() {
+			memcpy(
+			    &dst.buf[i * dst.stride],
+			    &src.buf[i * src.stride],
+			    std::min(dst.stride, src.stride) * sizeof(uint8_t)
+			);
+		});
 	}
 }
 
@@ -95,7 +97,10 @@ image_u8_t image_u8_get_ROI(const image_u8_t &src, const Rect &ROI) {
 }
 
 image_u8_t image_u8_copy_ROI_from_buf(
-    const image_u8_t &buffer, const image_u8_t &src, const Rect &ROI
+    const image_u8_t &buffer,
+    const image_u8_t &src,
+    const Rect       &ROI,
+    tf::Runtime      &rt
 ) {
 	image_u8_t res = {
 	    .width  = ROI.width(),
@@ -112,7 +117,7 @@ image_u8_t image_u8_copy_ROI_from_buf(
 		    " available: " + std::to_string(available) + ")"
 		);
 	}
-	image_u8_cpy(res, image_u8_get_ROI(src, ROI));
+	image_u8_cpy(res, image_u8_get_ROI(src, ROI), rt);
 	return res;
 }
 
@@ -144,97 +149,60 @@ ApriltagDetector::ApriltagDetector(
 	d_taskflow.emplace([this](tf::Runtime &rt) { Detect(rt); });
 }
 
-    void ApriltagDetector::Detect(tf::Runtime & rt) {
-		static std::vector<std::chrono::microseconds> ellapsed{
-		    d_maximumConcurrency.load() * 64,
-		    std::chrono::microseconds{0}
-		};
-		static std::atomic<size_t> current{0};
-		const size_t               task_size  = d_maximumConcurrency.load();
-		const auto                &partitions = d_partitions[task_size - 1];
-		std::vector<zarray_t *>    detections{task_size, nullptr};
-		if (d_input == nullptr || d_readout == nullptr) {
-			slog::Warn("no data");
-			return;
-		}
-		cv::Mat input{
-		    d_input->height,
-		    d_input->width,
-		    CV_8UC1,
-		    d_input->buf,
-		    size_t(d_input->stride),
-		};
-
-		for (size_t i = 0; i < task_size; ++i) {
-			rt.silent_async(
-			    [partition = partitions[i], i, this, &detections, &input]() {
-				    auto     start = std::chrono::steady_clock::now();
-				    cv::Rect roi{
-				        cv::Point(partition.x(), partition.y()),
-				        cv::Size(partition.width(), partition.height())
-				    };
-				    cv::Mat    img_ = cv::Mat(input, roi).clone();
-				    image_u8_t img{
-				        .width  = img_.cols,
-				        .height = img_.rows,
-				        .stride = int32_t(img_.step),
-				        .buf    = img_.data
-				    };
-				    detections[i] =
-				        apriltag_detector_detect(d_detectors[i].get(), &img);
-
-				    auto   end   = std::chrono::steady_clock::now();
-				    size_t index = current.fetch_add(1);
-				    while (index >= ellapsed.size()) {
-					    index -= ellapsed.size();
-				    }
-				    ellapsed[index] =
-				        std::chrono::duration_cast<std::chrono::microseconds>(
-				            end - start
-				        );
-			    }
-			);
-		}
-
-		rt.corun();
-
-		while (current.load() >= ellapsed.size()) {
-			current.fetch_add(-ellapsed.size());
-		}
-		if (current.load() == 0) {
-			float min  = 1.0e12;
-			float max  = 0.0f;
-			float mean = 0.0f;
-			for (auto e : ellapsed) {
-				min = std::min(min, float(e.count()));
-				max = std::max(max, float(e.count()));
-				mean += e.count();
-			}
-			mean /= ellapsed.size();
-			slog::Info(
-			    "duration",
-			    slog::Float("min", min / 1000.0),
-			    slog::Float("max", max / 1000.0),
-			    slog::Float("mean", mean / 1000.0f)
-			);
-		}
-		d_readout->clear_tags();
-		uint32_t quads{0};
-		MergeDetection(detections, partitions, *d_readout);
-		for (size_t i = 0; i < task_size; ++i) {
-			quads += d_detectors[i]->nquads;
-		}
-
-		d_readout->set_quads(quads);
-
-		for (auto d : detections) {
-			if (d != nullptr) {
-				apriltag_detections_destroy(d);
-			}
-		}
+void ApriltagDetector::Detect(tf::Runtime &rt) {
+	static std::vector<std::chrono::microseconds> ellapsed{
+	    d_maximumConcurrency.load() * 64,
+	    std::chrono::microseconds{0}
+	};
+	static std::atomic<size_t> current{0};
+	const size_t               task_size  = d_maximumConcurrency.load();
+	const auto                &partitions = d_partitions[task_size - 1];
+	std::vector<zarray_t *>    detections{task_size, nullptr};
+	if (d_input == nullptr || d_readout == nullptr) {
+		slog::Warn("no data");
+		return;
 	}
 
-	size_t ApriltagDetector::MaxConcurrency() const {
+	for (size_t i = 0; i < task_size; ++i) {
+		rt.silent_async([partition = partitions[i], i, this, &rt]() {
+			image_u8_copy_ROI_from_buf(*d_images[i], *d_input, partition, rt);
+		});
+	}
+
+	rt.corun();
+
+	for (size_t i = 0; i < task_size; ++i) {
+		rt.silent_async([partition = partitions[i], i, &detections, this]() {
+			image_u8_t img{
+			    .width  = d_images[i]->width,
+			    .height = d_images[i]->height,
+			    .stride = (d_images[i]->width + 63) & ~63,
+			    .buf    = d_images[i]->buf
+			};
+			detections[i] =
+			    apriltag_detector_detect(d_detectors[i].get(), &img);
+		});
+	}
+
+	rt.corun();
+
+	d_readout->clear_tags();
+	uint32_t quads{0};
+	MergeDetection(detections, partitions, *d_readout);
+	for (size_t i = 0; i < task_size; ++i) {
+		quads += d_detectors[i]->nquads;
+	}
+
+	d_readout->set_quads(quads);
+
+	for (auto d : detections) {
+		if (d != nullptr) {
+			apriltag_detections_destroy(d);
+		}
+	}
+}
+
+    size_t ApriltagDetector::MaxConcurrency() const {
 		return d_maximumConcurrency.load();
 	}
 
