@@ -166,7 +166,7 @@ void ProcessFrameTask::SetUpTaskflow() {
 			        );
 			        ImageU8::Resize(
 			            *d_current.Zoomed,
-			            ImageU8{d_current.AsImage, d_wantedROI},
+			            d_current.AsImage.GetROI(d_wantedROI),
 			            ImageU8::ScaleMode::None
 			        );
 		        })
@@ -409,7 +409,7 @@ void ProcessFrameTask::ExportROI(
 	    Size(d_config.NewAntROISize, d_config.NewAntROISize),
 	    {image.width, image.height}
 	);
-	ImageU8(image, roi).WritePNG(d_config.NewAntOutputDir / oss.str());
+	image.GetROI(roi).WritePNG(d_config.NewAntOutputDir / oss.str());
 }
 
 void ProcessFrameTask::DisplayFrame(

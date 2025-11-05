@@ -17,6 +17,7 @@
 #include <apriltag/tagStandard52h13.h>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <fort/hermes/FrameReadout.pb.h>
 #include <fort/tags/fort-tags.hpp>
 #include <fort/tags/tag36ARTag.h>
@@ -35,12 +36,15 @@ ApriltagDetector::ApriltagDetector(
     size_t maxParallel, const Size &size, const ApriltagOptions &options
 )
     : d_family{CreateFamily(options.Family())}
+    , d_buffer{nullptr, [](void *) {}}
     , d_maximumConcurrency{uint32_t(maxParallel)} {
 	d_minimumDetectionDistanceSquared =
 	    options.QuadMinClusterPixel * options.QuadMinClusterPixel;
 
 	d_detectors.reserve(maxParallel);
 	d_detectors.reserve(maxParallel);
+
+	size_t d_bufferSize{0};
 
 	for (size_t i = 0; i < maxParallel; ++i) {
 
@@ -52,11 +56,15 @@ ApriltagDetector::ApriltagDetector(
 		AddMargin(size, 75, partition);
 
 		// the first image is always the biggest one.
-		d_images.emplace_back(
-		    ImageU8(partition[i].width(), partition[i].height())
-		);
 		d_partitions.push_back(partition);
+		size_t partitionSize{0};
+		for (auto p : partition) {
+			partitionSize +=
+			    ImageU8{p.width(), p.height(), nullptr}.NeededSize();
+		}
+		d_bufferSize = std::max(partitionSize, d_bufferSize);
 	}
+	d_buffer = {(uint8_t *)aligned_alloc(64, d_bufferSize), &free};
 
 	d_taskflow.emplace([this](tf::Runtime &rt) { Detect(rt); });
 }
@@ -71,15 +79,24 @@ void ApriltagDetector::Detect(tf::Runtime &rt) {
 	}
 
 	std::vector<ImageU8> images{task_size, ImageU8{}};
+	size_t               used = 0;
 	for (size_t i = 0; i < task_size; ++i) {
-		rt.silent_async([partition = partitions[i], i, this, &rt, &images]() {
-			images[i] = ImageU8::GetROIFromAllocated(
-			    d_images[i],
-			    d_input,
-			    partition,
-			    &rt
-			);
-		});
+		auto partition = partitions[i];
+		images[i]      = ImageU8{
+            partition.width(),
+            partition.height(),
+            d_buffer.get() + used
+        };
+		if ((used + images[i].NeededSize()) > d_bufferSize) {
+			slog::Error("not enough buffer size");
+			return;
+		}
+
+		rt.silent_async(
+		    [partition = partitions[i], &dest = images[i], this, &rt]() {
+			    ImageU8::Copy(dest, d_input.GetROI(partition), &rt);
+		    }
+		);
 	}
 
 	rt.corun();
@@ -123,7 +140,7 @@ size_t ApriltagDetector::MaxConcurrency() const {
 
 void ApriltagDetector::SetMaxConcurrency(size_t maxConcurrency) {
 	d_maximumConcurrency.store(
-	    std::clamp(maxConcurrency, size_t(1U), d_images.size())
+	    std::clamp(maxConcurrency, size_t(1U), d_partitions.back().size())
 	);
 }
 

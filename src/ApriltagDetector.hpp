@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <fort/hermes/FrameReadout.pb.h>
 
+#include <memory>
 #include <taskflow/taskflow.hpp>
 
 #include "ImageU8.hpp"
@@ -59,9 +60,10 @@ private:
 	std::vector<DetectorPtr> d_detectors;
 	std::vector<Partition>   d_partitions;
 
-	ImageU8               d_input;
-	hermes::FrameReadout *d_readout = nullptr;
-	std::vector<ImageU8>  d_images;
+	ImageU8                                    d_input;
+	hermes::FrameReadout                      *d_readout = nullptr;
+	std::unique_ptr<uint8_t, void (*)(void *)> d_buffer;
+	size_t                                     d_bufferSize;
 
 	double                d_minimumDetectionDistanceSquared;
 	std::atomic<uint32_t> d_maximumConcurrency;

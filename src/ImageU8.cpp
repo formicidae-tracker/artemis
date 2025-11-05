@@ -56,10 +56,17 @@ void ImageU8::Copy(ImageU8 &dst, const ImageU8 &src, tf::Runtime *rt) {
 }
 
 ImageU8 ImageU8::GetROIFromAllocated(
-    ImageU8 &buffer, const ImageU8 &src, const Rect &ROI, tf::Runtime *rt
+    uint8_t       *buffer,
+    size_t         len,
+    const ImageU8 &src,
+    const Rect    &ROI,
+    tf::Runtime   *rt
 ) {
-	ImageU8 res{ROI.width(), ROI.height(), src.buffer};
-	Copy(res, ImageU8(src, ROI), rt);
+	ImageU8 res{ROI.width(), ROI.height(), buffer};
+	if (res.NeededSize() > len) {
+		throw std::runtime_error("unsifficient size in buffer");
+	}
+	Copy(res, src.GetROI(ROI), rt);
 	return res;
 }
 

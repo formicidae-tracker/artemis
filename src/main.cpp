@@ -1,4 +1,5 @@
 #include "Application.hpp"
+
 #include <cpptrace/cpptrace.hpp>
 
 #include <mutex>
