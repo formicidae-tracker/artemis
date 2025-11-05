@@ -5,8 +5,6 @@
 
 #include <unistd.h>
 
-#include <glog/logging.h>
-
 namespace fort {
 namespace artemis {
 

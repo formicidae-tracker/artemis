@@ -1,7 +1,5 @@
 #include "StubUserInterface.hpp"
-
-#include <glog/logging.h>
-
+#include <slog++/slog++.hpp>
 
 namespace fort {
 namespace artemis {
@@ -15,13 +13,16 @@ StubUserInterface::StubUserInterface(
 
 void StubUserInterface::Task() {}
 
-void StubUserInterface::UpdateFrame(const FrameToDisplay & frame,
-                                    const DataToDisplay &) {
-	LOG(INFO) << "Displaying a new frame. Processed: " << frame.FrameProcessed
-	          << " Dropped: " << frame.FrameDropped
-	          << " FPS: " << frame.FPS << " nquad: " << frame.Message->quads();
+void StubUserInterface::
+    UpdateFrame(const FrameToDisplay &frame, const DataToDisplay &) {
+	slog::Info(
+	    "Displaying a new frame",
+	    slog::Int("processed", frame.FrameProcessed),
+	    slog::Int("dropped", frame.FrameDropped),
+	    slog::Float("FPS", frame.FPS),
+	    slog::Int("quads", frame.Message->quads())
+	);
 }
-
 
 } // namespace artemis
 } // namespace fort

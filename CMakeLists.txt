@@ -170,6 +170,6 @@ enable_testing()
 add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
 include(GoogleTest)
 
-add_subdirectory(scripts)
+# add_subdirectory(scripts)
 
 add_subdirectory(src)
