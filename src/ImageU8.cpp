@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <dlfcn.h>
 #include <libyuv.h>
+#include <slog++/slog++.hpp>
 #include <system_error>
 
 namespace fort {
@@ -139,7 +140,7 @@ void SPNGCall(Function &&fn, Args &&...args) {
 
 } // namespace details
 
-ImageU8 ImageU8::ReadPNG(const std::filesystem::path &filepath) {
+ImageU8::OwnedPtr ImageU8::ReadPNG(const std::filesystem::path &filepath) {
 	FILE *file = std::fopen(filepath.c_str(), "rb");
 	if (file == nullptr) {
 		throw std::system_error{
@@ -157,6 +158,11 @@ ImageU8 ImageU8::ReadPNG(const std::filesystem::path &filepath) {
 	details::SPNGCall(spng_set_png_file, ctx, file);
 	struct spng_ihdr ihdr;
 	details::SPNGCall(spng_get_ihdr, ctx, &ihdr);
+
+	if (ihdr.bit_depth > 8) {
+		throw cpptrace::runtime_error("Could not handle bit depth > 8");
+	}
+
 	size_t decodedSize;
 	details::SPNGCall(spng_decoded_image_size, ctx, SPNG_FMT_G8, &decodedSize);
 	constexpr static size_t MAX_IMAGE_SIZE = 8192 * 8192;
@@ -169,12 +175,14 @@ ImageU8 ImageU8::ReadPNG(const std::filesystem::path &filepath) {
 		};
 	}
 
-	ImageU8 res{
+	auto res = OwnedPtr{new ImageU8{
 	    int32_t(ihdr.width),
 	    int32_t(ihdr.height),
-	    nullptr,
+	    static_cast<uint8_t *>(
+	        aligned_alloc(64, ihdr.width * ihdr.height * sizeof(uint8_t))
+	    ),
 	    int32_t(ihdr.width)
-	};
+	}};
 
 	details::SPNGCall(
 	    spng_decode_image,
@@ -191,19 +199,15 @@ ImageU8 ImageU8::ReadPNG(const std::filesystem::path &filepath) {
 		while (true) {
 			details::SPNGCall(spng_get_row_info, ctx, &rowInfo);
 
-			// note that video::Frame is not necessarly packed, use stride
-			// instead of width.
-			uint8_t *rowAddr = res.buffer + res.stride * rowInfo.row_num;
+			uint8_t *rowAddr = res->buffer + res->stride * rowInfo.row_num;
 
-			details::SPNGCall(spng_decode_row, ctx, rowAddr, res.width);
+			details::SPNGCall(spng_decode_row, ctx, rowAddr, res->width);
 		}
 	} catch (const details::SPNGError &e) {
 		if (e.Code() != SPNG_EOI) {
 			throw;
 		}
 	}
-
-	return res;
 
 	return res;
 }

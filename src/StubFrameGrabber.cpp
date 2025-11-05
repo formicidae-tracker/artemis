@@ -51,11 +51,11 @@ StubFrameGrabber::StubFrameGrabber(
 
 		// TODO read png
 		d_images.emplace_back(ImageU8::ReadPNG(p));
-		if (d_images.back().buffer == NULL) {
+		if (d_images.back()->buffer == NULL) {
 			throw std::runtime_error("Could not load '" + p + "'");
 		}
-		if (d_images.back().width != d_images[0].width ||
-		    d_images.back().height != d_images[0].height) {
+		if (d_images.back()->width != d_images[0]->width ||
+		    d_images.back()->height != d_images[0]->height) {
 			throw std::runtime_error(
 			    "'" + paths[0] + "' and '" + p + "' have different sizes"
 			);
@@ -72,7 +72,7 @@ void StubFrameGrabber::Start() {
 void StubFrameGrabber::Stop() {}
 
 Size StubFrameGrabber::Resolution() const {
-	return {d_images.front().width, d_images.front().height};
+	return {d_images.front()->width, d_images.front()->height};
 }
 
 Frame::Ptr StubFrameGrabber::NextFrame() {
@@ -82,7 +82,7 @@ Frame::Ptr StubFrameGrabber::NextFrame() {
 	}
 
 	Frame::Ptr res =
-	    std::make_shared<StubFrame>(d_images[d_ID % d_images.size()], d_ID);
+	    std::make_shared<StubFrame>(*d_images[d_ID % d_images.size()], d_ID);
 	d_ID += 1;
 	d_last = res->Time();
 	return res;

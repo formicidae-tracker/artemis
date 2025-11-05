@@ -39,7 +39,7 @@ public:
 private:
 	typedef std::chrono::high_resolution_clock clock;
 	typedef clock::time_point                  time;
-	std::vector<ImageU8>                       d_images;
+	std::vector<ImageU8::OwnedPtr>             d_images;
 	uint64_t                                   d_ID, d_timestamp;
 	Time                                       d_last;
 	Duration                                   d_period;

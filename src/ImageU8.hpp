@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
 
 namespace tf {
@@ -15,6 +16,18 @@ namespace fort {
 namespace artemis {
 
 struct ImageU8 {
+
+	struct  OwnedMemoryDeleter {
+		void operator()(ImageU8 *self) {
+			if (self->buffer != nullptr) {
+				free(self->buffer);
+			}
+			delete self;
+		}
+	};
+
+	using OwnedPtr = std::unique_ptr<ImageU8, OwnedMemoryDeleter>;
+
 	int32_t  width  = 0;
 	int32_t  height = 0;
 	int32_t  stride = 0;
@@ -32,7 +45,7 @@ struct ImageU8 {
 
 	static void Resize(ImageU8 &dest, const ImageU8 &src, ScaleMode mode);
 
-	static ImageU8 ReadPNG(const std::filesystem::path &filepath);
+	static OwnedPtr ReadPNG(const std::filesystem::path &filepath);
 
 	static ImageU8 GetROIFromAllocated(
 	    uint8_t       *buffer,
