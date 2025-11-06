@@ -58,6 +58,7 @@ set(HDR_FILES
 	utils/PosixCall.hpp
 	utils/StringManipulation.hpp
 	utils/Partitions.hpp
+	utils/Slog.hpp
 	Task.hpp
 	FrameGrabber.hpp
 	Connection.hpp

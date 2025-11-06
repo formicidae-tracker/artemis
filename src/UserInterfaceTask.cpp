@@ -1,6 +1,7 @@
 #include "UserInterfaceTask.hpp"
 
 #include "ui/GLUserInterface.hpp"
+#include <thread>
 
 namespace fort {
 namespace artemis {
@@ -23,7 +24,13 @@ UserInterfaceTask::UserInterfaceTask(
 UserInterfaceTask::~UserInterfaceTask() {}
 
 void UserInterfaceTask::Run() {
-	d_logger.Info("Initializing OpenGL");
+	std::stringstream ss;
+	ss << std::this_thread::get_id();
+	uint64_t id = std::stoull(ss.str());
+	d_logger.Info(
+	    "Initializing OpenGL",
+	    slog::Pointer("Thread", reinterpret_cast<void *>(id))
+	);
 
 	d_ui = std::make_unique<GLUserInterface>(
 	    d_workingResolution,

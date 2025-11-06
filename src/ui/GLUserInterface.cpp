@@ -345,7 +345,7 @@ void GLUserInterface::UploadTexture(DrawBuffer &buffer) {
 		return;
 	}
 
-	size_t frameSize = toUpload->width * toUpload->stride;
+	size_t frameSize = toUpload->height * toUpload->stride;
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer.PBO);
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, frameSize, 0, GL_STREAM_DRAW);
 	auto ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);

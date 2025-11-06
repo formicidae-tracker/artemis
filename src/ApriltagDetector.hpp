@@ -2,6 +2,7 @@
 
 #include <apriltag/apriltag.h>
 #include <cstdint>
+#include <cstdlib>
 #include <fort/hermes/FrameReadout.pb.h>
 
 #include <memory>
@@ -54,16 +55,40 @@ private:
 	    hermes::FrameReadout         &m
 	);
 
-	void Detect(tf::Runtime &tf);
-
 	FamilyPtr                d_family;
 	std::vector<DetectorPtr> d_detectors;
 	std::vector<Partition>   d_partitions;
 
-	ImageU8                                    d_input;
-	hermes::FrameReadout                      *d_readout = nullptr;
-	std::unique_ptr<uint8_t, void (*)(void *)> d_buffer;
-	size_t                                     d_bufferSize;
+	struct Buffer {
+		uint8_t *data;
+		size_t   size;
+
+		~Buffer() {
+			if (data != nullptr) {
+				free(const_cast<uint8_t *>(data));
+			}
+		}
+
+		Buffer()
+		    : data{nullptr}
+		    , size{0} {}
+
+		Buffer(size_t size)
+		    : data{static_cast<uint8_t *>(aligned_alloc(64, size))}
+		    , size{size} {}
+	};
+
+	void SetUpTaskflow();
+
+	ImageU8               d_input;
+	hermes::FrameReadout *d_readout = nullptr;
+
+	Buffer                d_buffer;
+
+	const size_t           f_task_size = 0;
+	const Partition        f_partitions;
+	std::vector<ImageU8>    f_images;
+	std::vector<zarray_t *> f_detections;
 
 	double                d_minimumDetectionDistanceSquared;
 	std::atomic<uint32_t> d_maximumConcurrency;

@@ -56,21 +56,6 @@ void ImageU8::Copy(ImageU8 &dst, const ImageU8 &src, tf::Runtime *rt) {
 	}
 }
 
-ImageU8 ImageU8::GetROIFromAllocated(
-    uint8_t       *buffer,
-    size_t         len,
-    const ImageU8 &src,
-    const Rect    &ROI,
-    tf::Runtime   *rt
-) {
-	ImageU8 res{ROI.width(), ROI.height(), buffer};
-	if (res.NeededSize() > len) {
-		throw std::runtime_error("unsifficient size in buffer");
-	}
-	Copy(res, src.GetROI(ROI), rt);
-	return res;
-}
-
 void ImageU8::Resize(ImageU8 &dest, const ImageU8 &src, ScaleMode mode) {
 	libyuv::FilterMode mode_;
 	switch (mode) {
@@ -88,7 +73,7 @@ void ImageU8::Resize(ImageU8 &dest, const ImageU8 &src, ScaleMode mode) {
 		break;
 	}
 
-	libyuv::ScalePlane(
+	int res = libyuv::ScalePlane(
 	    src.buffer,
 	    src.stride,
 	    src.width,
@@ -99,6 +84,10 @@ void ImageU8::Resize(ImageU8 &dest, const ImageU8 &src, ScaleMode mode) {
 	    dest.height,
 	    mode_
 	);
+
+	if (res != 0) {
+		throw std::runtime_error("libyuv error: " + std::to_string(res));
+	}
 }
 
 namespace details {

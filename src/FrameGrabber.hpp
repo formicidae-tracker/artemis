@@ -24,6 +24,10 @@ public:
 	virtual ImageU8   ToImageU8()       = 0;
 	const fort::Time &Time() const;
 
+	inline artemis::Size Size() const {
+		return {int(Width()), int(Height())};
+	}
+
 private:
 	fort::Time d_time;
 };

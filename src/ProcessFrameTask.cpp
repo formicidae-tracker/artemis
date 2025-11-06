@@ -6,12 +6,14 @@
 #include <slog++/Attribute.hpp>
 
 #include <artemis-config.h>
+#include <slog++/slog++.hpp>
 #include <sstream>
 
 #include "ApriltagDetector.hpp"
 #include "Connection.hpp"
 #include "ImageU8.hpp"
 #include "UserInterfaceTask.hpp"
+#include "utils/Slog.hpp"
 
 namespace fort {
 namespace artemis {
@@ -60,60 +62,64 @@ ProcessFrameTask::ProcessFrameTask(
 }
 
 void ProcessFrameTask::SetUpTaskflow() {
-	d_taskflow.emplace([]() {
-		// TODO send to video output;
-	});
+	d_taskflow
+	    .emplace([]() {
+		    // TODO send to video output;
+	    })
+	    .name("videoOutput");
 
-	auto overflowCondition =
-	    d_taskflow.emplace([this]() { return d_frameQueue.peek() != nullptr; }
-	    ).name("overflowCondition");
+	auto [processIgnoreOrDrop, detectionDone] = d_taskflow.emplace(
+	    [this]() {
+		    bool shouldProcess = ShouldProcess(d_current.Frame->ID());
+		    if (shouldProcess || d_current.Readout == nullptr) {
+			    d_current.Readout = d_messagePool->Get();
+			    PrepareMessage(d_current.Frame, *d_current.Readout);
+		    }
+		    if (shouldProcess && d_frameQueue.peek() != nullptr) {
+			    return 2; // drop the frame
+		    }
 
-	auto dropCondition =
-	    d_taskflow
-	        .emplace([this]() { return ShouldProcess(d_current.Frame->ID()); })
-	        .name("dropCondition");
-
-	auto [init, noDetection] = d_taskflow.emplace(
-	    [this]() { d_current.AsImage = d_current.Frame->ToImageU8(); },
-	    []() { return 0; }
+		    return shouldProcess ? 0 : 1;
+	    },
+	    [this]() { ++d_frameProcessed; }
 	);
-	init.name("init");
-	noDetection.name("noDetection");
+	processIgnoreOrDrop.name("processIgnoreOrDrop");
+	detectionDone.name("detectionDone");
 
-	auto prepare = d_taskflow
-	                   .emplace([this]() {
-		                   d_current.Readout = d_messagePool->Get(
-		                   ); // otherwise we keep the last one.
-		                   PrepareMessage(d_current.Frame, *d_current.Readout);
-		                   d_detector->SetInputOutput(
-		                       d_current.AsImage,
-		                       d_current.Readout.get()
-		                   );
-	                   })
-	                   .name("prepare");
+	auto dropFrame =
+	    d_taskflow
+	        .emplace([this]() {
+		        DropFrame(d_current.Frame);
+		        --d_frameProcessed; // detectionDone will increment it.
+		        return 0;
+	        })
+	        .name("dropFrame");
 
-	auto dropFrame = d_taskflow
-	                     .emplace([this]() {
-		                     DropFrame(d_current.Frame);
-		                     return 0;
-	                     })
-	                     .name("drop");
+	dropFrame.precede(detectionDone);
 
-	auto detect = d_taskflow.composed_of(d_detector->Taskflow()).name("detect");
-	auto detectionDone =
-	    d_taskflow.emplace([]() { return 0; }).name("detectionDone");
-
-	init.precede(dropCondition);
-	dropCondition.precede(noDetection, overflowCondition);
-	overflowCondition.precede(prepare, dropFrame);
-	prepare.precede(detect);
-	detect.precede(detectionDone);
+	if (d_detector) {
+		auto detect =
+		    d_taskflow.composed_of(d_detector->Taskflow()).name("detect");
+		auto prepare = d_taskflow
+		                   .emplace([this]() {
+			                   d_detector->SetInputOutput(
+			                       d_current.Frame->ToImageU8(),
+			                       d_current.Readout.get()
+			                   );
+		                   })
+		                   .name("prepare");
+		prepare.precede(detect);
+		detect.precede(detectionDone);
+		processIgnoreOrDrop.precede(prepare, detectionDone, dropFrame);
+	} else {
+		processIgnoreOrDrop.precede(detectionDone, detectionDone, dropFrame);
+	}
 
 	if (d_connection) {
 		auto upstream = d_taskflow.emplace([this]() {
 			Connection::PostMessage(d_connection, *d_current.Readout);
 		});
-		upstream.succeed(detect);
+		upstream.succeed(detectionDone);
 	}
 
 	if (d_config.NewAntOutputDir.empty() == false) {
@@ -136,19 +142,17 @@ void ProcessFrameTask::SetUpTaskflow() {
 			        CatalogAnt(d_current.Frame, d_current.Readout, rt);
 		        })
 		        .name("catalogIndividuals");
-		detect.precede(catalogAnt, exportFullFrame);
+		detectionDone.precede(catalogAnt, exportFullFrame);
 	}
 
 	if (d_userInterface) {
 		auto fullResize = d_taskflow
 		                      .emplace([this]() {
-			                      d_current.Full = d_imagePool->Get(
-			                          d_workingResolution.width(),
-			                          d_workingResolution.height()
-			                      );
+			                      d_current.Full = d_imagePool->Get();
+
 			                      ImageU8::Resize(
 			                          *d_current.Full,
-			                          d_current.AsImage,
+			                          d_current.Frame->ToImageU8(),
 			                          ImageU8::ScaleMode::None
 			                      );
 		                      })
@@ -157,16 +161,19 @@ void ProcessFrameTask::SetUpTaskflow() {
 		    d_taskflow
 		        .emplace([this]() {
 			        d_wantedROI = d_userInterface->UpdateROI(d_wantedROI);
-			        if (d_wantedROI.Size() == d_current.AsImage.Size()) {
+
+			        if (d_wantedROI.Size() == d_current.Frame->Size()) {
 				        d_current.Zoomed = nullptr;
+				        slog::Warn("No zoom");
+				        return;
 			        }
-			        d_current.Zoomed = d_imagePool->Get(
-			            d_workingResolution.width(),
-			            d_workingResolution.height()
-			        );
+
+			        slog::DDebug("zooming", slogRect("ROI", d_wantedROI));
+			        d_current.Zoomed = d_imagePool->Get();
+
 			        ImageU8::Resize(
 			            *d_current.Zoomed,
-			            d_current.AsImage.GetROI(d_wantedROI),
+			            d_current.Frame->ToImageU8().GetROI(d_wantedROI),
 			            ImageU8::ScaleMode::None
 			        );
 		        })
@@ -177,17 +184,17 @@ void ProcessFrameTask::SetUpTaskflow() {
 			                   DisplayFrame(d_current.Frame, d_current.Readout);
 		                   })
 		                   .name("display");
-		init.precede(fullResize, zoomResize);
 		// will only display if the resize are done, or either detection or
 		// noDetection or dropped frame is done.
-		display.succeed(
-		    fullResize,
-		    zoomResize,
-		    detectionDone,
-		    noDetection,
-		    dropFrame
-		);
+		display.succeed(fullResize, zoomResize, detectionDone);
 	}
+
+	d_taskflow.name("processFrame");
+
+#ifndef NDEBUG
+	std::ofstream out("./graph.dot");
+	d_taskflow.dump(out);
+#endif
 }
 
 void ProcessFrameTask::ExportFullFrame(const Frame::Ptr &frame) {
@@ -285,10 +292,11 @@ void ProcessFrameTask::Run() {
 		if (!d_current.Frame) {
 			break;
 		}
+
 		d_executor.run(d_taskflow).wait();
+
 		// release all memory from here.
-		d_current.Frame   = nullptr;
-		d_current.AsImage = ImageU8{};
+		d_current.Frame = nullptr;
 	}
 	d_logger.Info("tear down");
 	TearDown();
@@ -311,9 +319,6 @@ void ProcessFrameTask::DropFrame(const Frame::Ptr &frame) {
 		return;
 	}
 
-	d_current.Readout = d_messagePool->Get();
-
-	PrepareMessage(frame, *d_current.Readout);
 	d_current.Readout->set_error(hermes::FrameReadout::PROCESS_OVERFLOW);
 
 	Connection::PostMessage(d_connection, *d_current.Readout);
@@ -415,10 +420,9 @@ void ProcessFrameTask::ExportROI(
 void ProcessFrameTask::DisplayFrame(
     const Frame::Ptr &frame, const std::shared_ptr<hermes::FrameReadout> &m
 ) {
-
 	UserInterface::FrameToDisplay toDisplay = {
-	    .Full                 = std::move(d_current.Full),
-	    .Zoomed               = std::move(d_current.Zoomed),
+	    .Full                 = d_current.Full,
+	    .Zoomed               = d_current.Zoomed,
 	    .Message              = m,
 	    .CurrentROI           = d_wantedROI,
 	    .FrameTime            = frame->Time(),

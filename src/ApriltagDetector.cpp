@@ -2,10 +2,10 @@
 #include "ImageU8.hpp"
 #include "Options.hpp"
 #include "Rect.hpp"
-#include "fort/options/details/Option.hpp"
 #include "taskflow/core/runtime.hpp"
 #include "taskflow/core/taskflow.hpp"
 #include "utils/Partitions.hpp"
+#include "utils/Slog.hpp"
 
 #include <apriltag/tag16h5.h>
 #include <apriltag/tag25h9.h>
@@ -15,7 +15,6 @@
 #include <apriltag/tagCustom48h12.h>
 #include <apriltag/tagStandard41h12.h>
 #include <apriltag/tagStandard52h13.h>
-#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fort/hermes/FrameReadout.pb.h>
@@ -36,7 +35,6 @@ ApriltagDetector::ApriltagDetector(
     size_t maxParallel, const Size &size, const ApriltagOptions &options
 )
     : d_family{CreateFamily(options.Family())}
-    , d_buffer{nullptr, [](void *) {}}
     , d_maximumConcurrency{uint32_t(maxParallel)} {
 	d_minimumDetectionDistanceSquared =
 	    options.QuadMinClusterPixel * options.QuadMinClusterPixel;
@@ -44,7 +42,7 @@ ApriltagDetector::ApriltagDetector(
 	d_detectors.reserve(maxParallel);
 	d_detectors.reserve(maxParallel);
 
-	size_t d_bufferSize{0};
+	size_t bufferSize{0};
 
 	for (size_t i = 0; i < maxParallel; ++i) {
 
@@ -59,79 +57,149 @@ ApriltagDetector::ApriltagDetector(
 		d_partitions.push_back(partition);
 		size_t partitionSize{0};
 		for (auto p : partition) {
-			partitionSize +=
-			    ImageU8{p.width(), p.height(), nullptr}.NeededSize();
+			ImageU8 asImg{p.width(), p.height(), nullptr};
+			partitionSize += asImg.NeededSize();
+			slog::DDebug(
+			    "partition",
+			    slog::Int("size", i),
+			    slogRect("partition", p),
+			    slog::Int("neededBytes", asImg.NeededSize())
+			);
 		}
-		d_bufferSize = std::max(partitionSize, d_bufferSize);
+		bufferSize = std::max(partitionSize, bufferSize);
+		slog::DDebug(
+		    "partition",
+		    slog::Int("size", i),
+		    slog::Int("totalBytes", partitionSize)
+		);
 	}
-	d_buffer = {(uint8_t *)aligned_alloc(64, d_bufferSize), &free};
+	d_buffer = Buffer{bufferSize};
+	slog::Info(
+	    "allocated buffer",
+	    slog::String("task", "ApriltagDetection"),
+	    slog::Float("size_MB", bufferSize / 1024.0f / 1024.0f)
+	);
 
-	d_taskflow.emplace([this](tf::Runtime &rt) { Detect(rt); });
+	SetUpTaskflow();
 }
 
-void ApriltagDetector::Detect(tf::Runtime &rt) {
-	const size_t            task_size  = d_maximumConcurrency.load();
-	const auto             &partitions = d_partitions[task_size - 1];
-	std::vector<zarray_t *> detections{task_size, nullptr};
-	if (d_input.buffer == nullptr || d_readout == nullptr) {
-		slog::Warn("no data");
-		return;
-	}
+void ApriltagDetector::SetUpTaskflow() {
 
-	std::vector<ImageU8> images{task_size, ImageU8{}};
-	size_t               used = 0;
-	for (size_t i = 0; i < task_size; ++i) {
-		auto partition = partitions[i];
-		images[i]      = ImageU8{
-            partition.width(),
-            partition.height(),
-            d_buffer.get() + used
-        };
-		if ((used + images[i].NeededSize()) > d_bufferSize) {
-			slog::Error("not enough buffer size");
-			return;
-		}
+	auto allocatePartition =
+	    d_taskflow
+	        .emplace([this]() {
+		        slog::Warn(
+		            "allocating",
+		            slog::Int("frameID", d_readout->frameid())
+		        );
+		        if (d_input.buffer == nullptr || d_readout == nullptr) {
+			        slog::Warn("no data");
+			        return 1;
+		        }
 
-		rt.silent_async(
-		    [partition = partitions[i], &dest = images[i], this, &rt]() {
-			    ImageU8::Copy(dest, d_input.GetROI(partition), &rt);
-		    }
-		);
-	}
+		        *const_cast<size_t *>(&f_task_size) =
+		            d_maximumConcurrency.load();
+		        *const_cast<Partition *>(&f_partitions) =
+		            d_partitions[f_task_size - 1];
+		        f_detections.resize(f_task_size, nullptr);
+		        f_images.resize(f_task_size);
 
-	rt.corun();
+		        size_t used = 0;
+		        for (size_t i = 0; i < f_task_size; ++i) {
+			        auto partition = f_partitions[i];
+			        f_images[i]    = ImageU8{
+                        partition.width(),
+                        partition.height(),
+                        d_buffer.data + used
+                    };
 
-	for (size_t i = 0; i < task_size; ++i) {
-		rt.silent_async(
-		    [partition = partitions[i], i, &detections, &images, this]() {
-			    image_u8_t img{
-			        .width  = images[i].width,
-			        .height = images[i].height,
-			        .stride = images[i].stride,
-			        .buf    = images[i].buffer
-			    };
-			    detections[i] =
-			        apriltag_detector_detect(d_detectors[i].get(), &img);
-		    }
-		);
-	}
+			        if ((used + f_images[i].NeededSize()) > d_buffer.size) {
+				        slog::Error(
+				            "not enough buffer size",
+				            slog::Int("i", i),
+				            slog::Int("available", d_buffer.size),
+				            slog::Int("used", used),
+				            slog::Group(
+				                "partition",
+				                slog::Int("x", partition.x()),
+				                slog::Int("y", partition.y()),
+				                slog::Int("width", partition.width()),
+				                slog::Int("height", partition.height())
+				            )
+				        );
+				        return 1;
+			        }
+			        used += f_images[i].NeededSize();
+		        }
+		        return 0;
+	        })
+	        .name("allocatePartitionedROIs");
+	auto clone = d_taskflow
+	                 .emplace([this](tf::Runtime &rt) {
+		                 slog::Warn(
+		                     "cloning",
+		                     slog::Int("frameID", d_readout->frameid())
+		                 );
+		                 for (size_t i = 0; i < f_task_size; ++i) {
+			                 rt.silent_async([partition = f_partitions[i],
+			                                  &dest     = f_images[i],
+			                                  this]() {
+				                 ImageU8::Copy(dest, d_input.GetROI(partition));
+			                 });
+		                 }
+	                 })
+	                 .name("clonePartitionedROIs");
+	auto detect = d_taskflow
+	                  .emplace([this](tf::Runtime &rt) {
+		                  slog::Warn(
+		                      "detecting",
+		                      slog::Int("frameID", d_readout->frameid())
+		                  );
+		                  for (size_t i = 0; i < f_task_size; ++i) {
+			                  rt.silent_async([partition = f_partitions[i],
+			                                   image     = f_images[i],
+			                                   i,
+			                                   this]() {
+				                  image_u8_t img{
+				                      .width  = f_images[i].width,
+				                      .height = f_images[i].height,
+				                      .stride = f_images[i].stride,
+				                      .buf    = f_images[i].buffer
+				                  };
+				                  f_detections[i] = apriltag_detector_detect(
+				                      d_detectors[i].get(),
+				                      &img
+				                  );
+			                  });
+		                  }
+	                  })
+	                  .name("detectPartitionnedROIs");
+	auto merge = d_taskflow
+	                 .emplace([this]() {
+		                 slog::Warn(
+		                     "merging",
+		                     slog::Int("frameID", d_readout->frameid())
+		                 );
+		                 d_readout->clear_tags();
+		                 uint32_t quads{0};
 
-	rt.corun();
+		                 MergeDetection(f_detections, f_partitions, *d_readout);
+		                 for (size_t i = 0; i < f_task_size; ++i) {
+			                 quads += d_detectors[i]->nquads;
+		                 }
 
-	d_readout->clear_tags();
-	uint32_t quads{0};
-	MergeDetection(detections, partitions, *d_readout);
-	for (size_t i = 0; i < task_size; ++i) {
-		quads += d_detectors[i]->nquads;
-	}
+		                 d_readout->set_quads(quads);
 
-	d_readout->set_quads(quads);
-
-	for (auto d : detections) {
-		if (d != nullptr) {
-			apriltag_detections_destroy(d);
-		}
-	}
+		                 for (auto d : f_detections) {
+			                 if (d != nullptr) {
+				                 apriltag_detections_destroy(d);
+			                 }
+		                 }
+	                 })
+	                 .name("merge");
+	allocatePartition.precede(clone);
+	clone.precede(detect);
+	detect.precede(merge);
 }
 
 size_t ApriltagDetector::MaxConcurrency() const {
@@ -149,7 +217,6 @@ tf::Taskflow &ApriltagDetector::Taskflow() {
 }
 
 double ApriltagDetector::ComputeAngleFromCorner(const apriltag_detection_t *q) {
-
 	Eigen::Vector2d c0(q->p[0][0], q->p[0][1]);
 	Eigen::Vector2d c1(q->p[1][0], q->p[1][1]);
 	Eigen::Vector2d c2(q->p[2][0], q->p[2][1]);
@@ -192,6 +259,9 @@ void ApriltagDetector::MergeDetection(
 	apriltag_detection_t *q;
 	size_t                i = -1;
 	for (const auto &localDetections : detections) {
+		if (localDetections == nullptr) {
+			continue;
+		}
 		const auto &roi = partition[++i];
 		for (int j = 0; j < zarray_size(localDetections); ++j) {
 			zarray_get(localDetections, j, &q);

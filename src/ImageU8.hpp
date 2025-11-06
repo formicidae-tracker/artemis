@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <slog++/slog++.hpp>
 #include <stdexcept>
 
 namespace tf {
@@ -47,14 +48,6 @@ struct ImageU8 {
 
 	static OwnedPtr ReadPNG(const std::filesystem::path &filepath);
 
-	static ImageU8 GetROIFromAllocated(
-	    uint8_t       *buffer,
-	    size_t         len,
-	    const ImageU8 &src,
-	    const Rect    &ROI,
-	    tf::Runtime   *rt = nullptr
-	);
-
 	ImageU8() = default;
 
 	ImageU8(
@@ -78,8 +71,8 @@ struct ImageU8 {
 			throw std::invalid_argument("ROI does not fit in source image");
 		}
 		return ImageU8{
-		    width,
-		    height,
+		    ROI.width(),
+		    ROI.height(),
 		    &buffer[ROI.y() * stride + ROI.x()],
 		    stride
 		};

@@ -65,6 +65,12 @@ set(FORT_CHARIS_CAPITALIZE_DEFER On)
 
 set(CPPTRACE_UNWIND_WITH_LIBUNWIND On)
 
+FetchContent_Declare(
+	slogpp
+	GIT_REPOSITORY https://github.com/atuleu/slogpp.git
+	GIT_TAG 26ca0aa97b726fcaa4a4e4b0bfa312a0267a387b
+)
+
 if(EXISTS ${PROJECT_SOURCE_DIR}/deps/charis)
 	FetchContent_Declare(
 		fort-charis SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/charis
@@ -135,7 +141,13 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(
-	fort-charis fort-hermes fort-tags readwriterqueue libyuv spng
+	fort-charis
+	fort-hermes
+	fort-tags
+	readwriterqueue
+	libyuv
+	spng
+	slogpp
 )
 FetchContent_GetProperties(fort-charis)
 FetchContent_GetProperties(libyuv)

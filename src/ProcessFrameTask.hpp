@@ -1,10 +1,14 @@
 #pragma once
 
+#include <cstdint>
+#include <cstdlib>
+#include <slog++/Attribute.hpp>
 #include <slog++/Logger.hpp>
 
 #include <fort/hermes/FrameReadout.pb.h>
 
 #include <boost/asio/io_context.hpp>
+#include <string>
 
 #include "FrameGrabber.hpp"
 #include "ImageU8.hpp"
@@ -23,15 +27,13 @@ namespace fort {
 namespace artemis {
 
 class VideoOutputTask;
-typedef std::shared_ptr<VideoOutputTask> VideoOutputTaskPtr;
+typedef std::unique_ptr<VideoOutputTask> VideoOutputTaskPtr;
 class UserInterfaceTask;
 typedef std::shared_ptr<UserInterfaceTask> UserInterfaceTaskPtr;
 class Connection;
 typedef std::shared_ptr<Connection> ConnectionPtr;
-class FullFrameExportTask;
-typedef std::shared_ptr<FullFrameExportTask> FullFrameExportTaskPtr;
 class ApriltagDetector;
-typedef std::shared_ptr<ApriltagDetector> ApriltagDetectorPtr;
+typedef std::unique_ptr<ApriltagDetector> ApriltagDetectorPtr;
 
 class ProcessFrameTask : public Task {
 public:
@@ -134,15 +136,16 @@ private:
 		    , NewAntROISize{options.NewAntROISize} {}
 	};
 
-	using ImagePool =
-	    utils::ObjectPool<ImageU8, std::function<ImageU8 *(int, int)>>;
+	using ImagePool = utils::ObjectPool<
+	    ImageU8,
+	    std::function<ImageU8 *()>,
+	    ImageU8::OwnedMemoryDeleter>;
 	using MessagePool = utils::ObjectPool<hermes::FrameReadout>;
 
 	struct ProcessedData {
 		artemis::Frame::Ptr                   Frame;
-		ImageU8                               AsImage;
 		std::shared_ptr<hermes::FrameReadout> Readout;
-		ImagePool::ObjectPtr                  Full, Zoomed;
+		std::shared_ptr<ImageU8>              Full, Zoomed;
 	};
 
 	Config d_config;
@@ -155,8 +158,29 @@ private:
 
 	MessagePool::Ptr d_messagePool = MessagePool::Create();
 	ImagePool::Ptr   d_imagePool =
-	    ImagePool::Create([](int w, int h) -> ImageU8 * {
-		    return new ImageU8{w, h, nullptr, w};
+	    ImagePool::Create([this]() -> ImageU8 * {
+		    size_t wanted = d_workingResolution.width() *
+		                    d_workingResolution.height() * sizeof(uint8_t);
+		    wanted        = (wanted + 63) & ~63;
+
+		    auto buffer = static_cast<uint8_t *>(aligned_alloc(64, wanted));
+		    auto stats  = d_imagePool->GetStats();
+		    slog::Warn(
+		        "allocating ImageU8",
+		        slog::Int("size", wanted),
+		        slog::Pointer("buffer", buffer),
+		        slog::Group(
+		            "pool",
+		            slog::Int("allocated", stats.Allocated),
+		            slog::Int("available", stats.Available)
+		        )
+		    );
+		    return new ImageU8{
+		        d_workingResolution.width(),
+		        d_workingResolution.height(),
+		        buffer,
+		        d_workingResolution.width()
+		    };
 	    });
 
 	const size_t        d_maximumThreads;
