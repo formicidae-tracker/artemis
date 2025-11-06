@@ -11,10 +11,12 @@
 #include "fort/gl/Shader.hpp"
 #include "fort/gl/TextRenderer.hpp"
 #include "fort/gl/VAOPool.hpp"
+#include "utils/Slog.hpp"
 
 #include <algorithm>
 #include <iomanip>
 #include <limits>
+
 #include <slog++/Attribute.hpp>
 #include <slog++/Level.hpp>
 #include <slog++/slog++.hpp>
@@ -168,19 +170,22 @@ void GLUserInterface::Displace(const Eigen::Vector2f &offset) {
 }
 
 void GLUserInterface::UpdateROI(const Rect &ROI) {
-	auto &buffer = d_buffers[d_index];
 	d_ROI        = ROI;
 	d_currentPOI = {
 	    d_ROI.x() + d_ROI.width() / 2,
 	    d_ROI.y() + d_ROI.height() / 2
 	};
 	ComputeProjection(d_ROI, d_roiProjection);
-	// If the full details is not uploaded, upload it.
-	if (buffer.FullUploaded == false) {
-		UploadTexture(buffer);
+	// If the full details is not uploaded, upload it to both current and next
+	// buffer otherwise some weird zoom in - zoom out will appear.
+	for (auto &b : d_buffers) {
+		if (b.FullUploaded == false) {
+			UploadTexture(b);
+		}
 	}
-	Update();
+
 	ROIChanged(d_ROI);
+	Update();
 }
 
 void GLUserInterface::OnText(unsigned int codepoint) {
@@ -337,8 +342,21 @@ void GLUserInterface::UploadTexture(DrawBuffer &buffer) {
 	std::shared_ptr<ImageU8> toUpload = buffer.Frame.Full;
 	buffer.FullUploaded               = true;
 	if (buffer.Frame.Zoomed && d_ROI == buffer.Frame.CurrentROI) {
+		slog::DDebug(
+		    "Uploading zoomed",
+		    slog::Int("FrameID", buffer.Frame.FrameID),
+		    slogRect("ROI", d_ROI),
+		    slogRect("FrameROI", buffer.Frame.CurrentROI)
+		);
 		toUpload            = buffer.Frame.Zoomed;
 		buffer.FullUploaded = false;
+	} else {
+		slog::DDebug(
+		    "Uploading full",
+		    slog::Int("FrameID", buffer.Frame.FrameID),
+		    slogRect("ROI", d_ROI),
+		    slogRect("FrameROI", buffer.Frame.CurrentROI)
+		);
 	}
 
 	if (!toUpload) {
@@ -484,11 +502,23 @@ void GLUserInterface::ComputeProjection(const Rect &roi, Eigen::Matrix3f &res) {
 
 void GLUserInterface::DrawMovieFrame(const DrawBuffer &buffer) {
 	glUseProgram(d_frameProgram);
-	if (d_ROI == buffer.Frame.CurrentROI) {
+	if (buffer.FullUploaded == false) {
+		slog::DDebug(
+		    "Rendering full",
+		    slog::Int("FrameID", buffer.Frame.FrameID),
+		    slogRect("ROI", d_ROI),
+		    slogRect("FrameROI", buffer.Frame.CurrentROI)
+		);
 		// we use an higher resolution zoomed frame, we therefore use the
 		// full ROI projection
 		fort::gl::Upload(d_frameProgram, "scaleMat", d_fullProjection);
 	} else {
+		slog::DDebug(
+		    "Rendering Scaled",
+		    slog::Int("FrameID", buffer.Frame.FrameID),
+		    slogRect("ROI", d_ROI),
+		    slogRect("FrameROI", buffer.Frame.CurrentROI)
+		);
 		fort::gl::Upload(d_frameProgram, "scaleMat", d_roiProjection);
 	}
 

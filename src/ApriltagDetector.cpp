@@ -122,7 +122,7 @@ void ApriltagDetector::setUpTaskflow() {
 			        }
 
 			        used += d_images[i].NeededSize();
-			        slog::DInfo(
+			        slog::DTrace(
 			            "Partition allocated",
 			            slog::Int("i", i),
 			            slog::Pointer("pointer", d_images[i].buffer),

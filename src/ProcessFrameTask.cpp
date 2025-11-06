@@ -164,11 +164,15 @@ void ProcessFrameTask::SetUpTaskflow() {
 
 			        if (d_wantedROI.Size() == d_current.Frame->Size()) {
 				        d_current.Zoomed = nullptr;
-				        slog::Warn("No zoom");
 				        return;
 			        }
 
-			        slog::DDebug("zooming", slogRect("ROI", d_wantedROI));
+			        slog::DDebug(
+			            "zooming",
+			            slog::Int("FrameID", d_current.Frame->ID()),
+			            slogRect("ROI", d_wantedROI)
+			        );
+
 			        d_current.Zoomed = d_imagePool->Get();
 
 			        ImageU8::Resize(
@@ -425,6 +429,7 @@ void ProcessFrameTask::DisplayFrame(
 	    .Zoomed               = d_current.Zoomed,
 	    .Message              = m,
 	    .CurrentROI           = d_wantedROI,
+	    .FrameID              = d_current.Frame->ID(),
 	    .FrameTime            = frame->Time(),
 	    .FPS                  = CurrentFPS(frame->Time()),
 	    .FrameProcessed       = d_frameProcessed,

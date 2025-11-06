@@ -33,12 +33,13 @@ public:
 		Rect CurrentROI;
 
 		// Other data
-		Time   FrameTime;
-		double FPS;
-		size_t FrameProcessed;
-		size_t FrameDropped;
-		size_t VideoOutputProcessed;
-		size_t VideoOutputDropped;
+		uint64_t FrameID;
+		Time     FrameTime;
+		double   FPS;
+		size_t   FrameProcessed;
+		size_t   FrameDropped;
+		size_t   VideoOutputProcessed;
+		size_t   VideoOutputDropped;
 	};
 
 	typedef moodycamel::ReaderWriterQueue<Rect> ROIChannel;
