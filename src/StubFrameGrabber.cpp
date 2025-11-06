@@ -1,7 +1,8 @@
 #include "StubFrameGrabber.hpp"
 #include "ImageU8.hpp"
 
-#include <thread>
+#include <taskflow/algorithm/for_each.hpp>
+#include <taskflow/taskflow.hpp>
 
 #include <unistd.h>
 
@@ -47,17 +48,27 @@ StubFrameGrabber::StubFrameGrabber(
 	if (paths.empty() == true) {
 		throw std::invalid_argument("No paths given to StubFrameGrabber");
 	}
-	for (const auto &p : paths) {
+	tf::Executor exec;
+	tf::Taskflow taskflow;
 
-		// TODO read png
-		d_images.emplace_back(ImageU8::ReadPNG(p));
-		if (d_images.back()->buffer == NULL) {
-			throw std::runtime_error("Could not load '" + p + "'");
+	d_images.resize(paths.size());
+	taskflow.for_each_index(0U, paths.size(), 1U, [this, &paths](size_t i) {
+		d_images[i] = ImageU8::ReadPNG(paths[i]);
+		if (d_images[i]->buffer == NULL) {
+			throw std::runtime_error("Could not load '" + paths[i] + "'");
 		}
-		if (d_images.back()->width != d_images[0]->width ||
-		    d_images.back()->height != d_images[0]->height) {
+	});
+
+	auto fut = exec.run(taskflow);
+	// needed for exception
+	fut.get();
+
+	size_t i = -1;
+	for (const auto &img : d_images) {
+		++i;
+		if (img->Size() != d_images[0]->Size()) {
 			throw std::runtime_error(
-			    "'" + paths[0] + "' and '" + p + "' have different sizes"
+			    "'" + paths[0] + "' and '" + paths[i] + "' have different sizes"
 			);
 		}
 	}
