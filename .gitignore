@@ -8,3 +8,7 @@ deps/
 /artemis.ERROR
 /artemis.WARNING
 /artemis.DEBUG
+/logs/
+/graph.dot
+/graph.svg
+/valgrind-out.txt
