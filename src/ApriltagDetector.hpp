@@ -37,19 +37,16 @@ private:
 	    unique_ptr<apriltag_detector_t, void (*)(apriltag_detector_t *)>
 	        DetectorPtr;
 
-	static FamilyPtr CreateFamily(tags::Family family);
+	static FamilyPtr createFamily(tags::Family family);
 	static DetectorPtr
-	CreateDetector(const ApriltagOptions &options, apriltag_family_t *family);
+	createDetector(const ApriltagOptions &options, apriltag_family_t *family);
 
-	static double ComputeAngleFromCorner(const apriltag_detection_t *q);
+	static double computeAngleFromCorner(const apriltag_detection_t *q);
 
-	std::tuple<uint32_t, double, double, double>
-	ConvertDetection(const apriltag_detection_t *q, const Rect &roi);
+	static std::tuple<uint32_t, double, double, double>
+	convertDetection(const apriltag_detection_t *q, const Rect &roi);
 
-	std::vector<zarray_t *>
-	PartionnedDetection(image_u8_t *image, const Partition &partition);
-
-	void MergeDetection(
+	void mergeDetection(
 	    const std::vector<zarray_t *> detections,
 	    const Partition              &partition,
 	    hermes::FrameReadout         &m
@@ -63,9 +60,28 @@ private:
 		uint8_t *data;
 		size_t   size;
 
+		Buffer(const Buffer &other) = delete;
+
+		Buffer(Buffer &&other)
+		    : data{other.data}
+		    , size{other.size} {
+			other.data = nullptr;
+			other.size = 0;
+		}
+
+		Buffer &operator=(const Buffer &other) = delete;
+
+		Buffer &operator=(Buffer &&other) {
+			data       = other.data;
+			size       = other.size;
+			other.data = nullptr;
+			other.size = 0;
+			return *this;
+		}
+
 		~Buffer() {
 			if (data != nullptr) {
-				free(const_cast<uint8_t *>(data));
+				free(data);
 			}
 		}
 
@@ -74,21 +90,22 @@ private:
 		    , size{0} {}
 
 		Buffer(size_t size)
-		    : data{static_cast<uint8_t *>(aligned_alloc(64, size))}
+		    : data{static_cast<uint8_t *>(aligned_alloc(64, (size + 63) & ~63))}
 		    , size{size} {}
 	};
 
-	void SetUpTaskflow();
+	void setUpTaskflow();
+	void cloneAndDetectPartition(size_t i);
 
 	ImageU8               d_input;
 	hermes::FrameReadout *d_readout = nullptr;
 
-	Buffer                d_buffer;
+	Buffer d_buffer;
 
-	const size_t           f_task_size = 0;
-	const Partition        f_partitions;
-	std::vector<ImageU8>    f_images;
-	std::vector<zarray_t *> f_detections;
+	size_t                  d_task_size = 0;
+	Partition               d_current_partition;
+	std::vector<ImageU8>    d_images;
+	std::vector<zarray_t *> d_detections;
 
 	double                d_minimumDetectionDistanceSquared;
 	std::atomic<uint32_t> d_maximumConcurrency;

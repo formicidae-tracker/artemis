@@ -1,15 +1,20 @@
 #include "ImageU8.hpp"
+
 #include "fort/utils/Defer.hpp"
-#include "libyuv/scale.h"
-#include "spng.h"
-#include "taskflow/taskflow.hpp" // IWYU pragma: keep
+
+#include <libyuv.h>
+#include <spng.h>
+
 #include <cpptrace/exceptions.hpp>
 #include <cpptrace/utils.hpp>
+
 #include <cstdint>
 #include <dlfcn.h>
-#include <libyuv.h>
+
 #include <slog++/slog++.hpp>
 #include <system_error>
+
+#include <taskflow/taskflow.hpp>
 
 namespace fort {
 namespace artemis {
@@ -17,9 +22,9 @@ namespace artemis {
 void copy_lines(ImageU8 &dst, const ImageU8 &src) {
 	for (int32_t i = 0; i < src.height; ++i) {
 		memcpy(
-		    &dst.buffer[i * dst.stride],
-		    &src.buffer[i * src.stride],
-		    std::min(dst.stride, src.stride) * sizeof(uint8_t)
+		    dst.buffer + i * dst.stride,
+		    src.buffer + i * src.stride,
+		    dst.width
 		);
 	}
 }
@@ -28,9 +33,9 @@ void schedule_copy_lines(ImageU8 &dst, const ImageU8 &src, tf::Runtime &rt) {
 	for (int32_t i = 0; i < src.height; ++i) {
 		rt.silent_async([i, dst, src]() {
 			memcpy(
-			    &dst.buffer[i * dst.stride],
-			    &src.buffer[i * src.stride],
-			    std::min(dst.stride, src.stride) * sizeof(uint8_t)
+			    dst.buffer + i * dst.stride,
+			    src.buffer + i * src.stride,
+			    dst.width
 			);
 		});
 	}
@@ -41,12 +46,7 @@ void ImageU8::Copy(ImageU8 &dst, const ImageU8 &src, tf::Runtime *rt) {
 		throw std::invalid_argument("Sizes must match");
 	}
 	if (dst.stride == src.stride) {
-		memcpy(
-		    dst.buffer,
-		    src.buffer,
-		    src.height * src.stride * sizeof(uint8_t)
-		);
-		return;
+		memcpy(dst.buffer, src.buffer, src.height * src.stride);
 	}
 
 	if (rt == nullptr) {
@@ -176,27 +176,11 @@ ImageU8::OwnedPtr ImageU8::ReadPNG(const std::filesystem::path &filepath) {
 	details::SPNGCall(
 	    spng_decode_image,
 	    ctx,
-	    nullptr,
-	    0,
+	    res->buffer,
+	    res->NeededSize(),
 	    SPNG_FMT_G8,
-	    SPNG_DECODE_PROGRESSIVE
+	    0
 	);
-
-	struct spng_row_info rowInfo;
-
-	try {
-		while (true) {
-			details::SPNGCall(spng_get_row_info, ctx, &rowInfo);
-
-			uint8_t *rowAddr = res->buffer + res->stride * rowInfo.row_num;
-
-			details::SPNGCall(spng_decode_row, ctx, rowAddr, res->width);
-		}
-	} catch (const details::SPNGError &e) {
-		if (e.Code() != SPNG_EOI) {
-			throw;
-		}
-	}
 
 	return res;
 }

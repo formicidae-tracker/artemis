@@ -136,6 +136,7 @@ int main(int argc, char **argv) {
 	}
 
 	std::call_once(handler_installed, [argc, &argv]() {
+		return;
 		installCpptraceHandler(argc, argv);
 	});
 

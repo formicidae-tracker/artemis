@@ -90,7 +90,7 @@ void ProcessFrameTask::SetUpTaskflow() {
 	    d_taskflow
 	        .emplace([this]() {
 		        DropFrame(d_current.Frame);
-		        --d_frameProcessed; // detectionDone will increment it.
+		        --d_frameProcessed; // detectionDone will increment it again.
 		        return 0;
 	        })
 	        .name("dropFrame");
