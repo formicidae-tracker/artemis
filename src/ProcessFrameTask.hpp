@@ -1,23 +1,25 @@
 #pragma once
 
+#include <glib.h>
+
 #include <cstdint>
 #include <cstdlib>
+#include <string>
+
+#include <taskflow/core/executor.hpp>
+
 #include <slog++/Attribute.hpp>
 #include <slog++/Logger.hpp>
 
 #include <fort/hermes/FrameReadout.pb.h>
-
-#include <boost/asio/io_context.hpp>
-#include <string>
+#include <fort/utils/ObjectPool.hpp>
 
 #include "FrameGrabber.hpp"
 #include "ImageU8.hpp"
 #include "Options.hpp"
 #include "Task.hpp"
 
-#include "fort/utils/ObjectPool.hpp"
 #include "readerwriterqueue.h"
-#include "taskflow/core/executor.hpp"
 
 namespace cv {
 class Mat;
@@ -31,16 +33,16 @@ typedef std::unique_ptr<VideoOutputTask> VideoOutputTaskPtr;
 class UserInterfaceTask;
 typedef std::shared_ptr<UserInterfaceTask> UserInterfaceTaskPtr;
 class Connection;
-typedef std::shared_ptr<Connection> ConnectionPtr;
+typedef std::unique_ptr<Connection> ConnectionPtr;
 class ApriltagDetector;
 typedef std::unique_ptr<ApriltagDetector> ApriltagDetectorPtr;
 
 class ProcessFrameTask : public Task {
 public:
 	ProcessFrameTask(
-	    const Options           &options,
-	    boost::asio::io_context &context,
-	    const Size              &inputResolution
+	    const Options &options,
+	    GMainContext  *context,
+	    const Size    &inputResolution
 	);
 
 	virtual ~ProcessFrameTask();
@@ -57,7 +59,7 @@ private:
 
 	void SetUpVideoOutputTask(
 	    const VideoOutputOptions &options,
-	    boost::asio::io_context  &context,
+	    GMainContext             *context,
 	    bool                      legacyMode
 	);
 
@@ -72,9 +74,7 @@ private:
 	    const Options &options
 	);
 
-	void SetUpConnection(
-	    const LetoOptions &options, boost::asio::io_context &context
-	);
+	void SetUpConnection(const LetoOptions &options, GMainContext *context);
 
 	void SetUpTaskflow();
 

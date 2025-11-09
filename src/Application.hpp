@@ -1,10 +1,8 @@
 #pragma once
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/signal_set.hpp>
-
 #include "Task.hpp"
 
+#include <glib.h>
 #include <memory>
 #include <vector>
 
@@ -23,33 +21,34 @@ public:
 	static void Execute(int argc, char **argv);
 
 private:
-	static bool InterceptCommand(const Options &options);
+	static bool interceptCommand(const Options &options);
 
-	static void InitGlobalDependencies();
-	static void InitLogging(const char *argv0, const Options &options);
+	static void initGlobalDependencies();
+	static void initLogging(const char *argv0, const Options &options);
+
+	static int onSigint(void *self);
 
 	Application(const Options &options);
+	~Application();
+	Application(const Application &other)            = delete;
+	Application(Application &&other)                 = delete;
+	Application &operator=(const Application &other) = delete;
+	Application &operator=(Application &&other)      = delete;
 
-	void Run();
+	void run();
 
-	void SpawnIOContext();
-	void SpawnTasks();
-	void JoinTasks();
-
-	typedef boost::asio::executor_work_guard<
-	    boost::asio::io_context::executor_type>
-	    WorkGuard;
-
-	boost::asio::io_context d_context;
-	boost::asio::signal_set d_signals;
-	WorkGuard               d_guard;
+	void spawnTasks();
+	void joinTasks();
+	void workgroupAdd(int i);
 
 	std::shared_ptr<FrameGrabber>     d_grabber;
 	std::shared_ptr<ProcessFrameTask> d_process;
 	std::shared_ptr<AcquisitionTask>  d_acquisition;
+	std::atomic<int>                  d_workgroup = 0;
 
 	std::vector<std::thread> d_threads;
-	std::thread              d_ioThread;
+	GMainContext            *d_context;
+	GMainLoop               *d_loop;
 };
 
 } // namespace artemis

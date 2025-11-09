@@ -120,19 +120,20 @@ add_resources(TARGET artemis-common RESOURCES ${RESOURCE_FILES})
 target_link_libraries(
 	artemis-common
 	PUBLIC ${FG_LIBRARIES}
+		   Eigen3::Eigen
 		   fort-charis::libfort-time
 		   fort-charis::libfort-utils
 		   fort-charis::libfort-options
 		   fort-charis::libfort-gl
 		   fort-hermes::libfort-hermes
 		   fort-tags::libfort-tags
-		   boost_system
 		   "-ldl"
 		   cpptrace::cpptrace
 		   readerwriterqueue
 		   taskflow::taskflow
 		   libyuv::libyuv
 		   spng
+		   PkgConfig::gstreamer
 )
 add_executable(artemis main.cpp)
 

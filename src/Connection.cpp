@@ -1,202 +1,248 @@
 #include "Connection.hpp"
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/deadline_timer.hpp>
-#include <boost/asio/error.hpp>
-#include <boost/asio/write.hpp>
+#include <fort/utils/Defer.hpp>
+#include <gio/gio.h>
+#include <glib-object.h>
+#include <glib.h>
 
-#include <fort/hermes/Header.pb.h>
+#include <google/protobuf/message_lite.h>
 #include <google/protobuf/util/delimited_message_util.h>
 #include <slog++/slog++.hpp>
+#include <sstream>
 
 namespace fort {
 namespace artemis {
 
-#define Connection_LOG(level, connection)                                      \
-	LOG(level) << "[connection" << (connection)->d_host << ":"                 \
-	           << (connection)->d_port << "]: "
-
-void Connection::Connect(const Ptr &self) {
-	using namespace boost::asio;
-	std::ostringstream oss;
-	oss << self->d_port;
-	try {
-		ip::tcp::resolver           resolver(self->d_context);
-		ip::tcp::resolver::query    q(self->d_host.c_str(), oss.str().c_str());
-		ip::tcp::resolver::iterator endpoint = resolver.resolve(q);
-		auto res = std::make_shared<ip::tcp::socket>(self->d_context);
-		async_connect(
-		    *res,
-		    endpoint,
-		    self->d_strand.wrap([self, res](
-		                            const boost::system::error_code &ec,
-		                            ip::tcp::resolver::iterator      it
-		                        ) {
-			    if (ec) {
-				    self->d_logger.Error(
-				        "Could not connect to host",
-				        slog::Int("error_code", ec.value())
-				    );
-				    ScheduleReconnect(self);
-				    return;
-			    }
-			    self->d_socket = res;
-		    })
-		);
-	} catch (const std::exception &e) {
-		self->d_logger.Error("could not connect to host", slog::Err(e));
-		self->d_strand.post([self]() { ScheduleReconnect(self); });
-	}
-
-	// try {
-	// 	fort::hermes::Header h;
-	// 	h.set_type(fort::hermes::Header_Type_Network);
-	// 	auto v = h.mutable_version();
-	// 	v->set_vmajor(0);
-	// 	v->set_vminor(2);
-	// 	PostMessage(self,h);
-	// } catch ( const std::exception & e) {
-	// 	LOG(ERROR) << "Coould not send header to '" << self->d_host << ":" <<
-	// self->d_port << "': " << e.what();
-	// 	self->d_strand.post([self](){ScheduleReconnect(self);});
-	// }
-}
-
-Connection::Ptr Connection::Create(
-    boost::asio::io_context &context,
-    const std::string       &host,
-    uint16_t                 port,
-    Duration                 reconnectPeriod
-) {
-	std::shared_ptr<Connection> res(
-	    new Connection(context, host, port, reconnectPeriod)
-	);
-	Connect(res);
-	return res;
+Connection::~Connection() {
+	Close();
 }
 
 Connection::Connection(
-    boost::asio::io_context &context,
-    const std::string       &host,
-    uint16_t                 port,
-    Duration                 reconnectPeriod
+    GMainContext      *context,
+    const std::string &host,
+    uint16_t           port,
+    Duration           reconnectPeriod
 )
-    : d_context{context}
-    , d_host{host}
+    : d_host{host}
     , d_port{port}
-    , d_strand{context}
-    , d_sending{false}
-    , d_bufferQueue{16}
     , d_reconnectPeriod{reconnectPeriod}
     , d_logger{slog::With(slog::Group(
           "connection", slog::String("host", host), slog::Int("port", port)
-      ))} {
-	if (host.empty()) {
-		throw std::invalid_argument(
-		    "Connection: destination host cannot be empty"
-		);
+      ))}
+    , d_context{context == nullptr ? g_main_context_default() : context}
+    , d_client{nullptr}
+    , d_connection{nullptr}
+    , d_stream{nullptr}
+    , d_queue{64} {
+	scheduleDisplatch();
+}
+
+void Connection::Close() {
+	startClosing();
+	waitClosed();
+}
+
+gboolean Connection::mainLoopDispatchCb(void *self_) {
+	auto self = reinterpret_cast<Connection *>(self_);
+	self->mainLoopDispatch();
+	return G_SOURCE_REMOVE;
+}
+
+void Connection::closeConnection() {
+	if (d_stream != nullptr) {
+		g_output_stream_close(d_stream, nullptr, nullptr);
+		g_clear_object(&d_stream);
+	}
+	if (d_connection != nullptr) {
+		g_clear_object(&d_connection);
+	}
+	if (d_client != nullptr) {
+		g_clear_object(&d_client);
 	}
 }
 
-Connection::~Connection() {}
-
-// serializes the message to a std::string, which are allowed to
-// contain NULL character, but should be considered a glorified
-// std::vector<uint8_t> could be improved to use an allocation arena
-// instead of buffers
-inline std::string SerializeMessage(const google::protobuf::MessageLite &message
-) {
-	std::ostringstream oss;
-	google::protobuf::util::SerializeDelimitedToOstream(message, &oss);
-	return oss.str();
-}
-
-void Connection::PostMessage(
-    const Ptr &self, const google::protobuf::MessageLite &message
-) {
-	if (self->d_bufferQueue.try_enqueue(SerializeMessage(message)) == false) {
-		self->d_logger.Warn("discarding message as input queue is full");
-	}
-
-	self->d_strand.post([self]() {
-		if (self->d_bufferQueue.size_approx() == 0 || self->d_sending == true) {
-			return;
-		}
-		if (!self->d_socket) {
-			self->d_logger.Warn(
-			    "discarding message has there is no active connection"
+void Connection::mainLoopDispatch() {
+	switch (d_state.load()) {
+	case State::INITIAL:
+		connectAsync();
+		break;
+	case State::CONNECTING:
+	case State::WRITING:
+	case State::CLOSED:
+		break;
+	case State::CLOSING:
+		if (d_stream == nullptr) {
+			d_logger.Warn(
+			    "dropping message queue as not connected on close",
+			    slog::Int("size", d_queue.size_approx())
 			);
-			std::string discard;
-			self->d_bufferQueue.wait_dequeue(discard);
-			ScheduleReconnect(self);
+			std::string buf;
+			while (d_queue.try_dequeue(buf)) {
+			}
+		}
+
+		if (d_queue.size_approx() == 0) {
+			closeConnection();
+			d_state.store(State::CLOSED);
+			d_state.notify_all();
 			return;
 		}
-		ScheduleSend(self);
-	});
+		// we send nextbuffer in case of opened connection and closing.
+	case State::CONNECTED:
+		sendNextBuffer();
+		break;
+	}
 }
 
-void Connection::ScheduleSend(const Ptr &self) {
-	self->d_sending = true;
-	std::string toSend;
-	self->d_bufferQueue.wait_dequeue(toSend);
-	boost::asio::async_write(
-	    *self->d_socket,
-	    boost::asio::const_buffers_1(&((toSend)[0]), toSend.size()),
-	    self->d_strand.wrap(
-	        [self, toSend](const boost::system::error_code &ec, std::size_t s) {
-		        if (ec == boost::asio::error::connection_reset ||
-		            ec == boost::asio::error::bad_descriptor) {
-			        self->d_logger.Error(
-			            "disconnected",
-			            slog::Int("error_code", ec.value())
-			        );
-			        if (!self->d_socket) {
-				        return;
-			        }
-			        self->d_socket.reset();
-			        ScheduleReconnect(self);
-		        } else if (ec) {
-			        self->d_logger.Error(
-			            "could not send data",
-			            slog::Int("error_code", ec.value())
-			        );
-		        }
-		        if (self->d_bufferQueue.size_approx() <= 0) {
-			        self->d_sending = false;
-			        return;
-		        }
-		        ScheduleSend(self);
-	        }
-	    )
-	);
-}
-
-std::string FormatDuration(const Duration &d) {
-	std::ostringstream oss;
-	oss << d;
-	return oss.str();
-}
-
-void Connection::ScheduleReconnect(const Ptr &self) {
-	if (self->d_socket) {
+void Connection::connectAsync() {
+	if (d_state.load() != State::INITIAL) {
 		return;
 	}
 
-	self->d_logger.Info(
-	    "scheduling reconnection",
-	    slog::String("period", FormatDuration(self->d_reconnectPeriod))
+	if (d_client != nullptr) {
+		d_client = g_socket_client_new();
+	}
+	d_state.store(State::CONNECTING);
+	slog::Info("connecting");
+	g_socket_client_connect_to_host_async(
+	    d_client,
+	    d_host.c_str(),
+	    d_port,
+	    nullptr,
+	    connectCallback,
+	    this
+	);
+}
+
+void Connection::connectCallback(
+    GObject *source, GAsyncResult *res, gpointer data
+) {
+	auto self = reinterpret_cast<Connection *>(data);
+
+	GError            *error      = nullptr;
+	GSocketConnection *connection = G_SOCKET_CONNECTION(
+	    g_socket_client_connect_finish(G_SOCKET_CLIENT(source), res, &error)
 	);
 
-	auto period = boost::posix_time::milliseconds(
-	    size_t(self->d_reconnectPeriod.Milliseconds())
+	if (connection == nullptr) {
+		self->d_logger.Error(
+		    "connection failed",
+		    slog::String("error", error == nullptr ? "unknown" : error->message)
+		);
+		if (error != nullptr) {
+			g_error_free(error);
+		}
+		self->scheduleReconnect();
+		return;
+	}
+
+	if (self->d_connection != nullptr) {
+		g_clear_object(&self->d_connection);
+	}
+	self->d_connection = connection;
+	if (self->d_stream != nullptr) {
+		g_clear_object(&self->d_stream);
+	}
+	self->d_stream = g_io_stream_get_output_stream(G_IO_STREAM(connection));
+	self->d_state.store(State::CONNECTED);
+	self->sendNextBuffer();
+}
+
+void Connection::scheduleReconnect() {
+	d_state.store(State::CONNECTING);
+	g_timeout_add(
+	    guint(d_reconnectPeriod.Milliseconds()),
+	    [](gpointer userData) -> gboolean {
+		    auto self = reinterpret_cast<Connection *>(userData);
+		    self->d_state.store(State::INITIAL);
+		    self->connectAsync();
+		    return G_SOURCE_REMOVE;
+	    },
+	    this
 	);
-	auto t =
-	    std::make_shared<boost::asio::deadline_timer>(self->d_context, period);
-	t->async_wait(self->d_strand.wrap([self,
-	                                   t](const boost::system::error_code &) {
-		self->d_logger.Info("reconnecting");
-		Connect(self);
-	}));
+}
+
+void Connection::sendNextBuffer() {
+	if (d_state.load() != State::CONNECTED) {
+		return;
+	}
+
+	std::string next;
+	if (d_queue.try_dequeue(next) == false) {
+		return;
+	}
+
+	d_state.store(State::WRITING);
+	g_output_stream_write_async(
+	    d_stream,
+	    next.data(),
+	    next.size(),
+	    G_PRIORITY_DEFAULT,
+	    nullptr,
+	    [](GObject *source, GAsyncResult *result, gpointer userData) -> void {
+		    auto    self    = reinterpret_cast<Connection *>(userData);
+		    GError *error   = nullptr;
+		    gssize  written = g_output_stream_write_finish(
+                G_OUTPUT_STREAM(source),
+                result,
+                &error
+            );
+		    if (written < 0) {
+			    self->d_logger.Error(
+			        "write failed",
+			        slog::String(
+			            "error",
+			            error == nullptr ? "unknown" : error->message
+			        )
+			    );
+			    if (error != nullptr) {
+				    g_error_free(error);
+			    }
+			    self->closeConnection();
+			    self->scheduleReconnect();
+		    }
+		    self->d_state.store(State::CONNECTED);
+		    self->sendNextBuffer();
+	    },
+	    this
+	);
+}
+
+inline std::string serialize(const google::protobuf::MessageLite &m) {
+		std::ostringstream oss;
+		google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
+		return oss.str();
+}
+
+void Connection::PostMessage(const google::protobuf::MessageLite &m) {
+		const auto state = d_state.load();
+		if (state == State::CLOSING || state == State::CLOSED) {
+			slog::Warn(
+			    "discarding as connection is closed",
+			    slog::String("message", m.Utf8DebugString())
+			);
+		}
+		if (d_queue.try_enqueue(serialize(m)) == false) {
+			slog::Error(
+			    "discarding as input queue is full",
+			    slog::String("message", m.Utf8DebugString())
+			);
+			return;
+		}
+		scheduleDisplatch();
+}
+
+void Connection::scheduleDisplatch() {
+		g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
+}
+
+void Connection::startClosing() {
+		d_state.store(State::CLOSING);
+		scheduleDisplatch();
+}
+
+void Connection::waitClosed() {
+		d_state.wait(State::CLOSED);
 }
 
 } // namespace artemis

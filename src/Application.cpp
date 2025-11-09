@@ -5,7 +5,10 @@
 #include <ctime>
 #include <execinfo.h>
 #include <filesystem>
-#include <linux/limits.h>
+
+#include <glib-unix.h>
+#include <glib.h>
+
 #include <pwd.h>
 
 #include "Application.hpp"
@@ -35,18 +38,18 @@ void Application::Execute(int argc, char **argv) {
 	    "run apriltag detection and coordinates with leto for results"
 	);
 	options.ParseArguments(argc, (const char **)argv);
-	if (InterceptCommand(options) == true) {
+	if (interceptCommand(options) == true) {
 		return;
 	}
 
-	InitLogging(argv[0], options);
-	InitGlobalDependencies();
+	initLogging(argv[0], options);
+	initGlobalDependencies();
 
 	Application application(options);
-	application.Run();
+	application.run();
 };
 
-bool Application::InterceptCommand(const Options &options) {
+bool Application::interceptCommand(const Options &options) {
 	if (options.PrintVersion == true) {
 		std::cout << "artemis v" << ARTEMIS_VERSION << std::endl;
 		return true;
@@ -137,7 +140,7 @@ struct LogfileName {
 	}
 };
 
-void Application::InitLogging(const char *argv0, const Options &options) {
+void Application::initLogging(const char *argv0, const Options &options) {
 
 	LogfileName filenames{argv0, options.LogDir};
 
@@ -182,7 +185,7 @@ void Application::InitLogging(const char *argv0, const Options &options) {
 #endif
 }
 
-void Application::InitGlobalDependencies() {
+void Application::initGlobalDependencies() {
 	// Needed as we will do some parallelized access to Eigen ??
 	Eigen::initParallel();
 	// reduce the number of threads for OpenCV to allow some room for
@@ -195,9 +198,17 @@ void Application::InitGlobalDependencies() {
 	}
 }
 
+Application::~Application() {
+	g_main_context_pop_thread_default(d_context);
+	g_main_loop_unref(d_loop);
+	g_main_context_unref(d_context);
+}
+
 Application::Application(const Options &options)
-    : d_signals(d_context, SIGINT)
-    , d_guard(d_context.get_executor()) {
+    : d_context{g_main_context_new()}
+    , d_loop{g_main_loop_new(d_context, FALSE)} {
+
+	g_main_context_push_thread_default(d_context);
 
 	d_grabber = AcquisitionTask::LoadFrameGrabber(
 	    options.StubImagePaths(),
@@ -211,50 +222,56 @@ Application::Application(const Options &options)
 	);
 
 	d_acquisition = std::make_shared<AcquisitionTask>(d_grabber, d_process);
+
+	g_unix_signal_add(SIGINT, Application::onSigint, this);
 }
 
-void Application::SpawnTasks() {
+void Application::workgroupAdd(int i) {
+	auto old = d_workgroup.fetch_add(i);
+	if ( (old + i) == 0 ) {
+		g_main_loop_quit(d_loop);
+	}
+}
+
+void Application::spawnTasks() {
+	auto onDone = [this]() { workgroupAdd(-1); };
+
 	if (d_process->UserInterfaceTask()) {
-		d_threads.push_back(Task::Spawn(*d_process->UserInterfaceTask(), 1));
+		workgroupAdd(1);
+		d_threads.push_back(
+		    Task::Spawn(*d_process->UserInterfaceTask(), 1, onDone)
+		);
 	}
 
-	d_threads.push_back(Task::Spawn(*d_process, 0));
-
-	d_threads.push_back(Task::Spawn(*d_acquisition, 0));
+	workgroupAdd(1);
+	d_threads.push_back(Task::Spawn(*d_process, 0, onDone));
+	workgroupAdd(1);
+	d_threads.push_back(Task::Spawn(*d_acquisition, 0, onDone));
 }
 
-void Application::JoinTasks() {
+void Application::joinTasks() {
 	// we join all subtask, but leave IO task alive
 	for (auto &thread : d_threads) {
 		thread.join();
 	}
-	// now, nobody will post IO operation. we can reset safely.
-	d_guard.reset();
-	// we join the IO thread
-	d_ioThread.join();
 }
 
-void Application::SpawnIOContext() {
-	// putting a wait on SIGINT will ensure that the context remains
-	// active throughout execution.
-	d_signals.async_wait([this](const boost::system::error_code &, int) {
-		slog::Info("Terminating (SIGINT)");
-		d_acquisition->Stop();
-	});
-	// starts the context in a single threads, and remind to join it
-	// once we got the SIGINT
-	d_ioThread = std::thread([this]() {
-		auto logger = slog::With(slog::String("task", "IO"));
-		logger.Info("started");
-		d_context.run();
-		logger.Info("ended");
-	});
+int Application::onSigint(void *self_) {
+	auto self = reinterpret_cast<Application *>(self_);
+	slog::Info("Terminating (SIGINT)");
+	self->d_acquisition->Stop();
+	return G_SOURCE_REMOVE;
 }
 
-void Application::Run() {
-	SpawnIOContext();
-	SpawnTasks();
-	JoinTasks();
+void Application::run() {
+	spawnTasks();
+
+	auto logger = slog::With(slog::String("task", "GLibMainLoop"));
+
+	logger.Info("started");
+	g_main_loop_run(d_loop);
+	logger.Info("done");
+	joinTasks();
 }
 
 } // namespace artemis

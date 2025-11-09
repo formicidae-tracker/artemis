@@ -159,10 +159,8 @@ find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
 
-add_definitions(${EIGEN3_DEFINITIONS})
-
-include_directories(
-	${EGRABBER_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${PROTOBUF_INCLUDE_DIRS}
+pkg_check_modules(
+	gstreamer REQUIRED IMPORTED_TARGET glib-2.0 gio-2.0 gobject-2.0
 )
 
 set(INSTALL_GTEST Off)

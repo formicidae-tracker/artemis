@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include <fort/hermes/FrameReadout.pb.h>
+#include <glib.h>
 #include <slog++/Attribute.hpp>
 
 #include <artemis-config.h>
@@ -29,9 +30,7 @@ Size workingResolution(
 }
 
 ProcessFrameTask::ProcessFrameTask(
-    const Options           &options,
-    boost::asio::io_context &context,
-    const Size              &inputResolution
+    const Options &options, GMainContext *context, const Size &inputResolution
 )
     : d_config{options}
     , d_maximumThreads{std::thread::hardware_concurrency() > 2 ? std::thread::hardware_concurrency() - 2 : 1}
@@ -117,7 +116,7 @@ void ProcessFrameTask::SetUpTaskflow() {
 
 	if (d_connection) {
 		auto upstream = d_taskflow.emplace([this]() {
-			Connection::PostMessage(d_connection, *d_current.Readout);
+			d_connection->PostMessage(*d_current.Readout);
 		});
 		upstream.succeed(detectionDone);
 	}
@@ -219,9 +218,7 @@ UserInterfaceTaskPtr ProcessFrameTask::UserInterfaceTask() const {
 }
 
 void ProcessFrameTask::SetUpVideoOutputTask(
-    const VideoOutputOptions &options,
-    boost::asio::io_context  &context,
-    bool                      legacyMode
+    const VideoOutputOptions &options, GMainContext *context, bool legacyMode
 ) {
 	if (options.ToStdout == false) {
 		return;
@@ -251,12 +248,12 @@ void ProcessFrameTask::SetUpCataloguing(const Options &options) {
 }
 
 void ProcessFrameTask::SetUpConnection(
-    const LetoOptions &options, boost::asio::io_context &context
+    const LetoOptions &options, GMainContext *context
 ) {
 	if (options.Host.empty()) {
 		return;
 	}
-	d_connection = Connection::Create(
+	d_connection = std::make_unique<Connection>(
 	    context,
 	    options.Host,
 	    options.Port,
@@ -284,6 +281,10 @@ void ProcessFrameTask::TearDown() {
 	if (d_userInterface) {
 		d_userInterface->CloseQueue();
 	}
+	if (d_connection) {
+		d_connection->Close();
+	}
+	// TODO: close video output.
 }
 
 void ProcessFrameTask::Run() {
@@ -325,7 +326,7 @@ void ProcessFrameTask::DropFrame(const Frame::Ptr &frame) {
 
 	d_current.Readout->set_error(hermes::FrameReadout::PROCESS_OVERFLOW);
 
-	Connection::PostMessage(d_connection, *d_current.Readout);
+	d_connection->PostMessage(*d_current.Readout);
 }
 
 void ProcessFrameTask::ProcessFrame(const Frame::Ptr &frame) {}

@@ -1,69 +1,80 @@
 #pragma once
 
-#include <blockingconcurrentqueue.h>
-#include <boost/asio/io_service.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/asio/streambuf.hpp>
-#include <boost/asio/version.hpp>
+#include <atomic>
+#include <concurrentqueue.h>
 
 #include <google/protobuf/message.h>
 
 #include <fort/time/Time.hpp>
 
-#include <mutex>
 #include <slog++/Logger.hpp>
 
-#if (BOOST_ASIO_VERSION < 101800)
-#error "Wrong version of boost asio " # BOOST_ASIO_VERSION
-#endif
+#include <gio/gio.h>
+#include <glib.h>
 
 namespace fort {
 namespace artemis {
 
 class Connection {
 public:
-	typedef std::shared_ptr<Connection> Ptr;
 	~Connection();
-	static Ptr Create(
-	    boost::asio::io_context &context,
-	    const std::string       &host,
-	    uint16_t                 port,
-	    Duration                 reconnectPeriod = 5 * Duration::Second
+
+	Connection(
+	    GMainContext      *context,
+	    const std::string &host,
+	    uint16_t           port,
+	    Duration           reconnectPeriod
 	);
+
+	Connection(const Connection &other)            = delete;
+	Connection(Connection &&other)                 = delete;
+	Connection &operator=(const Connection &other) = delete;
+	Connection &operator=(Connection &&other)      = delete;
+
+	void Close();
 
 	// thread-safe function
-	static void
-	PostMessage(const Ptr &connection, const google::protobuf::MessageLite &m);
+	void PostMessage(const google::protobuf::MessageLite &m);
 
 private:
-	Connection(
-	    boost::asio::io_context &context,
-	    const std::string       &host,
-	    uint16_t                 port,
-	    Duration                 reconnectPeriod
-	);
+	using Queue = moodycamel::ConcurrentQueue<std::string>;
 
-	static void ScheduleReconnect(const Ptr &self);
-	static void ScheduleSend(const Ptr &self);
-	static void Connect(const Ptr &self);
+	static gboolean mainLoopDispatchCb(void *);
+	void            mainLoopDispatch();
+	void            scheduleDisplatch();
 
-	boost::asio::io_context &d_context;
+	static void
+	     connectCallback(GObject *source, GAsyncResult *res, gpointer data);
+	void connectAsync();
+	void scheduleReconnect();
+	void closeConnection();
 
-	std::string                                   d_host;
-	uint16_t                                      d_port;
-	std::shared_ptr<boost::asio::ip::tcp::socket> d_socket;
+	void sendNextBuffer();
 
-	boost::asio::io_context::strand d_strand;
+	void startClosing();
+	void waitClosed();
 
-	typedef moodycamel::BlockingConcurrentQueue<std::string> BufferQueue;
+	const std::string d_host;
+	const uint16_t    d_port;
+	const Duration    d_reconnectPeriod;
+	slog::Logger<1>   d_logger;
 
-	bool d_sending;
+	GMainContext      *d_context;
+	GSocketClient     *d_client;
+	GSocketConnection *d_connection;
+	GOutputStream     *d_stream;
 
-	BufferQueue d_bufferQueue;
+	Queue d_queue;
 
-	Duration        d_reconnectPeriod;
-	slog::Logger<1> d_logger;
+	enum class State {
+		INITIAL,
+		CONNECTING,
+		CONNECTED,
+		WRITING,
+		CLOSING,
+		CLOSED,
+	};
+	std::atomic<State> d_state{State::INITIAL};
 };
 
 } // namespace artemis

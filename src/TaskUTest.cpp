@@ -17,16 +17,16 @@ public:
 	}
 };
 
-TEST_F(TaskUTest,Niceness) {
-	std::vector<size_t> n = {1,0,2};
-	SleepTask t;
-	for ( const auto & niceness : n ) {
+TEST_F(TaskUTest, Niceness) {
+	std::vector<size_t> n = {1, 0, 2};
+	SleepTask           t;
+	for (const auto &niceness : n) {
 		EXPECT_NO_THROW({
-				auto th = Task::Spawn(t,niceness);
-				th.join();
-			}) << "For niceness " << niceness;
+			auto th = Task::Spawn(t, niceness, []() {});
+			th.join();
+		}) << "For niceness "
+		   << niceness;
 	}
-
 }
 
 } // namespace artemis

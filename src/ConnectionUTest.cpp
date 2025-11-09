@@ -7,6 +7,7 @@
 #include <boost/asio/write.hpp>
 #include <fort/hermes/FrameReadout.pb.h>
 #include <fort/hermes/Header.pb.h>
+#include <glib.h>
 #include <google/protobuf/util/delimited_message_util.h>
 
 #include "Connection.hpp"
@@ -142,7 +143,11 @@ TEST_F(ConnectionUTest, DoesNotMangle) {
 	Connection::Ptr connection;
 
 	try {
-		connection = Connection::Create(d_context, "localhost", 12345);
+		connection = std::make_unique<Connection>(
+		    g_main_context_default(),
+		    "localhost",
+		    12345
+		);
 	} catch (const std::exception &e) {
 		FAIL() << "Could not connect: " << e.what();
 	}
@@ -155,7 +160,7 @@ TEST_F(ConnectionUTest, DoesNotMangle) {
 		messages.push_back(m);
 	}
 	for (auto &m : messages) {
-		Connection::PostMessage(connection, m);
+		connection->PostMessage(m);
 	}
 
 	connection.reset();
@@ -164,7 +169,7 @@ TEST_F(ConnectionUTest, DoesNotMangle) {
 
 TEST_F(ConnectionUTest, CanReconnect) {
 	d_running.Wait();
-	auto connection = Connection::Create(
+	auto connection = std::make_unique<Connection>(
 	    d_context,
 	    "localhost",
 	    12346,
@@ -176,12 +181,12 @@ TEST_F(ConnectionUTest, CanReconnect) {
 	m.set_timestamp(20000);
 
 	// this will make the data be lost.
-	Connection::PostMessage(connection, m);
+	connection->PostMessage(m);
 	d_accept.Wait();
 
 	d_accept.Wait();
 	// the data was discarded by the connection object, safe to send ID 1 again
-	Connection::PostMessage(connection, m);
+	connection->PostMessage(m);
 
 	connection.reset();
 	d_closed.Wait();

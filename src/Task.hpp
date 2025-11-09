@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <thread>
 
 namespace fort {
@@ -11,7 +12,8 @@ public:
 
 	virtual void Run() = 0;
 
-	static std::thread Spawn(Task & task,size_t niceness);
+	static std::thread
+	Spawn(Task &task, size_t niceness, std::function<void()> onDone);
 };
 
 } // namespace artemis
