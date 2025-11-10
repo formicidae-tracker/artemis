@@ -177,7 +177,7 @@ set(gtest_force_shared_crt
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
+add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --verbose)
 include(GoogleTest)
 
 # add_subdirectory(scripts)
