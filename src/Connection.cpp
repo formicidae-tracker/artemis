@@ -144,60 +144,68 @@ void Connection::connectAsync() {
 	    d_host.c_str(),
 	    d_port,
 	    nullptr,
-	    connectCallback,
+	    [](GObject *source, GAsyncResult *res, gpointer data) {
+		    auto self = reinterpret_cast<Connection *>(data);
+
+		    GError            *error = nullptr;
+		    GSocketConnection *connection =
+		        G_SOCKET_CONNECTION(g_socket_client_connect_finish(
+		            G_SOCKET_CLIENT(source),
+		            res,
+		            &error
+		        ));
+
+		    if (connection == nullptr) {
+			    self->d_logger.Error(
+			        "connection failed",
+			        slog::String(
+			            "error",
+			            error == nullptr ? "unknown" : error->message
+			        )
+			    );
+			    if (error != nullptr) {
+				    g_error_free(error);
+			    }
+			    self->scheduleReconnect();
+			    return;
+		    }
+
+		    if (self->d_connection != nullptr) {
+			    g_io_stream_close(
+			        G_IO_STREAM(self->d_connection),
+			        nullptr,
+			        nullptr
+			    );
+			    g_clear_object(&self->d_connection);
+		    }
+		    self->d_connection = connection;
+		    self->d_stream =
+		        g_io_stream_get_output_stream(G_IO_STREAM(connection));
+		    self->d_state.store(State::CONNECTED);
+		    self->d_logger.Info("connected");
+		    self->sendNextBuffer();
+	    },
 	    this
 	);
 }
 
-void Connection::connectCallback(
-    GObject *source, GAsyncResult *res, gpointer data
-) {
-
-	auto self = reinterpret_cast<Connection *>(data);
-
-	GError            *error      = nullptr;
-	GSocketConnection *connection = G_SOCKET_CONNECTION(
-	    g_socket_client_connect_finish(G_SOCKET_CLIENT(source), res, &error)
-	);
-
-	if (connection == nullptr) {
-		self->d_logger.Error(
-		    "connection failed",
-		    slog::String("error", error == nullptr ? "unknown" : error->message)
-		);
-		if (error != nullptr) {
-			g_error_free(error);
-		}
-		self->scheduleReconnect();
-		return;
-	}
-
-	if (self->d_connection != nullptr) {
-		g_clear_object(&self->d_connection);
-	}
-	self->d_connection = connection;
-	self->d_stream     = g_io_stream_get_output_stream(G_IO_STREAM(connection));
-	self->d_state.store(State::CONNECTED);
-	self->d_logger.Info("connected");
-	self->sendNextBuffer();
-}
-
 void Connection::scheduleReconnect() {
-	d_state.store(State::CONNECTING);
-	auto source = g_timeout_source_new(guint(d_reconnectPeriod.Milliseconds()));
-	g_source_set_callback(
-	    source,
-	    [](gpointer userData) -> gboolean {
-		    auto self = reinterpret_cast<Connection *>(userData);
-		    self->d_state.store(State::INITIAL);
-		    self->connectAsync();
-		    return G_SOURCE_REMOVE;
-	    },
-	    this,
-	    nullptr
-	);
-	g_source_attach(source, d_context);
-	g_source_unref(source);
+		d_state.store(State::CONNECTING);
+		auto source =
+		    g_timeout_source_new(guint(d_reconnectPeriod.Milliseconds()));
+		g_source_set_callback(
+		    source,
+		    [](gpointer userData) -> gboolean {
+			    auto self = reinterpret_cast<Connection *>(userData);
+			    self->d_state.store(State::INITIAL);
+			    self->connectAsync();
+			    return G_SOURCE_REMOVE;
+		    },
+		    this,
+		    nullptr
+		);
+		g_source_attach(source, d_context);
+		g_source_unref(source);
 }
 
 void Connection::sendNextBuffer() {
@@ -255,7 +263,8 @@ void Connection::sendNextBuffer() {
 		    }
 		    logger.DDebug("written", slog::Int("bytes", written));
 		    self->d_state.store(State::CONNECTED);
-		    // we reschedule a dispatch to either push next write or closing.
+		    // we reschedule a dispatch to either push next write or
+		    // continue the closing.
 		    self->scheduleDispatch();
 	    },
 	    this
@@ -263,44 +272,44 @@ void Connection::sendNextBuffer() {
 }
 
 inline std::string serialize(const google::protobuf::MessageLite &m) {
-	std::ostringstream oss;
-	google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
-	return oss.str();
+		std::ostringstream oss;
+		google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
+		return oss.str();
 }
 
 bool Connection::PostMessage(const google::protobuf::MessageLite &m) {
-	const auto state = d_state.load();
-	if (d_closing.load() == true || state == State::CLOSED) {
-		slog::Warn(
-		    "discarding as connection is closed",
-		    slog::String("message", m.Utf8DebugString())
-		);
-		return false;
-	}
-	if (d_queue.try_enqueue(serialize(m)) == false) {
-		slog::Error(
-		    "discarding as input queue is full",
-		    slog::String("message", m.Utf8DebugString())
-		);
-		return false;
-	}
-	scheduleDispatch();
-	return true;
+		const auto state = d_state.load();
+		if (d_closing.load() == true || state == State::CLOSED) {
+			slog::Warn(
+			    "discarding as connection is closed",
+			    slog::String("message", m.Utf8DebugString())
+			);
+			return false;
+		}
+		if (d_queue.try_enqueue(serialize(m)) == false) {
+			slog::Error(
+			    "discarding as input queue is full",
+			    slog::String("message", m.Utf8DebugString())
+			);
+			return false;
+		}
+		scheduleDispatch();
+		return true;
 }
 
 void Connection::scheduleDispatch() {
-	d_logger.DDebug("scheduling dispatch");
-	d_refCount.fetch_add(1);
-	g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
+		d_logger.DDebug("scheduling dispatch");
+		d_refCount.fetch_add(1);
+		g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
 }
 
 void Connection::startClosing() {
-	d_closing.store(true);
-	scheduleDispatch();
+		d_closing.store(true);
+		scheduleDispatch();
 }
 
 void Connection::waitClosed() {
-	atomic_wait_for_value(d_state, State::CLOSED);
+		atomic_wait_for_value(d_state, State::CLOSED);
 }
 
 } // namespace artemis

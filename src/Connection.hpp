@@ -43,8 +43,6 @@ private:
 	void            mainLoopDispatch();
 	void            scheduleDispatch();
 
-	static void
-	     connectCallback(GObject *source, GAsyncResult *res, gpointer data);
 	void connectAsync();
 	void scheduleReconnect();
 	void closeConnection();
