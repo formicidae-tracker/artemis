@@ -10,6 +10,8 @@
 #include <slog++/slog++.hpp>
 #include <sstream>
 
+#include <magic_enum/magic_enum.hpp>
+
 namespace fort {
 namespace artemis {
 
@@ -34,7 +36,7 @@ Connection::Connection(
     , d_connection{nullptr}
     , d_stream{nullptr}
     , d_queue{64} {
-	scheduleDisplatch();
+	scheduleDispatch();
 }
 
 void Connection::Close() {
@@ -42,8 +44,8 @@ void Connection::Close() {
 	waitClosed();
 }
 
-gboolean Connection::mainLoopDispatchCb(void *self_) {
-	auto self = reinterpret_cast<Connection *>(self_);
+gboolean Connection::mainLoopDispatchCb(gpointer userdata) {
+	auto self = reinterpret_cast<Connection *>(userdata);
 	self->mainLoopDispatch();
 	return G_SOURCE_REMOVE;
 }
@@ -62,6 +64,23 @@ void Connection::closeConnection() {
 }
 
 void Connection::mainLoopDispatch() {
+	d_logger.DDebug(
+	    "dispatch",
+	    slog::String(
+	        "state",
+	        std::string(magic_enum::enum_name(d_state.load()))
+	    )
+	);
+	Defer {
+		d_logger.DDebug(
+		    "dispatch done",
+		    slog::String(
+		        "state",
+		        std::string(magic_enum::enum_name(d_state.load()))
+		    )
+		);
+	};
+
 	switch (d_state.load()) {
 	case State::INITIAL:
 		connectAsync();
@@ -99,11 +118,11 @@ void Connection::connectAsync() {
 		return;
 	}
 
-	if (d_client != nullptr) {
+	if (d_client == nullptr) {
 		d_client = g_socket_client_new();
 	}
 	d_state.store(State::CONNECTING);
-	slog::Info("connecting");
+	d_logger.Info("connecting");
 	g_socket_client_connect_to_host_async(
 	    d_client,
 	    d_host.c_str(),
@@ -117,6 +136,7 @@ void Connection::connectAsync() {
 void Connection::connectCallback(
     GObject *source, GAsyncResult *res, gpointer data
 ) {
+
 	auto self = reinterpret_cast<Connection *>(data);
 
 	GError            *error      = nullptr;
@@ -145,6 +165,7 @@ void Connection::connectCallback(
 	}
 	self->d_stream = g_io_stream_get_output_stream(G_IO_STREAM(connection));
 	self->d_state.store(State::CONNECTED);
+	self->d_logger.Info("connected");
 	self->sendNextBuffer();
 }
 
@@ -173,6 +194,11 @@ void Connection::sendNextBuffer() {
 	}
 
 	d_state.store(State::WRITING);
+	d_logger.DDebug(
+	    "writing",
+	    slog::Int("total", next.size()),
+	    slog::Int("txID", d_txID.fetch_add(1) + 1)
+	);
 	g_output_stream_write_async(
 	    d_stream,
 	    next.data(),
@@ -180,15 +206,23 @@ void Connection::sendNextBuffer() {
 	    G_PRIORITY_DEFAULT,
 	    nullptr,
 	    [](GObject *source, GAsyncResult *result, gpointer userData) -> void {
-		    auto    self    = reinterpret_cast<Connection *>(userData);
+		    auto self = reinterpret_cast<Connection *>(userData);
+		    auto logger =
+		        self->d_logger.With(slog::Int("txID", self->d_txID.load()));
+		    logger.DDebug("writeCallback");
+		    Defer {
+			    logger.DDebug("writeCallback done");
+		    };
+
 		    GError *error   = nullptr;
 		    gssize  written = g_output_stream_write_finish(
                 G_OUTPUT_STREAM(source),
                 result,
                 &error
             );
+
 		    if (written < 0) {
-			    self->d_logger.Error(
+			    logger.Error(
 			        "write failed",
 			        slog::String(
 			            "error",
@@ -200,7 +234,9 @@ void Connection::sendNextBuffer() {
 			    }
 			    self->closeConnection();
 			    self->scheduleReconnect();
+			    return;
 		    }
+		    logger.DDebug("written", slog::Int("bytes", written));
 		    self->d_state.store(State::CONNECTED);
 		    self->sendNextBuffer();
 	    },
@@ -209,40 +245,41 @@ void Connection::sendNextBuffer() {
 }
 
 inline std::string serialize(const google::protobuf::MessageLite &m) {
-		std::ostringstream oss;
-		google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
-		return oss.str();
+	std::ostringstream oss;
+	google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
+	return oss.str();
 }
 
 void Connection::PostMessage(const google::protobuf::MessageLite &m) {
-		const auto state = d_state.load();
-		if (state == State::CLOSING || state == State::CLOSED) {
-			slog::Warn(
-			    "discarding as connection is closed",
-			    slog::String("message", m.Utf8DebugString())
-			);
-		}
-		if (d_queue.try_enqueue(serialize(m)) == false) {
-			slog::Error(
-			    "discarding as input queue is full",
-			    slog::String("message", m.Utf8DebugString())
-			);
-			return;
-		}
-		scheduleDisplatch();
+	const auto state = d_state.load();
+	if (state == State::CLOSING || state == State::CLOSED) {
+		slog::Warn(
+		    "discarding as connection is closed",
+		    slog::String("message", m.Utf8DebugString())
+		);
+	}
+	if (d_queue.try_enqueue(serialize(m)) == false) {
+		slog::Error(
+		    "discarding as input queue is full",
+		    slog::String("message", m.Utf8DebugString())
+		);
+		return;
+	}
+	scheduleDispatch();
 }
 
-void Connection::scheduleDisplatch() {
-		g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
+void Connection::scheduleDispatch() {
+	d_logger.DDebug("scheduling dispatch");
+	g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
 }
 
 void Connection::startClosing() {
-		d_state.store(State::CLOSING);
-		scheduleDisplatch();
+	d_state.store(State::CLOSING);
+	scheduleDispatch();
 }
 
 void Connection::waitClosed() {
-		d_state.wait(State::CLOSED);
+	d_state.wait(State::CLOSING);
 }
 
 } // namespace artemis

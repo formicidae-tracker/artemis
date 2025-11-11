@@ -1,3 +1,4 @@
+#include <glib-object.h>
 #include <gmock/gmock.h>
 
 #include <gio/gio.h>
@@ -32,17 +33,9 @@ class GZeroCopyInputStream
 public:
 	GZeroCopyInputStream(GInputStream *stream, GCancellable *cancel)
 	    : d_stream{stream}
-	    , d_cancel{cancel} {
-		if (d_stream == nullptr) {
-			throw std::invalid_argument{"Cannot be nullstream"};
-		}
-		g_object_ref(d_stream);
-	}
+	    , d_cancel{cancel} {}
 
-	~GZeroCopyInputStream() override {
-		g_input_stream_close(d_stream, nullptr, nullptr);
-		g_object_unref(&d_stream);
-	}
+	~GZeroCopyInputStream() override {}
 
 	// forbids copy and move
 	GZeroCopyInputStream(const GZeroCopyInputStream &other)            = delete;
@@ -62,7 +55,8 @@ public:
 			return false;
 		}
 		*data = d_buffer.data() + d_position;
-		*size = d_position - d_read;
+		*size = d_read - d_position;
+		d_read += *size;
 		return true;
 	}
 
@@ -93,15 +87,17 @@ public:
 private:
 	void readMore() {
 		constexpr gsize CHUNK_SIZE = 256;
-		d_buffer.reserve(d_buffer.size() + CHUNK_SIZE);
-		GError *error   = nullptr;
-		gsize   newRead = g_input_stream_read(
-            d_stream,
-            d_buffer.data() + d_read,
-            CHUNK_SIZE,
-            d_cancel,
-            &error
-        );
+		d_buffer.resize(d_buffer.size() + CHUNK_SIZE);
+		GError *error = nullptr;
+
+		gsize newRead = g_input_stream_read(
+		    d_stream,
+		    d_buffer.data() + d_read,
+		    CHUNK_SIZE,
+		    d_cancel,
+		    &error
+		);
+
 		if (newRead < 0) {
 			Defer {
 				g_error_free(error);
@@ -147,37 +143,60 @@ public:
 	    GObject           *source_object,
 	    gpointer           userdata
 	) {
-		auto self       = reinterpret_cast<LetoService *>(userdata);
-		auto toRead     = self->OnConnection();
-		auto zeroStream = std::make_unique<GZeroCopyInputStream>(
-		    g_io_stream_get_input_stream(G_IO_STREAM(connection)),
-		    self->d_cancel
-		);
-		google::protobuf::io::CodedInputStream stream{zeroStream.get()};
-		bool                                   cleanEOF;
-		if (toRead > 0) {
-			fort::hermes::Header header;
-			bool good = google::protobuf::util::ParseDelimitedFromCodedStream(
-			    &header,
-			    &stream,
-			    &cleanEOF
-			);
-			if (good) {
-				self->OnHeader(header);
+		auto self = reinterpret_cast<LetoService *>(userdata);
+
+		auto toRead = self->OnConnection();
+		self->d_logger.Info("new connection", slog::Int("accepting", toRead));
+		g_object_ref(connection);
+		std::thread([self, toRead, connection]() {
+			Defer {
+				self->d_logger.Info("closing");
+				g_io_stream_close(
+				    G_IO_STREAM(connection),
+				    self->d_cancel,
+				    nullptr
+				);
+				g_object_unref(connection);
+			};
+			if (toRead == 0) {
+				return;
 			}
-		}
-		for (size_t i = 0; i < toRead; ++i) {
-			fort::hermes::FrameReadout readout;
-			bool good = google::protobuf::util::ParseDelimitedFromCodedStream(
-			    &readout,
-			    &stream,
-			    &cleanEOF
+
+			auto zeroStream = GZeroCopyInputStream(
+			    g_io_stream_get_input_stream(G_IO_STREAM(connection)),
+			    self->d_cancel
 			);
-			if (good) {
-				self->OnReadout(readout);
+
+			google::protobuf::io::CodedInputStream stream{&zeroStream};
+
+			bool cleanEOF;
+			if (toRead > 0) {
+				fort::hermes::Header header;
+				bool                 good =
+				    google::protobuf::util::ParseDelimitedFromCodedStream(
+				        &header,
+				        &stream,
+				        &cleanEOF
+				    );
+				if (good) {
+					self->OnHeader(header);
+				}
 			}
-		}
-		zeroStream.reset();
+			for (size_t i = 0; i < toRead; ++i) {
+				fort::hermes::FrameReadout readout;
+				bool                       good =
+				    google::protobuf::util::ParseDelimitedFromCodedStream(
+				        &readout,
+				        &stream,
+				        &cleanEOF
+				    );
+				if (good) {
+					self->OnReadout(readout);
+				}
+			}
+			self->d_logger.Info("Closing connection");
+		}).detach();
+
 		return G_SOURCE_REMOVE;
 	}
 
@@ -192,70 +211,74 @@ protected:
 	GSocketService *d_service = nullptr;
 	GCancellable   *d_cancel;
 
-	std::thread d_mainLoopThread;
+	std::thread       d_mainLoopThread;
+	std::atomic<bool> d_ready{false};
 }; // namespace artemis
 
 LetoService::LetoService()
     : d_logger{slog::With(slog::String("task", "letoService"))}
-    , d_context{g_main_context_new()}
-    , d_loop{g_main_loop_new(d_context, FALSE)}
-    , d_service{} {
+    , d_loop{nullptr}
+    , d_service{nullptr} {
 
-	g_main_context_push_thread_default(d_context);
+	d_mainLoopThread = std::thread([this] {
+		d_context = g_main_context_new();
+		d_loop    = g_main_loop_new(d_context, FALSE);
+		g_main_context_push_thread_default(d_context);
 
-	d_cancel  = g_cancellable_new();
-
-	d_service = g_socket_service_new();
-
-	d_logger.Info("service created");
-
-	GError  *error;
-	gboolean ok = g_socket_listener_add_inet_port(
-	    G_SOCKET_LISTENER(d_service),
-	    PORT,
-	    nullptr,
-	    &error
-	);
-	if (!ok) {
-		g_main_context_pop_thread_default(d_context);
-
-		g_object_unref(d_service);
-		g_main_loop_unref(d_loop);
-		g_main_context_unref(d_context);
-
-		throw std::runtime_error(
-		    "could not listen: " + std::string(error->message)
-		);
-	}
-	d_logger.Info("listen added");
-
-	g_signal_connect(d_service, "incoming", G_CALLBACK(onConnection), this);
-	d_logger.Info("signal added");
-	g_socket_service_start(d_service);
-	d_logger.Info("service started");
-
-	std::atomic<bool> ready{false};
-
-	d_mainLoopThread = std::thread([this, &ready] {
 		auto logger = slog::With(slog::String("task", "mainLoop"));
-		g_main_context_invoke(
-		    d_context,
-		    [](gpointer userdata) -> gboolean {
-			    auto ready = reinterpret_cast<std::atomic<bool> *>(userdata);
-			    slog::Warn("signal ready");
-			    ready->store(true);
-			    ready->notify_all();
-			    slog::Warn("signaled ready");
+		logger.Info("started");
+		auto source = g_idle_source_new();
+		g_source_set_callback(
+		    source,
+		    [](gpointer userdata) {
+			    auto self = reinterpret_cast<LetoService *>(userdata);
+			    self->d_ready.store(true);
+			    self->d_ready.notify_all();
 			    return G_SOURCE_REMOVE;
 		    },
-		    &ready
+		    this,
+		    nullptr
 		);
-		logger.Info("started");
+		g_source_attach(source, d_context);
+
+		d_service = g_socket_service_new();
+
+		GError  *error;
+		gboolean ok = g_socket_listener_add_inet_port(
+		    G_SOCKET_LISTENER(d_service),
+		    PORT,
+		    nullptr,
+		    &error
+		);
+
+		if (!ok) {
+			g_main_context_pop_thread_default(d_context);
+
+			g_object_unref(d_service);
+			g_main_context_unref(d_context);
+			g_main_loop_unref(d_loop);
+			d_service = nullptr;
+			d_context = nullptr;
+			d_loop    = nullptr;
+			d_ready.store(true);
+			d_ready.notify_all();
+			return;
+		}
+
+		d_cancel = g_cancellable_new();
+		g_signal_connect(d_service, "incoming", G_CALLBACK(onConnection), this);
+		g_socket_service_start(d_service);
+		d_logger.Info("service started");
+
 		g_main_loop_run(d_loop);
 		logger.Info("done");
 	});
 
-	ready.wait(false);
+	d_ready.wait(false);
+	if (d_service == nullptr) {
+		d_mainLoopThread.join();
+		throw std::runtime_error("could not initialize thread");
+	}
 	d_logger.Info("ready");
 }
 
@@ -274,15 +297,24 @@ protected:
 	void SetUp();
 	void TearDown();
 
+	GMainLoop                   *d_loop;
 	std::unique_ptr<LetoService> d_service;
+
+	std::thread d_defaultMainLoop;
 };
 
 void ConnectionTest::SetUp() {
-	d_service = std::make_unique<LetoService>();
+	d_loop            = g_main_loop_new(nullptr, FALSE);
+	d_defaultMainLoop = std::thread([this]() {
+		g_main_loop_run(d_loop);
+		g_main_loop_unref(d_loop);
+	});
+	d_service         = std::make_unique<LetoService>();
 }
 
 void ConnectionTest::TearDown() {
-
+	g_main_loop_quit(d_loop);
+	d_defaultMainLoop.join();
 	auto future =
 	    std::async(std::launch::async, [this]() { d_service.reset(); });
 	if (future.wait_for(std::chrono::milliseconds{200}) ==
@@ -305,11 +337,22 @@ TEST_F(ConnectionTest, Reconnect) {
 		    return 0;
 	    });
 	auto connection = Connection(
-	    d_service->Context(),
+	    nullptr,
 	    "localhost",
 	    LetoService::PORT,
 	    std::chrono::milliseconds{5}
 	);
+
+	slog::Info("waiting first connection");
+	connections.wait(0);
+
+	fort::hermes::FrameReadout ro;
+	ro.set_frameid(1);
+	connection.PostMessage(ro);
+	ro.set_frameid(2);
+	connection.PostMessage(ro);
+	slog::Info("waiting second connection");
+	connections.wait(1);
 }
 
 } // namespace artemis

@@ -39,9 +39,9 @@ public:
 private:
 	using Queue = moodycamel::ConcurrentQueue<std::string>;
 
-	static gboolean mainLoopDispatchCb(void *);
+	static gboolean mainLoopDispatchCb(gpointer userdata);
 	void            mainLoopDispatch();
-	void            scheduleDisplatch();
+	void            scheduleDispatch();
 
 	static void
 	     connectCallback(GObject *source, GAsyncResult *res, gpointer data);
@@ -74,7 +74,8 @@ private:
 		CLOSING,
 		CLOSED,
 	};
-	std::atomic<State> d_state{State::INITIAL};
+	std::atomic<State>  d_state{State::INITIAL};
+	std::atomic<size_t> d_txID{0};
 };
 
 } // namespace artemis
