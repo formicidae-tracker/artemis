@@ -284,25 +284,30 @@ TEST_F(ConnectionTest, Reconnect) {
 using ::testing::Property;
 
 TEST_F(ConnectionTest, DoesNotMangle) {
+	constexpr size_t    SEQUENCE_SIZE = 100;
 	std::atomic<size_t> connections{0};
+	std::atomic<size_t> reads{0};
 	EXPECT_CALL(*d_service, OnConnection())
 	    .Times(::testing::AnyNumber())
 	    .WillRepeatedly([&connections]() -> int {
 		    connections.fetch_add(1);
 		    connections.notify_all();
-		    return 4;
+		    return SEQUENCE_SIZE;
 	    });
 
 	{
 		::testing::InSequence seq;
-		for (size_t i = 0; i < 4; ++i) {
+		for (size_t i = 0; i < SEQUENCE_SIZE; ++i) {
 			EXPECT_CALL(
 			    *d_service,
-			    OnReadout(Property(&hermes::FrameReadout::frameid, i))
-			);
+			    OnReadout(Property(&hermes::FrameReadout::frameid, i + 1))
+			)
+			    .WillOnce([&reads]() {
+				    reads.fetch_add(1);
+				    reads.notify_all();
+			    });
 		}
 	}
-
 	auto connection = Connection(
 	    nullptr,
 	    "localhost",
@@ -312,11 +317,27 @@ TEST_F(ConnectionTest, DoesNotMangle) {
 
 	connections.wait(0);
 	fort::hermes::FrameReadout ro;
-	for (size_t i = 0; i < 4; ++i) {
-		ro.set_frameid(i);
-		connection.PostMessage(ro);
+	for (size_t i = 0; i < SEQUENCE_SIZE; ++i) {
+		ro.set_frameid(i + 1);
+		ASSERT_TRUE(connection.PostMessage(ro));
+		std::this_thread::sleep_for(std::chrono::milliseconds{1});
 	}
+	// needed as our implementation of LetoService reads the full stream of
+	// data.
 	connection.Close();
+
+	auto future = std::async(std::launch::async, [&reads]() {
+		auto current = reads.load();
+		while (current != SEQUENCE_SIZE) {
+			reads.wait(current);
+			current = reads.load();
+		}
+	});
+	if (future.wait_for(std::chrono::milliseconds{500}) ==
+	    std::future_status::timeout) {
+		ADD_FAILURE() << "Write timeouted";
+		new std::future<void>(std::move(future)); // intentional leak.
+	}
 }
 
 } // namespace artemis

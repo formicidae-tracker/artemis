@@ -34,7 +34,7 @@ public:
 	void Close();
 
 	// thread-safe function
-	void PostMessage(const google::protobuf::MessageLite &m);
+	bool PostMessage(const google::protobuf::MessageLite &m);
 
 private:
 	using Queue = moodycamel::ConcurrentQueue<std::string>;

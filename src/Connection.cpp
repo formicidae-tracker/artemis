@@ -81,7 +81,8 @@ void Connection::mainLoopDispatch() {
 	    slog::String(
 	        "state",
 	        std::string(magic_enum::enum_name(d_state.load()))
-	    )
+	    ),
+	    slog::Int("refCount", d_refCount.load())
 	);
 	Defer {
 		d_logger.DDebug(
@@ -267,22 +268,24 @@ inline std::string serialize(const google::protobuf::MessageLite &m) {
 	return oss.str();
 }
 
-void Connection::PostMessage(const google::protobuf::MessageLite &m) {
+bool Connection::PostMessage(const google::protobuf::MessageLite &m) {
 	const auto state = d_state.load();
 	if (d_closing.load() == true || state == State::CLOSED) {
 		slog::Warn(
 		    "discarding as connection is closed",
 		    slog::String("message", m.Utf8DebugString())
 		);
+		return false;
 	}
 	if (d_queue.try_enqueue(serialize(m)) == false) {
 		slog::Error(
 		    "discarding as input queue is full",
 		    slog::String("message", m.Utf8DebugString())
 		);
-		return;
+		return false;
 	}
 	scheduleDispatch();
+	return true;
 }
 
 void Connection::scheduleDispatch() {
