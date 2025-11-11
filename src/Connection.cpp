@@ -53,7 +53,6 @@ gboolean Connection::mainLoopDispatchCb(gpointer userdata) {
 void Connection::closeConnection() {
 	if (d_stream != nullptr) {
 		g_output_stream_close(d_stream, nullptr, nullptr);
-		g_clear_object(&d_stream);
 	}
 	if (d_connection != nullptr) {
 		g_clear_object(&d_connection);
@@ -160,10 +159,7 @@ void Connection::connectCallback(
 		g_clear_object(&self->d_connection);
 	}
 	self->d_connection = connection;
-	if (self->d_stream != nullptr) {
-		g_clear_object(&self->d_stream);
-	}
-	self->d_stream = g_io_stream_get_output_stream(G_IO_STREAM(connection));
+	self->d_stream     = g_io_stream_get_output_stream(G_IO_STREAM(connection));
 	self->d_state.store(State::CONNECTED);
 	self->d_logger.Info("connected");
 	self->sendNextBuffer();
