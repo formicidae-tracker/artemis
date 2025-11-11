@@ -15,8 +15,22 @@
 namespace fort {
 namespace artemis {
 
+template <typename T>
+void atomic_wait_for_value(std::atomic<T> &a, T newValue) {
+	T current = a.load();
+	while (current != newValue) {
+		a.wait(current);
+		// wait for a change.
+		current = a.load();
+	}
+}
+
 Connection::~Connection() {
 	Close();
+	// The refcount is needed as scheduled dispatch may still need this object
+	// to be alive.
+	d_refCount.fetch_add(-1);
+	atomic_wait_for_value<size_t>(d_refCount, 0);
 }
 
 Connection::Connection(
@@ -51,10 +65,9 @@ gboolean Connection::mainLoopDispatchCb(gpointer userdata) {
 }
 
 void Connection::closeConnection() {
-	if (d_stream != nullptr) {
-		g_output_stream_close(d_stream, nullptr, nullptr);
-	}
+	d_stream = nullptr;
 	if (d_connection != nullptr) {
+		g_io_stream_close(G_IO_STREAM(d_connection), nullptr, nullptr);
 		g_clear_object(&d_connection);
 	}
 	if (d_client != nullptr) {
@@ -78,17 +91,11 @@ void Connection::mainLoopDispatch() {
 		        std::string(magic_enum::enum_name(d_state.load()))
 		    )
 		);
+		d_refCount.fetch_add(-1);
+		d_refCount.notify_all();
 	};
 
-	switch (d_state.load()) {
-	case State::INITIAL:
-		connectAsync();
-		break;
-	case State::CONNECTING:
-	case State::WRITING:
-	case State::CLOSED:
-		break;
-	case State::CLOSING:
+	if (d_closing.load()) {
 		if (d_stream == nullptr) {
 			d_logger.Warn(
 			    "dropping message queue as not connected on close",
@@ -105,7 +112,16 @@ void Connection::mainLoopDispatch() {
 			d_state.notify_all();
 			return;
 		}
-		// we send nextbuffer in case of opened connection and closing.
+	}
+
+	switch (d_state.load()) {
+	case State::INITIAL:
+		connectAsync();
+		break;
+	case State::CONNECTING:
+	case State::WRITING:
+	case State::CLOSED:
+		break;
 	case State::CONNECTED:
 		sendNextBuffer();
 		break;
@@ -167,16 +183,20 @@ void Connection::connectCallback(
 
 void Connection::scheduleReconnect() {
 	d_state.store(State::CONNECTING);
-	g_timeout_add(
-	    guint(d_reconnectPeriod.Milliseconds()),
+	auto source = g_timeout_source_new(guint(d_reconnectPeriod.Milliseconds()));
+	g_source_set_callback(
+	    source,
 	    [](gpointer userData) -> gboolean {
 		    auto self = reinterpret_cast<Connection *>(userData);
 		    self->d_state.store(State::INITIAL);
 		    self->connectAsync();
 		    return G_SOURCE_REMOVE;
 	    },
-	    this
+	    this,
+	    nullptr
 	);
+	g_source_attach(source, d_context);
+	g_source_unref(source);
 }
 
 void Connection::sendNextBuffer() {
@@ -234,7 +254,8 @@ void Connection::sendNextBuffer() {
 		    }
 		    logger.DDebug("written", slog::Int("bytes", written));
 		    self->d_state.store(State::CONNECTED);
-		    self->sendNextBuffer();
+		    // we reschedule a dispatch to either push next write or closing.
+		    self->scheduleDispatch();
 	    },
 	    this
 	);
@@ -248,7 +269,7 @@ inline std::string serialize(const google::protobuf::MessageLite &m) {
 
 void Connection::PostMessage(const google::protobuf::MessageLite &m) {
 	const auto state = d_state.load();
-	if (state == State::CLOSING || state == State::CLOSED) {
+	if (d_closing.load() == true || state == State::CLOSED) {
 		slog::Warn(
 		    "discarding as connection is closed",
 		    slog::String("message", m.Utf8DebugString())
@@ -266,16 +287,17 @@ void Connection::PostMessage(const google::protobuf::MessageLite &m) {
 
 void Connection::scheduleDispatch() {
 	d_logger.DDebug("scheduling dispatch");
+	d_refCount.fetch_add(1);
 	g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
 }
 
 void Connection::startClosing() {
-	d_state.store(State::CLOSING);
+	d_closing.store(true);
 	scheduleDispatch();
 }
 
 void Connection::waitClosed() {
-	d_state.wait(State::CLOSING);
+	atomic_wait_for_value(d_state, State::CLOSED);
 }
 
 } // namespace artemis

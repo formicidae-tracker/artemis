@@ -71,11 +71,12 @@ private:
 		CONNECTING,
 		CONNECTED,
 		WRITING,
-		CLOSING,
 		CLOSED,
 	};
+	std::atomic<bool>   d_closing{false};
 	std::atomic<State>  d_state{State::INITIAL};
 	std::atomic<size_t> d_txID{0};
+	std::atomic<size_t> d_refCount{1};
 };
 
 } // namespace artemis

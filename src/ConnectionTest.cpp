@@ -1,3 +1,5 @@
+#include "gmock/gmock.h"
+#include <atomic>
 #include <glib-object.h>
 #include <gmock/gmock.h>
 
@@ -6,7 +8,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <exception>
 #include <future>
 #include <gtest/gtest.h>
 #include <memory>
@@ -22,100 +23,12 @@
 #include <fort/hermes/Header.pb.h>
 
 #include <fort/utils/Defer.hpp>
+#include <thread>
 
 #include "Connection.hpp"
 
 namespace fort {
 namespace artemis {
-
-class GZeroCopyInputStream
-    : public ::google::protobuf::io::ZeroCopyInputStream {
-public:
-	GZeroCopyInputStream(GInputStream *stream, GCancellable *cancel)
-	    : d_stream{stream}
-	    , d_cancel{cancel} {}
-
-	~GZeroCopyInputStream() override {}
-
-	// forbids copy and move
-	GZeroCopyInputStream(const GZeroCopyInputStream &other)            = delete;
-	GZeroCopyInputStream(GZeroCopyInputStream &&other)                 = delete;
-	GZeroCopyInputStream &operator=(const GZeroCopyInputStream &other) = delete;
-	GZeroCopyInputStream &operator=(GZeroCopyInputStream &&other)      = delete;
-
-	bool Next(const void **data, int *size) override {
-		if (d_position == d_read) {
-			try {
-				readMore();
-			} catch (const std::exception &e) {
-				return false;
-			}
-		}
-		if (d_position == d_read) {
-			return false;
-		}
-		*data = d_buffer.data() + d_position;
-		*size = d_read - d_position;
-		d_read += *size;
-		return true;
-	}
-
-	void BackUp(int count) override {
-		d_position -= std::min(size_t(count), d_position);
-	}
-
-	int64_t ByteCount() const override {
-		return d_position;
-	}
-
-	bool Skip(int count) override {
-		if (count < 0) {
-			return false;
-		}
-		if (d_read > d_position) {
-			auto skipable = std::min(size_t(count), d_read - d_position);
-			count -= skipable;
-			d_position += skipable;
-		}
-
-		if (count == 0) {
-			return true;
-		}
-		return g_input_stream_skip(d_stream, count, nullptr, nullptr) > 0;
-	}
-
-private:
-	void readMore() {
-		constexpr gsize CHUNK_SIZE = 256;
-		d_buffer.resize(d_buffer.size() + CHUNK_SIZE);
-		GError *error = nullptr;
-
-		gsize newRead = g_input_stream_read(
-		    d_stream,
-		    d_buffer.data() + d_read,
-		    CHUNK_SIZE,
-		    d_cancel,
-		    &error
-		);
-
-		if (newRead < 0) {
-			Defer {
-				g_error_free(error);
-			};
-			throw std::runtime_error(
-			    "read error: " + std::string(error->message)
-			);
-		}
-
-		d_read += newRead;
-	}
-
-	GInputStream        *d_stream;
-	GCancellable        *d_cancel;
-	std::vector<uint8_t> d_buffer;
-	size_t               d_read{0};
-	size_t               d_position{0};
-};
 
 class LetoService {
 public:
@@ -130,7 +43,6 @@ public:
 
 	MOCK_METHOD(size_t, OnConnection, (), ());
 
-	MOCK_METHOD(void, OnHeader, (const fort::hermes::Header &header), ());
 	MOCK_METHOD(
 	    void, OnReadout, (const fort::hermes::FrameReadout &readout), ()
 	);
@@ -162,32 +74,39 @@ public:
 				return;
 			}
 
-			auto zeroStream = GZeroCopyInputStream(
-			    g_io_stream_get_input_stream(G_IO_STREAM(connection)),
-			    self->d_cancel
-			);
+			self->d_logger.DDebug("reading all");
+			std::vector<uint8_t> buffer;
+			constexpr size_t     BUFFER_SIZE = 1024;
+			buffer.resize(BUFFER_SIZE);
+			auto stream = g_io_stream_get_input_stream(G_IO_STREAM(connection));
+			gsize read;
+			auto  ok = g_input_stream_read_all(
+                stream,
+                buffer.data(),
+                BUFFER_SIZE,
+                &read,
+                self->d_cancel,
+                nullptr
+            );
 
-			google::protobuf::io::CodedInputStream stream{&zeroStream};
+			self->d_logger.DDebug("reading all done", slog::Bool("ok", ok));
+			if (!ok) {
+				return;
+			}
+			buffer.resize(read);
+
+			google::protobuf::io::CodedInputStream codedStream{
+			    buffer.data(),
+			    int(buffer.size())
+			};
 
 			bool cleanEOF;
-			if (toRead > 0) {
-				fort::hermes::Header header;
-				bool                 good =
-				    google::protobuf::util::ParseDelimitedFromCodedStream(
-				        &header,
-				        &stream,
-				        &cleanEOF
-				    );
-				if (good) {
-					self->OnHeader(header);
-				}
-			}
 			for (size_t i = 0; i < toRead; ++i) {
 				fort::hermes::FrameReadout readout;
 				bool                       good =
 				    google::protobuf::util::ParseDelimitedFromCodedStream(
 				        &readout,
-				        &stream,
+				        &codedStream,
 				        &cleanEOF
 				    );
 				if (good) {
@@ -320,11 +239,9 @@ void ConnectionTest::TearDown() {
 	if (future.wait_for(std::chrono::milliseconds{200}) ==
 	    std::future_status::timeout) {
 		ADD_FAILURE() << "Timeouted on tear down";
+		new std::future<void>(std::move(future)); // intentional leaking.
 	}
 }
-
-using ::testing::_;
-using ::testing::Return;
 
 TEST_F(ConnectionTest, Reconnect) {
 	std::atomic<size_t> connections = 0;
@@ -343,16 +260,63 @@ TEST_F(ConnectionTest, Reconnect) {
 	    std::chrono::milliseconds{5}
 	);
 
-	slog::Info("waiting first connection");
-	connections.wait(0);
+	auto future = std::async(std::launch::async, [&connections, &connection]() {
+		slog::Info("waiting first connection");
+		connections.wait(0);
+		fort::hermes::FrameReadout ro;
+		ro.set_frameid(1);
+		connection.PostMessage(ro);
+		ro.set_frameid(2);
+		connection.PostMessage(ro);
+		slog::Info("waiting second connection");
+		connections.wait(1);
+		ASSERT_EQ(connections.load(), 2);
+	});
 
+	if (future.wait_for(std::chrono::milliseconds{100}) ==
+	    std::future_status::timeout) {
+		ADD_FAILURE() << "Reconnection timeouted";
+		new std::future<void>(std::move(future)); // intentionally leaking.
+		return;
+	}
+}
+
+using ::testing::Property;
+
+TEST_F(ConnectionTest, DoesNotMangle) {
+	std::atomic<size_t> connections{0};
+	EXPECT_CALL(*d_service, OnConnection())
+	    .Times(::testing::AnyNumber())
+	    .WillRepeatedly([&connections]() -> int {
+		    connections.fetch_add(1);
+		    connections.notify_all();
+		    return 4;
+	    });
+
+	{
+		::testing::InSequence seq;
+		for (size_t i = 0; i < 4; ++i) {
+			EXPECT_CALL(
+			    *d_service,
+			    OnReadout(Property(&hermes::FrameReadout::frameid, i))
+			);
+		}
+	}
+
+	auto connection = Connection(
+	    nullptr,
+	    "localhost",
+	    LetoService::PORT,
+	    std::chrono::milliseconds{5}
+	);
+
+	connections.wait(0);
 	fort::hermes::FrameReadout ro;
-	ro.set_frameid(1);
-	connection.PostMessage(ro);
-	ro.set_frameid(2);
-	connection.PostMessage(ro);
-	slog::Info("waiting second connection");
-	connections.wait(1);
+	for (size_t i = 0; i < 4; ++i) {
+		ro.set_frameid(i);
+		connection.PostMessage(ro);
+	}
+	connection.Close();
 }
 
 } // namespace artemis
