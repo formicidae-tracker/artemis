@@ -59,7 +59,11 @@ public:
 private:
 	typedef moodycamel::BlockingReaderWriterQueue<Frame::Ptr> FrameQueue;
 
-	void SetUpVideoOutputTask(const VideoOutputOptions &options);
+	void SetUpVideoOutputTask(
+	    const VideoOutputOptions &options,
+	    const Size               &inputResolution,
+	    float                     FPS
+	);
 
 	void
 	SetUpDetection(const Size &inputResolution, const ApriltagOptions &options);

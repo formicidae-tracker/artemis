@@ -10,7 +10,11 @@ class VideoOutputImpl;
 
 class VideoOutput {
 public:
-	VideoOutput(const VideoOutputOptions &options);
+	VideoOutput(
+	    const VideoOutputOptions &options,
+	    const Size               &inputResolution,
+	    float                     FPS
+	);
 	~VideoOutput();
 	VideoOutput(VideoOutput &&) noexcept;
 	VideoOutput &operator=(VideoOutput &&) noexcept;

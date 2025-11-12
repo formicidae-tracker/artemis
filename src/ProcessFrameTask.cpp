@@ -44,7 +44,11 @@ ProcessFrameTask::ProcessFrameTask(
 
 	SetUpDetection(inputResolution, options.Apriltag);
 	SetUpUserInterface(d_workingResolution, inputResolution, options);
-	SetUpVideoOutputTask(options.VideoOutput);
+	SetUpVideoOutputTask(
+	    options.VideoOutput,
+	    inputResolution,
+	    options.Camera.FPS
+	);
 	SetUpCataloguing(options);
 	SetUpConnection(options.Leto, context);
 
@@ -218,12 +222,14 @@ UserInterfaceTaskPtr ProcessFrameTask::UserInterfaceTask() const {
 	return d_userInterface;
 }
 
-void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions &options) {
+void ProcessFrameTask::SetUpVideoOutputTask(
+    const VideoOutputOptions &options, const Size &inputResolution, float FPS
+) {
 	if (options.Host.empty() && options.OutputDir.empty()) {
 		return;
 	}
 
-	d_video = std::make_unique<VideoOutput>(options);
+	d_video = std::make_unique<VideoOutput>(options, inputResolution, FPS);
 }
 
 void ProcessFrameTask::SetUpDetection(

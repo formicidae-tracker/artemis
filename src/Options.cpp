@@ -118,11 +118,14 @@ std::set<uint64_t> ProcessOptions::FrameIDs() const {
 	return {IDs.begin(), IDs.end()};
 }
 
-Size VideoOutputOptions::WorkingResolution(
-    const std::tuple<size_t, size_t> &inputResolution
-) const {
-	auto [iWidth, iHeight] = inputResolution;
-	return Size{int(iWidth * double(Height) / double(iHeight)), int(Height)};
+Size VideoOutputOptions::TargetResolution(
+    size_t targetHeight, const Size &inputResolution
+) {
+	return Size{
+	    int(inputResolution.width() * double(targetHeight) /
+	        double(inputResolution.height())),
+	    int(targetHeight)
+	};
 }
 
 void Options::Validate() {

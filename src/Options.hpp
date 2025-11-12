@@ -38,8 +38,8 @@ struct LetoOptions : public options::Group {
 };
 
 struct VideoOutputOptions : public options::Group {
-	Size WorkingResolution(const std::tuple<size_t, size_t> &inputResolution
-	) const;
+	static Size
+	TargetResolution(size_t targetHeight, const Size &inputResolution);
 
 	size_t &Height =
 	    AddOption<size_t>("height", "Video output height. 0 for original size")
