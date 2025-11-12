@@ -36,6 +36,8 @@ class Connection;
 typedef std::unique_ptr<Connection> ConnectionPtr;
 class ApriltagDetector;
 typedef std::unique_ptr<ApriltagDetector> ApriltagDetectorPtr;
+class VideoOutput;
+typedef std::unique_ptr<VideoOutput> VideoOutputPtr;
 
 class ProcessFrameTask : public Task {
 public:
@@ -57,11 +59,7 @@ public:
 private:
 	typedef moodycamel::BlockingReaderWriterQueue<Frame::Ptr> FrameQueue;
 
-	void SetUpVideoOutputTask(
-	    const VideoOutputOptions &options,
-	    GMainContext             *context,
-	    bool                      legacyMode
-	);
+	void SetUpVideoOutputTask(const VideoOutputOptions &options);
 
 	void
 	SetUpDetection(const Size &inputResolution, const ApriltagOptions &options);
@@ -155,6 +153,8 @@ private:
 	UserInterfaceTaskPtr d_userInterface;
 
 	ConnectionPtr d_connection;
+
+	VideoOutputPtr d_video;
 
 	MessagePool::Ptr d_messagePool = MessagePool::Create();
 	ImagePool::Ptr   d_imagePool =

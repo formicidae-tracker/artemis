@@ -199,16 +199,11 @@ void Application::initGlobalDependencies() {
 }
 
 Application::~Application() {
-	g_main_context_pop_thread_default(d_context);
 	g_main_loop_unref(d_loop);
-	g_main_context_unref(d_context);
 }
 
 Application::Application(const Options &options)
-    : d_context{g_main_context_new()}
-    , d_loop{g_main_loop_new(d_context, FALSE)} {
-
-	g_main_context_push_thread_default(d_context);
+    : d_loop{g_main_loop_new(nullptr, FALSE)} {
 
 	d_grabber = AcquisitionTask::LoadFrameGrabber(
 	    options.StubImagePaths(),
@@ -217,7 +212,7 @@ Application::Application(const Options &options)
 
 	d_process = std::make_shared<ProcessFrameTask>(
 	    options,
-	    d_context,
+	    nullptr,
 	    d_grabber->Resolution()
 	);
 
@@ -267,7 +262,6 @@ void Application::run() {
 	spawnTasks();
 
 	auto logger = slog::With(slog::String("task", "GLibMainLoop"));
-
 	logger.Info("started");
 	g_main_loop_run(d_loop);
 	logger.Info("done");

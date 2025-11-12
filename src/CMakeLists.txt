@@ -51,6 +51,7 @@ set(SRC_FILES
 	ui/GLUserInterface.cpp
 	Rect.cpp
 	main.cpp
+	VideoOutput.cpp
 )
 
 set(HDR_FILES
@@ -75,6 +76,7 @@ set(HDR_FILES
 	Application.hpp
 	Rect.hpp
 	ImageU8.hpp
+	VideoOutput.hpp
 )
 
 set(UTEST_SRC_FILES

@@ -160,7 +160,13 @@ find_package(PkgConfig REQUIRED)
 find_package(Protobuf 3.3.0 REQUIRED)
 
 pkg_check_modules(
-	gstreamer REQUIRED IMPORTED_TARGET glib-2.0 gio-2.0 gobject-2.0
+	gstreamer
+	REQUIRED
+	IMPORTED_TARGET
+	glib-2.0
+	gio-2.0
+	gobject-2.0
+	gstreamer-1.0
 )
 
 set(INSTALL_GTEST Off)
@@ -177,7 +183,8 @@ set(gtest_force_shared_crt
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
+add_custom_target(check ALL ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
+
 include(GoogleTest)
 
 # add_subdirectory(scripts)

@@ -47,7 +47,6 @@ private:
 	std::atomic<int>                  d_workgroup = 0;
 
 	std::vector<std::thread> d_threads;
-	GMainContext            *d_context;
 	GMainLoop               *d_loop;
 };
 

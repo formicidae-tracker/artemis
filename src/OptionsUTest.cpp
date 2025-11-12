@@ -25,8 +25,14 @@ TEST_F(OptionsUTest, DefaultValues) {
 	EXPECT_EQ(options.Leto.Port, 3002);
 
 	EXPECT_EQ(options.VideoOutput.Height, 1080);
-	EXPECT_EQ(options.VideoOutput.AddHeader, false);
-	EXPECT_EQ(options.VideoOutput.ToStdout, false);
+	EXPECT_EQ(options.VideoOutput.Height, 1080);
+	EXPECT_EQ(options.VideoOutput.StreamHeight, 1080);
+	EXPECT_EQ(options.VideoOutput.OutputDir, "");
+	EXPECT_EQ(options.VideoOutput.Host, "");
+	EXPECT_EQ(options.VideoOutput.Quality, "fast");
+	EXPECT_EQ(options.VideoOutput.Tune, "film");
+	EXPECT_EQ(options.VideoOutput.Bitrate_KB, 2000);
+	EXPECT_FLOAT_EQ(options.VideoOutput.BitrateMaxRatio, 1.5);
 
 	EXPECT_EQ(options.Apriltag.Family(), fort::tags::Family::Undefined);
 	EXPECT_FLOAT_EQ(options.Apriltag.QuadDecimate, 1.0);
@@ -86,17 +92,37 @@ TEST_F(OptionsUTest, TestParse) {
 	     [](const Options &options) {
 		     EXPECT_EQ(options.Process.UUID, "abcdef123456");
 	     }},
-	    {{"artemis", "--video-output.to-stdout"},
+	    {{"artemis", "--video-output.dir", "foo"},
 	     [](const Options &options) {
-		     EXPECT_TRUE(options.VideoOutput.ToStdout);
+		     EXPECT_EQ(options.VideoOutput.OutputDir, "foo");
 	     }},
-	    {{"artemis", "--video-output.add-header"},
+	    {{"artemis", "--video-output.host", "bar"},
 	     [](const Options &options) {
-		     EXPECT_TRUE(options.VideoOutput.AddHeader);
+		     EXPECT_EQ(options.VideoOutput.Host, "bar");
 	     }},
-	    {{"artemis", "--video-output.height", "1200"},
+	    {{"artemis", "--video-output.height", "2160"},
 	     [](const Options &options) {
-		     EXPECT_EQ(options.VideoOutput.Height, 1200);
+		     EXPECT_EQ(options.VideoOutput.Height, 2160);
+	     }},
+	    {{"artemis", "--video-output.stream-height", "2160"},
+	     [](const Options &options) {
+		     EXPECT_EQ(options.VideoOutput.StreamHeight, 2160);
+	     }},
+	    {{"artemis", "--video-output.bitrate", "1200"},
+	     [](const Options &options) {
+		     EXPECT_EQ(options.VideoOutput.Bitrate_KB, 1200);
+	     }},
+	    {{"artemis", "--video-output.bitrate-max-ratio", "2.0"},
+	     [](const Options &options) {
+		     EXPECT_EQ(options.VideoOutput.BitrateMaxRatio, 2.0);
+	     }},
+	    {{"artemis", "--video-output.quality", "foo"},
+	     [](const Options &options) {
+		     EXPECT_EQ(options.VideoOutput.Quality, "foo");
+	     }},
+	    {{"artemis", "--video-output.tune", "tune"},
+	     [](const Options &options) {
+		     EXPECT_EQ(options.VideoOutput.Tune, "tune");
 	     }},
 	    {{"artemis", "--display.highlight-tags", "0x001,0x0ae"},
 	     [](const Options &options) {

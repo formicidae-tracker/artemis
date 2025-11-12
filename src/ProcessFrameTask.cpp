@@ -14,6 +14,8 @@
 #include "Connection.hpp"
 #include "ImageU8.hpp"
 #include "UserInterfaceTask.hpp"
+#include "VideoOutput.hpp"
+
 #include "utils/Slog.hpp"
 
 namespace fort {
@@ -42,7 +44,7 @@ ProcessFrameTask::ProcessFrameTask(
 
 	SetUpDetection(inputResolution, options.Apriltag);
 	SetUpUserInterface(d_workingResolution, inputResolution, options);
-	SetUpVideoOutputTask(options.VideoOutput, context, options.LegacyMode);
+	SetUpVideoOutputTask(options.VideoOutput);
 	SetUpCataloguing(options);
 	SetUpConnection(options.Leto, context);
 
@@ -61,11 +63,10 @@ ProcessFrameTask::ProcessFrameTask(
 }
 
 void ProcessFrameTask::SetUpTaskflow() {
-	d_taskflow
-	    .emplace([]() {
-		    // TODO send to video output;
-	    })
-	    .name("videoOutput");
+	if (d_video != nullptr) {
+		d_taskflow.emplace([this]() { d_video->PushFrame(d_current.Frame); }
+		).name("videoOutput");
+	}
 
 	auto [processIgnoreOrDrop, detectionDone] = d_taskflow.emplace(
 	    [this]() {
@@ -217,12 +218,12 @@ UserInterfaceTaskPtr ProcessFrameTask::UserInterfaceTask() const {
 	return d_userInterface;
 }
 
-void ProcessFrameTask::SetUpVideoOutputTask(
-    const VideoOutputOptions &options, GMainContext *context, bool legacyMode
-) {
-	if (options.ToStdout == false) {
+void ProcessFrameTask::SetUpVideoOutputTask(const VideoOutputOptions &options) {
+	if (options.Host.empty() && options.OutputDir.empty()) {
 		return;
 	}
+
+	d_video = std::make_unique<VideoOutput>(options);
 }
 
 void ProcessFrameTask::SetUpDetection(
@@ -284,7 +285,10 @@ void ProcessFrameTask::TearDown() {
 	if (d_connection) {
 		d_connection->Close();
 	}
-	// TODO: close video output.
+
+	if (d_video) {
+		d_video->Close();
+	}
 }
 
 void ProcessFrameTask::Run() {

@@ -42,10 +42,35 @@ struct VideoOutputOptions : public options::Group {
 	) const;
 
 	size_t &Height =
-	    AddOption<size_t>("height", "Video output height").SetDefault(1080);
-	bool &AddHeader =
-	    AddOption<bool>("add-header", "Adds binary header to stdout output");
-	bool &ToStdout = AddOption<bool>("to-stdout", "Outputs video to stdout");
+	    AddOption<size_t>("height", "Video output height. 0 for original size")
+	        .SetDefault(1080);
+
+	size_t &StreamHeight =
+	    AddOption<size_t>("stream-height", "Video output height")
+	        .SetDefault(1080);
+
+	std::string &OutputDir =
+	    AddOption<std::string>("dir", "Video output dir, disable if empty")
+	        .SetDefault("");
+
+	std::string &Host =
+	    AddOption<std::string>("host", "Host to stream to, disabled if empty")
+	        .SetDefault("");
+
+	int &Bitrate_KB =
+	    AddOption<int>("bitrate", "Mean bitrate in kbps for disk encoding")
+	        .SetDefault(2000);
+
+	float &BitrateMaxRatio =
+	    AddOption<float>("bitrate-max-ratio", "maximum peek bitrate")
+	        .SetDefault(1.5);
+
+	std::string &Quality =
+	    AddOption<std::string>("quality", "libx264 quality preset")
+	        .SetDefault("fast");
+
+	std::string &Tune = AddOption<std::string>("tune", "libx264 tune preset")
+	                        .SetDefault("film");
 };
 
 struct ApriltagOptions : public options::Group {
