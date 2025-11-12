@@ -167,6 +167,7 @@ pkg_check_modules(
 	gio-2.0
 	gobject-2.0
 	gstreamer-1.0
+	gstreamer-app-1.0
 )
 
 set(INSTALL_GTEST Off)

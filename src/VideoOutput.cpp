@@ -1,18 +1,25 @@
 #include "VideoOutput.hpp"
 #include "Options.hpp"
+
+#include <cpptrace/exceptions.hpp>
+#include <cstdint>
 #include <glib-object.h>
 #include <glibconfig.h>
-#include <gst/gstbin.h>
-#include <gst/gstbuffer.h>
-#include <gst/gstcompat.h>
+
+#include <gst/app/gstappsrc.h>
+#include <gst/gst.h>
+
 #include <gst/gstelement.h>
-#include <gst/gstelementfactory.h>
-#include <gst/gstmemory.h>
-#include <gst/gstutils.h>
+#include <gst/gstformat.h>
+#include <gst/gstobject.h>
+#include <gst/gstpad.h>
+#include <gst/gstsample.h>
+#include <gst/gstvalue.h>
+#include <ios>
 #include <mutex>
 
 #include <glib.h>
-#include <gst/gst.h>
+
 #include <string>
 #include <string_view>
 #include <utility>
@@ -51,21 +58,28 @@ public:
 
 	void PushFrame(const Frame::Ptr &frame);
 
-private:
-	struct InflightFrame {
-		VideoOutputImpl *self;
-		Frame::Ptr       frame;
-	};
+	VideoOutput::Stats GetStats() const {
+		return {.Processed = d_processed.load(), .Dropped = d_dropped.load()};
+	}
 
+private:
+	static gchararray onLocationFull(
+	    GstElement *filesink,
+	    guint       fragment_id,
+	    GstSample  *first_sample,
+	    gpointer    userdata
+	);
 	void
 	buildStreamOutput(const VideoOutputOptions &options, const Size &input);
 	void buildFileOutput(const VideoOutputOptions &options, const Size &input);
 	void linkBothOutput();
 	void linkSingleOutput(GstElementRef ref);
 
-	void onFrameDone(const Frame::Ptr &frame);
+	void onFrameDone(uint64_t frameID);
+	void onFramePass(uint64_t frameID);
 
-	GstElementPtr d_pipeline;
+	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
+	GstElementPtr   d_pipeline;
 
 	GstElementRef d_appsrc;
 	GstElementRef d_videoInputFormat;
@@ -84,6 +98,12 @@ private:
 	GstElementRef d_fileVideoFormat;
 	GstElementRef d_fileEncoder;
 	GstElementRef d_fileSink;
+
+	gulong d_srcProbe;
+
+	std::optional<uint64_t> d_firstTimestamp;
+	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
+	std::filesystem::path   d_outputFileTemplate{};
 };
 
 VideoOutput::VideoOutput(
@@ -104,10 +124,24 @@ void VideoOutput::PushFrame(const Frame::Ptr &frame) {
 	d_impl->PushFrame(frame);
 }
 
+VideoOutput::Stats VideoOutput::GetStats() const {
+	return d_impl->GetStats();
+}
+
 namespace details {
+template <typename T> std::string printValue(const T &value) {
+	std::ostringstream oss;
+	oss << std::boolalpha << value;
+	return oss.str();
+}
+
+template <> std::string printValue<GValue>(const GValue &value) {
+	return "unsupported";
+}
+
 template <typename Name, typename Value, typename... Other>
 void append_pair(
-    std::string &out, Name &&name, Value &&value, Other &&...others
+    std::string &out, Name &&name, const Value &value, Other &&...others
 ) {
 	static_assert(
 	    sizeof...(Other) % 2 == 0,
@@ -119,7 +153,8 @@ void append_pair(
 
 	out += std::string_view(std::forward<Name>(name));
 	out += "=";
-	out += std::string_view(std::forward<Value>(value));
+	out += printValue<Value>(value);
+
 	if constexpr (sizeof...(Other) != 0) {
 		append_pair(out, std::forward<Other>(others)...);
 	}
@@ -138,10 +173,10 @@ GstElement *GstElementFactory(Str &&name, Args &&...args) {
 	    nullptr
 	);
 
-	if (res != nullptr) {
+	if (res == nullptr) {
 		std::string params;
 		details::append_pair(params, std::forward<Args>(args)...);
-		throw std::runtime_error(
+		throw cpptrace::runtime_error(
 		    "could not create GstElement '" + std::string{name} + " " + params +
 		    "'"
 		);
@@ -159,30 +194,35 @@ VideoOutputImpl::VideoOutputImpl(
 	});
 
 	d_pipeline = GstElementPtr{gst_pipeline_new("artemis-pipeline")};
-	d_appsrc   = GstElementFactory(
-        "appsrc",
-        "name",
-        "artemis-src",
-        "is-live",
-        "true",
-        "leaky",
-        "upstream",
-        "max-buffers",
-        "1",
-        "emit-signals",
-        "false"
-    );
 
-	d_videoInputFormat = GstElementFactory(
-	    "video/x-raw",
+	d_appsrc = GstElementFactory(
+	    "appsrc",
+	    "name",
+	    "artemis-src",
 	    "format",
-	    "GRAY8",
-	    "width",
-	    std::to_string(inputResolution.width()).c_str(),
-	    "height",
-	    std::to_string(inputResolution.height()).c_str(),
-	    "max-framerate",
-	    (std::to_string(int(FPS * 10.0)) + "/10").c_str()
+	    GST_FORMAT_TIME,
+	    "is-live",
+	    TRUE,
+	    "leaky-type",
+	    GST_APP_LEAKY_TYPE_UPSTREAM,
+	    "max-buffers",
+	    1,
+	    "emit-signals",
+	    FALSE
+	);
+	GValue value = G_VALUE_INIT;
+	g_value_init(&value, GST_TYPE_FRACTION);
+	gst_value_set_fraction(&value, int(FPS * 10.0), 10);
+	d_videoInputFormat = GstElementFactory(
+	    "capsfilter",
+	    "name",
+	    "input-video-format",
+	    "caps",
+	    ("video/x-raw,width=" + std::to_string(inputResolution.width()) +
+	     ",height=" + std::to_string(inputResolution.height()) +
+	     ",format=GRAY8,max-framerate=" + std::to_string(int(FPS * 10.0)) +
+	     "/10")
+	        .c_str()
 	);
 
 	gst_bin_add_many(
@@ -191,10 +231,28 @@ VideoOutputImpl::VideoOutputImpl(
 	    d_videoInputFormat,
 	    nullptr
 	);
-	if (gst_element_link_many(d_appsrc, d_videoInputFormat, nullptr) == FALSE) {
+
+	if (gst_element_link(d_appsrc, d_videoInputFormat) == FALSE) {
 		d_pipeline.reset();
-		throw std::runtime_error("could not link head of the pipeline");
+		throw cpptrace::runtime_error("could not link video input format");
 	}
+
+	d_srcProbe = gst_pad_add_probe(
+	    gst_element_get_static_pad(d_appsrc, "src"),
+	    GST_PAD_PROBE_TYPE_BUFFER,
+	    [](GstPad *pad, GstPadProbeInfo *info, gpointer userdata
+	    ) -> GstPadProbeReturn {
+		    (void)pad;
+		    auto self   = reinterpret_cast<VideoOutputImpl *>(userdata);
+		    auto buffer = gst_pad_probe_info_get_buffer(info);
+		    if (buffer != nullptr) {
+			    self->onFramePass(GST_BUFFER_OFFSET(buffer));
+		    }
+		    return GST_PAD_PROBE_OK;
+	    },
+	    this,
+	    nullptr
+	);
 
 	if (options.Host.empty() == false) {
 		buildStreamOutput(options, inputResolution);
@@ -228,29 +286,29 @@ void VideoOutputImpl::linkBothOutput() {
 	    nullptr
 	);
 	if (gst_element_link(d_videoInputFormat, d_inputTee) == FALSE) {
-		throw std::runtime_error("could not link input-tee");
+		throw cpptrace::runtime_error("could not link input-tee");
 	}
 	if (gst_element_link_pads(d_inputTee, "src_0", d_fileQueue, "sink") ==
 	    FALSE) {
-		throw std::runtime_error("could not link file-queue");
+		throw cpptrace::runtime_error("could not link file-queue");
 	}
 	if (gst_element_link(d_fileQueue, d_fileScale) == FALSE) {
-		throw std::runtime_error("could not link file-scale");
+		throw cpptrace::runtime_error("could not link file-scale");
 	}
 
 	if (gst_element_link_pads(d_inputTee, "src_1", d_streamQueue, "sink") ==
 	    FALSE) {
-		throw std::runtime_error("could not link stream-queue");
+		throw cpptrace::runtime_error("could not link stream-queue");
 	}
 
 	if (gst_element_link(d_streamQueue, d_streamScale) == FALSE) {
-		throw std::runtime_error("could not link stream-scale");
+		throw cpptrace::runtime_error("could not link stream-scale");
 	}
 }
 
 void VideoOutputImpl::linkSingleOutput(GstElementRef ref) {
 	if (gst_element_link(d_videoInputFormat, ref) == FALSE) {
-		throw std::runtime_error("could not link {stream,file}-scale");
+		throw cpptrace::runtime_error("could not link {stream,file}-scale");
 	}
 }
 
@@ -313,8 +371,33 @@ void VideoOutputImpl::buildStreamOutput(
 	        d_streamRtscp,
 	        nullptr
 	    ) == FALSE) {
-		throw std::runtime_error("could not link stream pipeline");
+		throw cpptrace::runtime_error("could not link stream pipeline");
 	}
+}
+
+gchararray VideoOutputImpl::onLocationFull(
+    GstElement *filesink,
+    guint       fragment_id,
+    GstSample  *first_sample,
+    gpointer    userdata
+) {
+	auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
+	auto res = g_strdup_printf(self->d_outputFileTemplate.c_str(), fragment_id);
+	auto buffer      = gst_sample_get_buffer(first_sample);
+	uint64_t frameID = -1UL;
+	if (buffer == nullptr) {
+		self->d_logger.Warn("no buffer associated at segment beginning");
+	} else {
+		frameID = GST_BUFFER_OFFSET(buffer);
+	}
+
+	self->d_logger.Info(
+	    "new file segment",
+	    slog::Int("fragment", fragment_id),
+	    slog::String("path", res),
+	    slog::Int("frame_id", frameID)
+	);
+	return res;
 }
 
 void VideoOutputImpl::buildFileOutput(
@@ -327,7 +410,8 @@ void VideoOutputImpl::buildFileOutput(
 		    inputResolution
 		);
 	}
-
+	d_outputFileTemplate =
+	    std::filesystem::path(options.OutputDir) / "stream.%04d.mp4";
 	d_fileScale = GstElementFactory("videoscale", "name", "file-videscale");
 	d_fileVideoFormat = GstElementFactory(
 	    "video/x-raw",
@@ -358,10 +442,18 @@ void VideoOutputImpl::buildFileOutput(
 	    "name",
 	    "file-splitsink",
 	    "location",
-	    (std::filesystem::path(options.OutputDir) / "stream.%04d.mp4").c_str(),
+	    d_outputFileTemplate.c_str(),
 	    "max-size-time",
-	    std::to_string((2 * Duration::Hour).Nanoseconds())
+	    std::to_string(options.SegmentDuration.Nanoseconds()).c_str()
 	);
+
+	g_signal_connect(
+	    d_fileSink,
+	    "format-location-full",
+	    G_CALLBACK(&onLocationFull),
+	    this
+	);
+
 	gst_bin_add_many(
 	    GST_BIN(d_pipeline.get()),
 	    d_fileScale,
@@ -377,18 +469,21 @@ void VideoOutputImpl::buildFileOutput(
 	        d_fileSink,
 	        nullptr
 	    ) == FALSE) {
-		throw std::runtime_error("could not link file pipeline");
+		throw cpptrace::runtime_error("could not link file pipeline");
 	}
 }
 
 VideoOutputImpl::~VideoOutputImpl() {}
 
 void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
+	struct InflightFrame {
+		VideoOutputImpl *self;
+		Frame::Ptr       frame;
+	};
+
 	gsize size   = frame->Width() * frame->Height();
 	auto  buffer = gst_buffer_new_wrapped_full(
-        GstMemoryFlags(
-            GST_MEMORY_FLAG_READONLY | GST_MEMORY_FLAG_PHYSICALLY_CONTIGUOUS
-        ),
+        GstMemoryFlags(GST_MEMORY_FLAG_READONLY),
         frame->Data(),
         size,
         0,
@@ -396,10 +491,54 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
         new InflightFrame{.self = this, .frame = frame},
         [](gpointer userdata) {
             auto frame = reinterpret_cast<InflightFrame *>(userdata);
-            frame->self->onFrameDone(frame->frame);
+            frame->self->onFrameDone(frame->frame->ID());
             delete frame;
         }
     );
+	Defer {
+		gst_object_unref(buffer);
+	};
+
+	uint64_t pts{0};
+	if (d_firstTimestamp.has_value()) {
+		pts = frame->Timestamp() - d_firstTimestamp.value();
+	} else {
+		d_firstTimestamp = frame->Timestamp();
+	}
+
+	GST_BUFFER_PTS(buffer)      = GstClockTime(pts);
+	GST_BUFFER_DTS(buffer)      = GST_CLOCK_TIME_NONE;
+	GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
+
+	GST_BUFFER_OFFSET(buffer)     = frame->ID();
+	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
+
+	auto res = gst_app_src_push_buffer(GST_APP_SRC_CAST(d_appsrc), buffer);
+
+	if (res != GST_FLOW_OK) {
+		throw cpptrace::runtime_error("Could not push buffer");
+	}
+}
+
+void VideoOutputImpl::onFramePass(uint64_t frameID) {
+	d_lastFramePassed.store(frameID);
+}
+
+void VideoOutputImpl::onFrameDone(uint64_t frameID) {
+	if (frameID <= d_lastFramePassed.load()) {
+		d_processed.fetch_add(1);
+	} else {
+		d_dropped.fetch_add(1);
+		d_logger.Warn(
+		    "frame dropped",
+		    slog::Int("total_dropped", d_dropped.load()),
+		    slog::Float(
+		        "percent_dropped",
+		        100.0 * float(d_dropped.load()) /
+		            (d_dropped.load() + d_processed.load())
+		    )
+		);
+	}
 }
 
 } // namespace artemis

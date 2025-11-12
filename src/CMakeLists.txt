@@ -87,6 +87,7 @@ set(UTEST_SRC_FILES
 	OptionsUTest.cpp #
 	TaskUTest.cpp
 	TaskflowTest.cpp
+	VideoOutputTest.cpp
 )
 
 set(UTEST_HDR_FILES

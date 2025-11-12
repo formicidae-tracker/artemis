@@ -71,6 +71,12 @@ struct VideoOutputOptions : public options::Group {
 
 	std::string &Tune = AddOption<std::string>("tune", "libx264 tune preset")
 	                        .SetDefault("film");
+
+	Duration &SegmentDuration =
+	    AddOption<Duration>(
+	        "segment-duration", "duration of each video segment"
+	    )
+	        .SetDefault(2 * Duration::Hour);
 };
 
 struct ApriltagOptions : public options::Group {

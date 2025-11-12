@@ -435,6 +435,7 @@ void ProcessFrameTask::ExportROI(
 void ProcessFrameTask::DisplayFrame(
     const Frame::Ptr &frame, const std::shared_ptr<hermes::FrameReadout> &m
 ) {
+
 	UserInterface::FrameToDisplay toDisplay = {
 	    .Full                 = d_current.Full,
 	    .Zoomed               = d_current.Zoomed,
@@ -448,6 +449,12 @@ void ProcessFrameTask::DisplayFrame(
 	    .VideoOutputProcessed = -1UL,
 	    .VideoOutputDropped   = -1UL,
 	};
+
+	if (d_video) {
+		auto stats                     = d_video->GetStats();
+		toDisplay.VideoOutputProcessed = stats.Processed;
+		toDisplay.VideoOutputDropped   = stats.Dropped;
+	}
 
 	d_userInterface->QueueFrame(toDisplay);
 }

@@ -24,6 +24,12 @@ public:
 
 	void PushFrame(const Frame::Ptr &frame);
 
+	struct Stats {
+		uint64_t Processed{0}, Dropped{0};
+	};
+
+	Stats GetStats() const;
+
 private:
 	std::unique_ptr<VideoOutputImpl> d_impl;
 };
