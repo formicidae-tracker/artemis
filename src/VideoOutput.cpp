@@ -29,7 +29,6 @@
 #include <utility>
 
 namespace fort {
-
 namespace artemis {
 
 static std::once_flag gst_initialized;

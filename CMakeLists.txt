@@ -83,7 +83,7 @@ else()
 	)
 endif()
 
-if(EXISTS ${PROJECT_SOURCE_DIR}/deps/charis)
+if(EXISTS ${PROJECT_SOURCE_DIR}/deps/hermes)
 	FetchContent_Declare(
 		fort-hermes SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/hermes
 	)
@@ -91,7 +91,7 @@ else()
 	FetchContent_Declare(
 		fort-hermes
 		GIT_REPOSITORY https://github.com/formicidae-tracker/hermes.git
-		GIT_TAG v0.5.7
+		GIT_TAG 19636c9fe64978072d2b6164e6fbb5fe91facc49
 	)
 endif()
 
