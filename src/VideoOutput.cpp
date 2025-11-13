@@ -9,6 +9,7 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 
+#include <gst/gstbus.h>
 #include <gst/gstelement.h>
 #include <gst/gstformat.h>
 #include <gst/gstobject.h>
@@ -21,7 +22,7 @@
 
 #include <glib.h>
 
-#include <stdexcept>
+#include <slog++/Attribute.hpp>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -84,16 +85,17 @@ private:
 
 	void onFrameDone(uint64_t frameID);
 	void onFramePass(uint64_t frameID);
+	void onMessage(GstBus *bus, GstMessage *message);
 
 	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
 	GstElementPtr   d_pipeline;
 	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
-	GstBusPtr d_bus;
 	GstElementPtr d_appsrc;
 
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
 	std::filesystem::path   d_outputFileTemplate{};
+	std::atomic<bool>       d_eosReached{false};
 };
 
 VideoOutput::VideoOutput(
@@ -198,8 +200,9 @@ VideoOutputImpl::VideoOutputImpl(
 	GError *error = nullptr;
 	d_pipeline =
 	    GstElementPtr(gst_parse_launch(processPipelineDesc.c_str(), &error));
-	if (d_pipeline == nullptr) {
+	if (d_pipeline == nullptr || error != nullptr) {
 		Defer {
+			d_pipeline.reset();
 			if (error != nullptr) {
 				g_error_free(error);
 			}
@@ -210,18 +213,38 @@ VideoOutputImpl::VideoOutputImpl(
 		};
 	}
 
-	d_bus = GstBusPtr{gst_element_get_bus(d_pipeline.get())};
+	auto bus = GstBusPtr{gst_element_get_bus(d_pipeline.get())};
+	gst_bus_add_watch(
+	    bus.get(),
+	    [](GstBus *bus, GstMessage *message, gpointer userdata) -> gboolean {
+		    reinterpret_cast<VideoOutputImpl *>(userdata)->onMessage(
+		        bus,
+		        message
+		    );
+		    return G_SOURCE_CONTINUE;
+	    },
+	    this
+	);
 
 	d_appsrc = GstElementPtr{
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "input-src")
 	};
+	if (d_appsrc == nullptr) {
+		throw cpptrace::runtime_error{"could not find input-src"};
+	}
+	d_logger.Debug("Starting pipeline");
+	gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
 }
 
 std::string
 VideoOutputImpl::buildInputPipeline(const Size &inputResolution, float FPS) {
 	std::ostringstream oss;
-	oss << "appsrc name=input-src format=time is-live=true leaky-type=upstream "
-	       "max-buffers=1 emit-signal=false";
+	oss << "appsrc name=input-src"                //
+	    << " format=time"                         //
+	    << " is-live=true"                        //
+	    << " leaky-type=upstream"                 //
+	    << " max-buffers=1"                       //
+	    << " emit-signals=false";                 //
 	oss << " ! video/x-raw"                       //
 	    << ",width=" << inputResolution.width()   //
 	    << ",height=" << inputResolution.height() //
@@ -275,9 +298,8 @@ std::string VideoOutputImpl::buildFilePipeline(
 	    << ",height=" << fileResolution.height();                           //
 	oss << " ! x264enc name=file-encoder"                                   //
 	    << " speed-preset=" << options.Quality                              //
-	    << " tune=" << options.Tune                                         //
 	    << " bitrate=" << int(options.Bitrate_KB * options.BitrateMaxRatio) //
-	    << " pass=3";                                                       //
+	    << " pass=qual";                                                    //
 	oss << " ! splitmuxsink name=file-muxsink"                              //
 	    << " location=" << d_outputFileTemplate.c_str()                     //
 	    << " max-size-time=" << options.SegmentDuration.Nanoseconds();      //
@@ -323,7 +345,10 @@ gchararray VideoOutputImpl::onLocationFull(
 	return res;
 }
 
-VideoOutputImpl::~VideoOutputImpl() {}
+VideoOutputImpl::~VideoOutputImpl() {
+	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
+	d_eosReached.wait(false);
+}
 
 void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 	struct InflightFrame {
@@ -389,6 +414,37 @@ void VideoOutputImpl::onFrameDone(uint64_t frameID) {
 		            (d_dropped.load() + d_processed.load())
 		    )
 		);
+	}
+}
+
+void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
+	switch (GST_MESSAGE_TYPE(message)) {
+	case GST_MESSAGE_EOS:
+		d_logger.Info("End-Of-Stream reached");
+		gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
+		d_eosReached.store(true);
+		d_eosReached.notify_all();
+		break;
+	case GST_MESSAGE_ERROR: {
+		GError *err;
+		gchar  *debug_info;
+		gst_message_parse_error(message, &err, &debug_info);
+		d_logger.Error(
+		    "Pipeline Error",
+		    slog::String("element", GST_OBJECT_NAME(message->src)),
+		    slog::String("error", err->message),
+		    slog::String(
+		        "debug_info",
+		        debug_info == nullptr ? "none" : std::string{debug_info}
+		    )
+		);
+		g_clear_error(&err);
+		g_free(debug_info);
+		break;
+	}
+	default:
+		// Unhandled message
+		break;
 	}
 }
 
