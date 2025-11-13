@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FrameGrabber.hpp"
+#include "fort/time/Time.hpp"
 
 namespace fort {
 namespace artemis {
@@ -10,11 +11,14 @@ class VideoOutputImpl;
 
 class VideoOutput {
 public:
-	VideoOutput(
-	    const VideoOutputOptions &options,
-	    const Size               &inputResolution,
-	    float                     FPS
-	);
+	struct Config {
+		Duration FilePeriod = 2 * Duration::Hour;
+		float    FPS        = 10.0;
+		Size     InputResolution;
+		bool     LeakyPush = false;
+	};
+
+	VideoOutput(const VideoOutputOptions &options, const Config &config);
 	~VideoOutput();
 	VideoOutput(VideoOutput &&) noexcept;
 	VideoOutput &operator=(VideoOutput &&) noexcept;

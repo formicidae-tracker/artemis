@@ -203,6 +203,7 @@ LetoService::LetoService()
 
 LetoService::~LetoService() {
 	g_cancellable_cancel(d_cancel);
+	g_object_unref(d_cancel);
 	g_socket_service_stop(d_service);
 	g_main_loop_quit(d_loop);
 	d_mainLoopThread.join();

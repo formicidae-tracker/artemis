@@ -229,7 +229,13 @@ void ProcessFrameTask::SetUpVideoOutputTask(
 		return;
 	}
 
-	d_video = std::make_unique<VideoOutput>(options, inputResolution, FPS);
+	d_video = std::make_unique<VideoOutput>(
+	    options,
+	    VideoOutput::Config{
+	        .FPS             = FPS,
+	        .InputResolution = inputResolution,
+	    }
+	);
 }
 
 void ProcessFrameTask::SetUpDetection(

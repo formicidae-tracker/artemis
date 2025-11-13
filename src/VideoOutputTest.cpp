@@ -30,6 +30,11 @@ protected:
 		}
 		s_output = res;
 		slog::Info("output dir", slog::String("path", s_output));
+		setenv(
+		    "GST_DEBUG",
+		    "GST_CAPS:6,appsrc:6,videoconvert:6,x264enc:6,*:2",
+		    true
+		);
 	}
 
 	static void TearDownTestSuite() {
@@ -41,17 +46,16 @@ protected:
 	}
 
 	void SetUp() {
-		d_mainLoopThread          = std::thread([this]() {
+		d_mainLoopThread       = std::thread([this]() {
             d_loop = g_main_loop_new(nullptr, FALSE);
             Defer {
                 g_main_loop_unref(d_loop);
             };
             g_main_loop_run(d_loop);
         });
-		d_options.OutputDir       = s_output;
-		d_options.Height          = 360;
-		d_options.StreamHeight    = 240;
-		d_options.SegmentDuration = Duration::Second;
+		d_options.OutputDir    = s_output;
+		d_options.Height       = 360;
+		d_options.StreamHeight = 240;
 	}
 
 	void TearDown() {
@@ -74,7 +78,10 @@ using namespace std::chrono_literals;
 
 TEST_F(VideoOutputTest, BuildsAndReachEOS) {
 	WithTimeout(500ms, [this]() {
-		VideoOutput output(d_options, {640, 480}, 10.0);
+		VideoOutput output(
+		    d_options,
+		    {.FPS = 10.0, .InputResolution = {640, 480}}
+		);
 	});
 }
 
@@ -117,13 +124,21 @@ private:
 
 TEST_F(VideoOutputTest, EncodesMultipleImages) {
 	WithTimeout(2500ms, [this]() {
-		VideoOutput output(d_options, {640, 480}, 10.0);
-		auto        img = ImageU8::OwnedPtr{new ImageU8{
-            640,
-            480,
-            (uint8_t *)malloc(640 * 480 * sizeof(uint8_t)),
-            640
-        }};
+		VideoOutput output(
+		    d_options,
+		    {
+		        .FilePeriod      = 2 * Duration::Second,
+		        .FPS             = 10.0,
+		        .InputResolution = {640, 480},
+		        .LeakyPush       = false,
+		    }
+		);
+		auto img = ImageU8::OwnedPtr{new ImageU8{
+		    640,
+		    480,
+		    (uint8_t *)malloc(640 * 480 * sizeof(uint8_t)),
+		    640
+		}};
 		memset(img->buffer, 127, img->NeededSize());
 
 		auto buildFrame = [&img](uint64_t ID) {

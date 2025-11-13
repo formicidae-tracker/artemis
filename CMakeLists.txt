@@ -11,7 +11,7 @@ project(
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-	add_definitions(-Wall -Wpedantic -Werror)
+	add_compile_options(-Wall -Wpedantic -Werror)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)

@@ -1,14 +1,9 @@
-#include "VideoOutput.hpp"
-#include "Options.hpp"
-
-#include <cpptrace/exceptions.hpp>
-#include <cstdint>
+#include <atomic>
 #include <glib-object.h>
+#include <glib.h>
 #include <glibconfig.h>
-
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
-
 #include <gst/gstbuffer.h>
 #include <gst/gstbus.h>
 #include <gst/gstelement.h>
@@ -18,15 +13,20 @@
 #include <gst/gstparse.h>
 #include <gst/gstsample.h>
 #include <gst/gstvalue.h>
+
+#include <cstdint>
 #include <ios>
 #include <mutex>
-
-#include <glib.h>
-
-#include <slog++/Attribute.hpp>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include <cpptrace/exceptions.hpp>
+
+#include <slog++/Attribute.hpp>
+
+#include "Options.hpp"
+#include "VideoOutput.hpp"
 
 namespace fort {
 namespace artemis {
@@ -49,7 +49,7 @@ using GstElementRef  = GstElement *;
 class VideoOutputImpl {
 public:
 	VideoOutputImpl(
-	    const VideoOutputOptions &options, const Size &input, float FPS
+	    const VideoOutputOptions &options, const VideoOutput::Config &config
 	);
 
 	~VideoOutputImpl();
@@ -72,15 +72,17 @@ private:
 	    GstSample  *first_sample,
 	    gpointer    userdata
 	);
-	std::string buildInputPipeline(const Size &inputResolution, float FPS);
+	std::string buildInputPipeline(const VideoOutput::Config &config);
 	std::string buildStreamPipeline(
 	    const VideoOutputOptions &options, const Size &inputResolution
 	);
 	std::string buildFilePipeline(
-	    const VideoOutputOptions &options, const Size &inputResolution
+	    const VideoOutputOptions &options,
+	    const Size               &inputResolution,
+	    const Duration           &segmentDuration
 	);
 	std::string buildBothPipeline(
-	    const VideoOutputOptions &options, const Size &inputResolution
+	    const VideoOutputOptions &options, const VideoOutput::Config &config
 	);
 
 	void onFrameDone(uint64_t frameID);
@@ -99,10 +101,9 @@ private:
 };
 
 VideoOutput::VideoOutput(
-    const VideoOutputOptions &options, const Size &inputResolution, float FPS
+    const VideoOutputOptions &options, const Config &config
 )
-    : d_impl{std::make_unique<VideoOutputImpl>(options, inputResolution, FPS)} {
-}
+    : d_impl{std::make_unique<VideoOutputImpl>(options, config)} {}
 
 VideoOutput::~VideoOutput()                                  = default;
 VideoOutput::VideoOutput(VideoOutput &&) noexcept            = default;
@@ -177,7 +178,7 @@ GstElement *GstElementFactory(Str &&name, Args &&...args) {
 }
 
 VideoOutputImpl::VideoOutputImpl(
-    const VideoOutputOptions &options, const Size &inputResolution, float FPS
+    const VideoOutputOptions &options, const VideoOutput::Config &config
 ) {
 	std::call_once(gst_initialized, []() {
 		int    argc = 0;
@@ -185,17 +186,27 @@ VideoOutputImpl::VideoOutputImpl(
 		gst_init(&argc, &argv);
 	});
 
-	std::string processPipelineDesc = buildInputPipeline(inputResolution, FPS);
+	std::string processPipelineDesc = buildInputPipeline(config);
 	if (options.Host.empty() == false && options.OutputDir.empty() == false) {
-		processPipelineDesc += buildBothPipeline(options, inputResolution);
+		processPipelineDesc += buildBothPipeline(options, config);
 	} else if (options.Host.empty() == false) {
-		processPipelineDesc += buildStreamPipeline(options, inputResolution);
+		processPipelineDesc +=
+		    buildStreamPipeline(options, config.InputResolution);
 	} else if (options.OutputDir.empty() == false) {
-		processPipelineDesc += buildFilePipeline(options, inputResolution);
+		processPipelineDesc += buildFilePipeline(
+		    options,
+		    config.InputResolution,
+		    config.FilePeriod
+		);
 	} else {
 		throw cpptrace::runtime_error("Both Host and OutputDir cannot be empty"
 		);
 	}
+
+	d_logger.Debug(
+	    "pipeline",
+	    slog::String("description", processPipelineDesc)
+	);
 
 	GError *error = nullptr;
 	d_pipeline =
@@ -232,25 +243,51 @@ VideoOutputImpl::VideoOutputImpl(
 	if (d_appsrc == nullptr) {
 		throw cpptrace::runtime_error{"could not find input-src"};
 	}
+
+	auto pad = gst_element_get_static_pad(d_appsrc.get(), "src");
+	if (pad == nullptr) {
+		throw cpptrace::runtime_error("could not get input-src.src");
+	}
+	Defer {
+		g_object_unref(pad);
+	};
+	gst_pad_add_probe(
+	    pad,
+	    GST_PAD_PROBE_TYPE_BUFFER,
+	    [](GstPad *pad, GstPadProbeInfo *info, gpointer userdata
+	    ) -> GstPadProbeReturn {
+		    auto self   = reinterpret_cast<VideoOutputImpl *>(userdata);
+		    auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+		    if (buffer != nullptr) {
+			    uint64_t frameID = GST_BUFFER_OFFSET(buffer);
+			    self->onFramePass(frameID);
+		    }
+		    return GST_PAD_PROBE_OK;
+	    },
+	    this,
+	    nullptr
+	);
+
 	d_logger.Debug("Starting pipeline");
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
 }
 
 std::string
-VideoOutputImpl::buildInputPipeline(const Size &inputResolution, float FPS) {
+VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
 	std::ostringstream oss;
-	oss << "appsrc name=input-src"                //
-	    << " format=time"                         //
-	    << " is-live=true"                        //
-	    << " leaky-type=upstream"                 //
-	    << " max-buffers=1"                       //
-	    << " emit-signals=false";                 //
-	oss << " ! video/x-raw"                       //
-	    << ",width=" << inputResolution.width()   //
-	    << ",height=" << inputResolution.height() //
-	    << ",format=GRAY8"                        //
-	    << ",framerate=0/1"                       // variable framerate
-	    << ",max-framerate=" << int(std::ceil(FPS * 10)) << "/10";
+	oss << "appsrc name=input-src"                                    //
+	    << " format=time"                                             //
+	    << " is-live=true"                                            //
+	    << " leaky-type=" << (config.LeakyPush ? "upstream" : "none") //
+	    << " block=" << std::boolalpha << !config.LeakyPush           //
+	    << " max-buffers=1"                                           //
+	    << " emit-signals=false";                                     //
+	oss << " ! video/x-raw"                                           //
+	    << ",width=" << config.InputResolution.width()                //
+	    << ",height=" << config.InputResolution.height()              //
+	    << ",format=GRAY8"                                            //
+	    << ",framerate=0/1" // variable framerate
+	    << ",max-framerate=" << int(std::ceil(config.FPS * 10)) << "/10";
 	return oss.str();
 }
 
@@ -278,7 +315,9 @@ std::string VideoOutputImpl::buildStreamPipeline(
 }
 
 std::string VideoOutputImpl::buildFilePipeline(
-    const VideoOutputOptions &options, const Size &inputResolution
+    const VideoOutputOptions &options,
+    const Size               &inputResolution,
+    const Duration           &segmentDuration
 ) {
 	d_outputFileTemplate =
 	    std::filesystem::path(options.OutputDir) / "stream.%04d.mp4";
@@ -302,20 +341,25 @@ std::string VideoOutputImpl::buildFilePipeline(
 	    << " pass=qual";                                                    //
 	oss << " ! splitmuxsink name=file-muxsink"                              //
 	    << " location=" << d_outputFileTemplate.c_str()                     //
-	    << " max-size-time=" << options.SegmentDuration.Nanoseconds();      //
+	    << " max-size-time=" << segmentDuration.Nanoseconds()               //
+	    << " muxer=mp4mux";
 	return oss.str();
 }
 
 std::string VideoOutputImpl::buildBothPipeline(
-    const VideoOutputOptions &options, const Size &inputResolution
+    const VideoOutputOptions &options, const VideoOutput::Config &config
 ) {
 	std::ostringstream oss;
 
 	oss << " ! tee name=t";
 	oss << " t.src_0 ! queue name=file-queue"
-	    << buildFilePipeline(options, inputResolution);
+	    << buildFilePipeline(
+	           options,
+	           config.InputResolution,
+	           config.FilePeriod
+	       );
 	oss << " t.src_1 ! queue name=stream-queue"
-	    << buildStreamPipeline(options, inputResolution);
+	    << buildStreamPipeline(options, config.InputResolution);
 
 	return oss.str();
 }
@@ -395,6 +439,7 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 
 void VideoOutputImpl::onFramePass(uint64_t frameID) {
 	d_lastFramePassed.store(frameID);
+	d_logger.Debug("frame passed", slog::Int("ID", frameID));
 }
 
 void VideoOutputImpl::onFrameDone(uint64_t frameID) {
@@ -404,6 +449,7 @@ void VideoOutputImpl::onFrameDone(uint64_t frameID) {
 		d_dropped.fetch_add(1);
 		d_logger.Warn(
 		    "frame dropped",
+		    slog::Int("ID", frameID),
 		    slog::Int("total_dropped", d_dropped.load()),
 		    slog::Float(
 		        "percent_dropped",
@@ -440,6 +486,7 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 		break;
 	}
 	default:
+
 		// Unhandled message
 		break;
 	}
