@@ -139,6 +139,7 @@ TEST_F(VideoOutputTest, EncodesMultipleImages) {
 			output.PushFrame(buildFrame(i));
 		}
 	});
+	ADD_FAILURE() << "coucou";
 }
 
 } // namespace artemis

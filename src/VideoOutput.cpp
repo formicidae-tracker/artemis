@@ -9,6 +9,7 @@
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 
+#include <gst/gstbuffer.h>
 #include <gst/gstbus.h>
 #include <gst/gstelement.h>
 #include <gst/gstformat.h>
@@ -370,9 +371,6 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
             delete frame;
         }
     );
-	Defer {
-		gst_object_unref(buffer);
-	};
 
 	uint64_t pts{0};
 	if (d_firstTimestamp.has_value()) {
@@ -381,17 +379,17 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 		d_firstTimestamp = frame->Timestamp();
 	}
 
-	GST_BUFFER_PTS(buffer)      = GstClockTime(pts);
+	GST_BUFFER_PTS(buffer)      = GstClockTime(pts * 1000);
 	GST_BUFFER_DTS(buffer)      = GST_CLOCK_TIME_NONE;
 	GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
 
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
 
-	auto res =
-	    gst_app_src_push_buffer(GST_APP_SRC_CAST(d_appsrc.get()), buffer);
+	auto res = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
 
 	if (res != GST_FLOW_OK) {
+		gst_buffer_unref(buffer);
 		throw cpptrace::runtime_error("Could not push buffer");
 	}
 }
