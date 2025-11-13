@@ -121,7 +121,7 @@ TEST_F(VideoOutputTest, EncodesMultipleImages) {
 		auto        img = ImageU8::OwnedPtr{new ImageU8{
             640,
             480,
-            (uint8_t *)malloc(640 * 40 * sizeof(uint8_t)),
+            (uint8_t *)malloc(640 * 480 * sizeof(uint8_t)),
             640
         }};
 		memset(img->buffer, 127, img->NeededSize());

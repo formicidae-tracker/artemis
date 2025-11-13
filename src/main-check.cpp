@@ -1,3 +1,4 @@
+#include "utils/SignalTraceHandler.hpp"
 #include <gmock/gmock.h>
 #include <slog++/Level.hpp>
 #include <slog++/slog++.hpp>
@@ -5,7 +6,7 @@
 #include <glib.h>
 
 int main(int argc, char **argv) {
-
+	fort::artemis::InstallSignalSafeHandlers(argc, argv, true);
 	::testing::InitGoogleMock(&argc, argv);
 
 	// Make criticals fatal (errors are already fatal by default)

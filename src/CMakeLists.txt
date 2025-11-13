@@ -34,6 +34,7 @@ set(SRC_FILES
 	utils/PosixCall.cpp
 	utils/StringManipulation.cpp
 	utils/Partitions.cpp
+	utils/SignalTraceHandler.cpp
 	ImageU8.cpp
 	Task.cpp
 	Options.cpp
@@ -60,6 +61,7 @@ set(HDR_FILES
 	utils/StringManipulation.hpp
 	utils/Partitions.hpp
 	utils/Slog.hpp
+	utils/SignalTraceHandler.hpp
 	Task.hpp
 	FrameGrabber.hpp
 	Connection.hpp
