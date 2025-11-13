@@ -13,6 +13,7 @@
 #include <gst/gstformat.h>
 #include <gst/gstobject.h>
 #include <gst/gstpad.h>
+#include <gst/gstparse.h>
 #include <gst/gstsample.h>
 #include <gst/gstvalue.h>
 #include <ios>
@@ -20,6 +21,7 @@
 
 #include <glib.h>
 
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -69,37 +71,25 @@ private:
 	    GstSample  *first_sample,
 	    gpointer    userdata
 	);
-	void
-	buildStreamOutput(const VideoOutputOptions &options, const Size &input);
-	void buildFileOutput(const VideoOutputOptions &options, const Size &input);
-	void linkBothOutput();
-	void linkSingleOutput(GstElementRef ref);
+	std::string buildInputPipeline(const Size &inputResolution, float FPS);
+	std::string buildStreamPipeline(
+	    const VideoOutputOptions &options, const Size &inputResolution
+	);
+	std::string buildFilePipeline(
+	    const VideoOutputOptions &options, const Size &inputResolution
+	);
+	std::string buildBothPipeline(
+	    const VideoOutputOptions &options, const Size &inputResolution
+	);
 
 	void onFrameDone(uint64_t frameID);
 	void onFramePass(uint64_t frameID);
 
 	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
 	GstElementPtr   d_pipeline;
-
-	GstElementRef d_appsrc;
-	GstElementRef d_videoInputFormat;
-
-	GstElementRef d_inputTee;
-	GstElementRef d_streamQueue;
-	GstElementRef d_fileQueue;
-
-	GstElementRef d_streamScale;
-	GstElementRef d_streamVideoFormat;
-	GstElementRef d_streamEncoder;
-	GstElementRef d_streamCaps;
-	GstElementRef d_streamRtscp;
-
-	GstElementRef d_fileScale;
-	GstElementRef d_fileVideoFormat;
-	GstElementRef d_fileEncoder;
-	GstElementRef d_fileSink;
-
-	gulong d_srcProbe;
+	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
+	GstBusPtr d_bus;
+	GstElementPtr d_appsrc;
 
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
@@ -193,126 +183,55 @@ VideoOutputImpl::VideoOutputImpl(
 		gst_init(&argc, &argv);
 	});
 
-	d_pipeline = GstElementPtr{gst_pipeline_new("artemis-pipeline")};
-
-	d_appsrc = GstElementFactory(
-	    "appsrc",
-	    "name",
-	    "artemis-src",
-	    "format",
-	    GST_FORMAT_TIME,
-	    "is-live",
-	    TRUE,
-	    "leaky-type",
-	    GST_APP_LEAKY_TYPE_UPSTREAM,
-	    "max-buffers",
-	    1,
-	    "emit-signals",
-	    FALSE
-	);
-	GValue value = G_VALUE_INIT;
-	g_value_init(&value, GST_TYPE_FRACTION);
-	gst_value_set_fraction(&value, int(FPS * 10.0), 10);
-	d_videoInputFormat = GstElementFactory(
-	    "capsfilter",
-	    "name",
-	    "input-video-format",
-	    "caps",
-	    ("video/x-raw,width=" + std::to_string(inputResolution.width()) +
-	     ",height=" + std::to_string(inputResolution.height()) +
-	     ",format=GRAY8,max-framerate=" + std::to_string(int(FPS * 10.0)) +
-	     "/10")
-	        .c_str()
-	);
-
-	gst_bin_add_many(
-	    GST_BIN(d_pipeline.get()),
-	    d_appsrc,
-	    d_videoInputFormat,
-	    nullptr
-	);
-
-	if (gst_element_link(d_appsrc, d_videoInputFormat) == FALSE) {
-		d_pipeline.reset();
-		throw cpptrace::runtime_error("could not link video input format");
+	std::string processPipelineDesc = buildInputPipeline(inputResolution, FPS);
+	if (options.Host.empty() == false && options.OutputDir.empty() == false) {
+		processPipelineDesc += buildBothPipeline(options, inputResolution);
+	} else if (options.Host.empty() == false) {
+		processPipelineDesc += buildStreamPipeline(options, inputResolution);
+	} else if (options.OutputDir.empty() == false) {
+		processPipelineDesc += buildFilePipeline(options, inputResolution);
+	} else {
+		throw cpptrace::runtime_error("Both Host and OutputDir cannot be empty"
+		);
 	}
 
-	d_srcProbe = gst_pad_add_probe(
-	    gst_element_get_static_pad(d_appsrc, "src"),
-	    GST_PAD_PROBE_TYPE_BUFFER,
-	    [](GstPad *pad, GstPadProbeInfo *info, gpointer userdata
-	    ) -> GstPadProbeReturn {
-		    (void)pad;
-		    auto self   = reinterpret_cast<VideoOutputImpl *>(userdata);
-		    auto buffer = gst_pad_probe_info_get_buffer(info);
-		    if (buffer != nullptr) {
-			    self->onFramePass(GST_BUFFER_OFFSET(buffer));
-		    }
-		    return GST_PAD_PROBE_OK;
-	    },
-	    this,
-	    nullptr
-	);
-
-	if (options.Host.empty() == false) {
-		buildStreamOutput(options, inputResolution);
+	GError *error = nullptr;
+	d_pipeline =
+	    GstElementPtr(gst_parse_launch(processPipelineDesc.c_str(), &error));
+	if (d_pipeline == nullptr) {
+		Defer {
+			if (error != nullptr) {
+				g_error_free(error);
+			}
+		};
+		throw cpptrace::runtime_error{
+		    "could not build pipeline: " +
+		    std::string{error == nullptr ? "unknow error" : error->message}
+		};
 	}
 
-	if (options.OutputDir.empty() == false) {
-		buildFileOutput(options, inputResolution);
-	}
+	d_bus = GstBusPtr{gst_element_get_bus(d_pipeline.get())};
 
-	if (d_fileScale != nullptr && d_streamScale != nullptr) {
-		linkBothOutput();
-		return;
-	}
-	if (d_fileScale != nullptr) {
-		linkSingleOutput(d_fileScale);
-	}
-	if (d_streamScale != nullptr) {
-		linkSingleOutput(d_streamScale);
-	}
+	d_appsrc = GstElementPtr{
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "input-src")
+	};
 }
 
-void VideoOutputImpl::linkBothOutput() {
-	d_inputTee    = GstElementFactory("tee", "name", "input-tee");
-	d_streamQueue = GstElementFactory("queue", "name", "stream-queue");
-	d_fileQueue   = GstElementFactory("queue", "name", "file-queue");
-	gst_bin_add_many(
-	    GST_BIN(d_pipeline.get()),
-	    d_inputTee,
-	    d_streamQueue,
-	    d_fileQueue,
-	    nullptr
-	);
-	if (gst_element_link(d_videoInputFormat, d_inputTee) == FALSE) {
-		throw cpptrace::runtime_error("could not link input-tee");
-	}
-	if (gst_element_link_pads(d_inputTee, "src_0", d_fileQueue, "sink") ==
-	    FALSE) {
-		throw cpptrace::runtime_error("could not link file-queue");
-	}
-	if (gst_element_link(d_fileQueue, d_fileScale) == FALSE) {
-		throw cpptrace::runtime_error("could not link file-scale");
-	}
-
-	if (gst_element_link_pads(d_inputTee, "src_1", d_streamQueue, "sink") ==
-	    FALSE) {
-		throw cpptrace::runtime_error("could not link stream-queue");
-	}
-
-	if (gst_element_link(d_streamQueue, d_streamScale) == FALSE) {
-		throw cpptrace::runtime_error("could not link stream-scale");
-	}
+std::string
+VideoOutputImpl::buildInputPipeline(const Size &inputResolution, float FPS) {
+	std::ostringstream oss;
+	oss << "appsrc name=input-src format=time is-live=true leaky-type=upstream "
+	       "max-buffers=1 emit-signal=false";
+	oss << " ! video/x-raw"                       //
+	    << ",width=" << inputResolution.width()   //
+	    << ",height=" << inputResolution.height() //
+	    << ",format=GRAY8"                        //
+	    << ",framerate=0/1"                       // variable framerate
+	    << ",max-framerate=" << int(std::ceil(FPS * 10)) << "/10";
+	return oss.str();
 }
 
-void VideoOutputImpl::linkSingleOutput(GstElementRef ref) {
-	if (gst_element_link(d_videoInputFormat, ref) == FALSE) {
-		throw cpptrace::runtime_error("could not link {stream,file}-scale");
-	}
-}
-
-void VideoOutputImpl::buildStreamOutput(
+std::string VideoOutputImpl::buildStreamPipeline(
     const VideoOutputOptions &options, const Size &inputResolution
 ) {
 	auto streamSize = VideoOutputOptions::TargetResolution(
@@ -320,59 +239,63 @@ void VideoOutputImpl::buildStreamOutput(
 	    inputResolution
 	);
 
-	d_streamScale = GstElementFactory("videoscale", "name", "stream-scale");
+	std::ostringstream oss;
+	oss << " ! videoscale name=stream-scale";
+	oss << " ! capsfilter name=stream-video-format" //
+	    << "caps=video/x-raw"                       //
+	    << ",width=" << streamSize.width()          //
+	    << ",height=" << streamSize.height();       //
 
-	d_streamVideoFormat = GstElementFactory(
-	    "video/x-raw",
-	    "name",
-	    "stream-video-format",
-	    "width",
-	    std::to_string(streamSize.width()).c_str(),
-	    "height",
-	    std::to_string(streamSize.height()).c_str()
-	);
-	d_streamEncoder = GstElementFactory(
-	    "openh264enc",
-	    "name",
-	    "stream-encoder",
-	    "bitrate",
-	    "500000"
-	);
-	d_streamCaps = GstElementFactory(
-	    "capsfilter",
-	    "name",
-	    "stream-caps",
-	    "caps",
-	    "video/x-h264"
-	);
+	oss << " ! openh264enc name=stream-encoder"                //
+	    << " bitrate=" << 1000 * 1000;                         // 1Mbit/s
+	oss << " ! capsfilter name=stream-caps caps=video/x-h264"; //
+	oss << " ! rtspclientsink name=stream-sink"                //
+	    << " location=" << options.Host;
+	return oss.str();
+}
 
-	d_streamRtscp = GstElementFactory(
-	    "rtspclientsink",
-	    "name",
-	    "stream-sink",
-	    "location",
-	    options.Host.c_str()
-	);
-
-	gst_bin_add_many(
-	    GST_BIN(d_pipeline.get()),
-	    d_streamScale,
-	    d_streamVideoFormat,
-	    d_streamEncoder,
-	    d_streamCaps,
-	    d_streamRtscp,
-	    nullptr
-	);
-	if (gst_element_link_many(
-	        d_streamScale,
-	        d_streamVideoFormat,
-	        d_streamEncoder,
-	        d_streamCaps,
-	        d_streamRtscp,
-	        nullptr
-	    ) == FALSE) {
-		throw cpptrace::runtime_error("could not link stream pipeline");
+std::string VideoOutputImpl::buildFilePipeline(
+    const VideoOutputOptions &options, const Size &inputResolution
+) {
+	d_outputFileTemplate =
+	    std::filesystem::path(options.OutputDir) / "stream.%04d.mp4";
+	auto fileResolution = inputResolution;
+	if (options.Height > 0) {
+		fileResolution = VideoOutputOptions::TargetResolution(
+		    options.Height,
+		    inputResolution
+		);
 	}
+
+	std::ostringstream oss;
+	oss << " ! videoscale name=file-scale"                                  //
+	    << " ! capsfilter name=file-video-format"                           //
+	    << "caps=video/x-raw"                                               //
+	    << ",width=" << fileResolution.width()                              //
+	    << ",height=" << fileResolution.height();                           //
+	oss << " ! x264enc name=file-encoder"                                   //
+	    << " speed-preset=" << options.Quality                              //
+	    << " tune=" << options.Tune                                         //
+	    << " bitrate=" << int(options.Bitrate_KB * options.BitrateMaxRatio) //
+	    << " pass=3";                                                       //
+	oss << " ! splitmuxsink name=file-muxsink"                              //
+	    << " location=" << d_outputFileTemplate.c_str()                     //
+	    << " max-size-time=" << options.SegmentDuration.Nanoseconds();      //
+	return oss.str();
+}
+
+std::string VideoOutputImpl::buildBothPipeline(
+    const VideoOutputOptions &options, const Size &inputResolution
+) {
+	std::ostringstream oss;
+
+	oss << " ! tee name=t";
+	oss << " t.src_0 ! queue name=file-queue"
+	    << buildFilePipeline(options, inputResolution);
+	oss << " t.src_1 ! queue name=stream-queue"
+	    << buildStreamPipeline(options, inputResolution);
+
+	return oss.str();
 }
 
 gchararray VideoOutputImpl::onLocationFull(
@@ -398,79 +321,6 @@ gchararray VideoOutputImpl::onLocationFull(
 	    slog::Int("frame_id", frameID)
 	);
 	return res;
-}
-
-void VideoOutputImpl::buildFileOutput(
-    const VideoOutputOptions &options, const Size &inputResolution
-) {
-	Size fileResolution = inputResolution;
-	if (options.Height > 0) {
-		fileResolution = VideoOutputOptions::TargetResolution(
-		    options.Height,
-		    inputResolution
-		);
-	}
-	d_outputFileTemplate =
-	    std::filesystem::path(options.OutputDir) / "stream.%04d.mp4";
-	d_fileScale = GstElementFactory("videoscale", "name", "file-videscale");
-	d_fileVideoFormat = GstElementFactory(
-	    "video/x-raw",
-	    "name",
-	    "file-videoformat",
-	    "width",
-	    std::to_string(fileResolution.width()).c_str(),
-	    "height",
-	    std::to_string(fileResolution.height()).c_str()
-	);
-
-	d_fileEncoder = GstElementFactory(
-	    "x264enc",
-	    "name",
-	    "file-encoder",
-	    "bitrate",
-	    "pass",
-	    "3",
-	    std::to_string(int(options.Bitrate_KB * options.BitrateMaxRatio))
-	        .c_str(),
-	    "speed-preset",
-	    options.Quality.c_str(),
-	    "tune",
-	    options.Tune.c_str()
-	);
-	d_fileSink = GstElementFactory(
-	    "splitmuxsink",
-	    "name",
-	    "file-splitsink",
-	    "location",
-	    d_outputFileTemplate.c_str(),
-	    "max-size-time",
-	    std::to_string(options.SegmentDuration.Nanoseconds()).c_str()
-	);
-
-	g_signal_connect(
-	    d_fileSink,
-	    "format-location-full",
-	    G_CALLBACK(&onLocationFull),
-	    this
-	);
-
-	gst_bin_add_many(
-	    GST_BIN(d_pipeline.get()),
-	    d_fileScale,
-	    d_fileVideoFormat,
-	    d_fileEncoder,
-	    d_fileSink,
-	    nullptr
-	);
-	if (gst_element_link_many(
-	        d_fileScale,
-	        d_fileVideoFormat,
-	        d_fileEncoder,
-	        d_fileSink,
-	        nullptr
-	    ) == FALSE) {
-		throw cpptrace::runtime_error("could not link file pipeline");
-	}
 }
 
 VideoOutputImpl::~VideoOutputImpl() {}
@@ -513,7 +363,8 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
 
-	auto res = gst_app_src_push_buffer(GST_APP_SRC_CAST(d_appsrc), buffer);
+	auto res =
+	    gst_app_src_push_buffer(GST_APP_SRC_CAST(d_appsrc.get()), buffer);
 
 	if (res != GST_FLOW_OK) {
 		throw cpptrace::runtime_error("Could not push buffer");
