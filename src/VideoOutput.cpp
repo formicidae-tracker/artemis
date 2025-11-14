@@ -301,15 +301,21 @@ std::string VideoOutputImpl::buildStreamPipeline(
 
 	std::ostringstream oss;
 	oss << " ! videoscale name=stream-scale";
-	oss << " ! capsfilter name=stream-video-format" //
-	    << "caps=video/x-raw"                       //
-	    << ",width=" << streamSize.width()          //
-	    << ",height=" << streamSize.height();       //
-
-	oss << " ! openh264enc name=stream-encoder"                //
-	    << " bitrate=" << 1000 * 1000;                         // 1Mbit/s
-	oss << " ! capsfilter name=stream-caps caps=video/x-h264"; //
-	oss << " ! rtspclientsink name=stream-sink"                //
+	oss << " ! capsfilter name=stream-video-format"        //
+	    << "caps=video/x-raw"                              //
+	    << ",width=" << streamSize.width()                 //
+	    << ",height=" << streamSize.height();              //
+	oss << " ! videoconvert name=stream-videoconvert";     //
+	oss << " ! capsfilter name=stream-videoconvert-format" //
+	    << " caps=video/x-raw(VAMemory),format=NV12";      //
+	oss << " ! vah264enc name=stream-encoder"              //
+	    << " bitrate=" << 1000                             // 1Mbit/s
+	    << " rate-control=vbr"                             //
+	    << "target-percentage=" << int(100 / options.BitrateMaxRatio); //
+	oss << " ! capsfilter name=stream-encoder-format"                  //
+	    << " caps=video/h-264,profile=constrained-baseline";           //
+	oss << " ! h264parse name=stream-parse";                           //
+	oss << " ! rtspclientsink name=stream-sink"                        //
 	    << " location=" << options.Host;
 	return oss.str();
 }
@@ -330,18 +336,24 @@ std::string VideoOutputImpl::buildFilePipeline(
 	}
 
 	std::ostringstream oss;
-	oss << " ! videoscale name=file-scale"                                  //
-	    << " ! capsfilter name=file-video-format"                           //
-	    << "caps=video/x-raw"                                               //
-	    << ",width=" << fileResolution.width()                              //
-	    << ",height=" << fileResolution.height();                           //
-	oss << " ! x264enc name=file-encoder"                                   //
-	    << " speed-preset=" << options.Quality                              //
-	    << " bitrate=" << int(options.Bitrate_KB * options.BitrateMaxRatio) //
-	    << " pass=qual";                                                    //
-	oss << " ! splitmuxsink name=file-muxsink"                              //
-	    << " location=" << d_outputFileTemplate.c_str()                     //
-	    << " max-size-time=" << segmentDuration.Nanoseconds()               //
+	oss << " ! videoscale name=file-scale"                              //
+	    << " ! capsfilter name=file-video-format"                       //
+	    << "caps=video/x-raw"                                           //
+	    << ",width=" << fileResolution.width()                          //
+	    << ",height=" << fileResolution.height();                       //
+	oss << " ! videoconvert name=file-videoconvert";                    //
+	oss << " ! capsfilter name=file-videoconvert-format"                //
+	    << " caps=video/x-raw,format=NV12";                             //
+	oss << " ! vah265enc name=file-encoder"                             //
+	    << " bitrate=" << options.Bitrate_KB                            //
+	    << " rate-control=vbr"                                          //
+	    << " target-percentage=" << int(100 / options.BitrateMaxRatio); //
+	oss << " ! capsfilter name=file-encoder-format"                     //
+	    << " caps=video/x-h265,profile=screen-extended-main";           //
+	oss << " ! h265parse name=file-h265parse";                          //
+	oss << " ! splitmuxsink name=file-muxsink"                          //
+	    << " location=" << d_outputFileTemplate.c_str()                 //
+	    << " max-size-time=" << segmentDuration.Nanoseconds()           //
 	    << " muxer=mp4mux";
 	return oss.str();
 }
