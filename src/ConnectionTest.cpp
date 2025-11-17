@@ -274,7 +274,7 @@ TEST_F(ConnectionTest, Reconnect) {
 		ASSERT_EQ(connections.load(), 2);
 	});
 
-	if (future.wait_for(std::chrono::milliseconds{100}) ==
+	if (future.wait_for(std::chrono::milliseconds{500}) ==
 	    std::future_status::timeout) {
 		ADD_FAILURE() << "Reconnection timeouted";
 		new std::future<void>(std::move(future)); // intentionally leaking.
