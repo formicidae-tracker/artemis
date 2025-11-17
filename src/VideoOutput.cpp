@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <exception>
 #include <glib-object.h>
 #include <glib.h>
 #include <glibconfig.h>
@@ -13,10 +14,12 @@
 #include <gst/gstdebugutils.h>
 #include <gst/gstelement.h>
 #include <gst/gstformat.h>
+#include <gst/gstmessage.h>
 #include <gst/gstobject.h>
 #include <gst/gstpad.h>
 #include <gst/gstparse.h>
 #include <gst/gstsample.h>
+#include <gst/gstutils.h>
 #include <gst/gstvalue.h>
 
 #include <cstdint>
@@ -105,7 +108,7 @@ public:
 			return;
 		}
 		while (bufferSize() > 0) {
-			d_file->Write(++d_framesWritten, popFrameID());
+			popWrite();
 		}
 	}
 
@@ -128,14 +131,14 @@ public:
 		startStreamPTS -= d_streamPTSOffset.value();
 
 		if (d_file != nullptr) {
-			while (peekPTS() < startStreamPTS) {
-				d_file->Write(++d_framesWritten, popFrameID());
+			while (bufferSize() > 0 && peekPTS() < startStreamPTS) {
+				popWrite();
 			}
 		}
 		d_file          = std::make_unique<MetadataFile>(path);
 		d_framesWritten = 0;
 		while (bufferSize() >= BUFFER_SIZE) {
-			d_file->Write(++d_framesWritten, popFrameID());
+			popWrite();
 		}
 	}
 
@@ -153,11 +156,15 @@ private:
 	}
 
 	uint64_t popFrameID() {
-		return d_frames[(++d_tail) & RB_MASK].FrameID;
+		return d_frames[(d_tail++) & RB_MASK].FrameID;
 	}
 
 	void enqueue(uint64_t frameID, uint64_t PTS) {
-		d_frames[(++d_head) & RB_MASK] = {.FrameID = frameID, .PTS = PTS};
+		d_frames[(d_head++) & RB_MASK] = {.FrameID = frameID, .PTS = PTS};
+	}
+
+	void popWrite() {
+		d_file->Write(d_framesWritten++, popFrameID());
 	}
 
 	std::unique_ptr<MetadataFile> d_file;
@@ -211,6 +218,11 @@ private:
 	void onFrameDone(uint64_t frameID);
 	void onFramePass(uint64_t frameID, uint64_t PTS);
 	void onMessage(GstBus *bus, GstMessage *message);
+	void onStreamSinkError(GstMessage *message);
+
+	void scheduleReconnect();
+	void disconnectStream();
+	void reconnectStream();
 
 	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
 	GstElementPtr   d_pipeline;
@@ -224,6 +236,10 @@ private:
 	std::atomic<bool>       d_eosReached{false};
 
 	MetadataHandler d_metadata;
+
+	std::string                                d_host;
+	constexpr static std::chrono::milliseconds RECONNECT_TIMEOUT{5000};
+	std::atomic<bool>                          d_reconnectionScheduled{false};
 };
 
 VideoOutput::VideoOutput(
@@ -305,7 +321,8 @@ GstElement *GstElementFactory(Str &&name, Args &&...args) {
 
 VideoOutputImpl::VideoOutputImpl(
     const VideoOutputOptions &options, const VideoOutput::Config &config
-) {
+)
+    : d_host{options.Host} {
 	std::call_once(gst_initialized, []() {
 		int    argc = 0;
 		char **argv = {nullptr};
@@ -608,6 +625,30 @@ void VideoOutputImpl::onFrameDone(uint64_t frameID) {
 	}
 }
 
+void VideoOutputImpl::onStreamSinkError(GstMessage *message) {
+	GError *err{nullptr};
+	gchar  *debug_info{nullptr};
+	gst_message_parse_error(message, &err, &debug_info);
+	Defer {
+		g_clear_error(&err);
+		if (debug_info != nullptr) {
+			g_free(debug_info);
+		}
+	};
+
+	d_logger.Error(
+	    "stream-sink error",
+	    slog::String("error", err->message),
+	    slog::String(
+	        "debug_info",
+	        debug_info == nullptr ? "<none>" : debug_info
+	    )
+	);
+
+	disconnectStream();
+	scheduleReconnect();
+}
+
 void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	switch (GST_MESSAGE_TYPE(message)) {
 	case GST_MESSAGE_EOS:
@@ -617,6 +658,10 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 		d_eosReached.notify_all();
 		break;
 	case GST_MESSAGE_ERROR: {
+		if (std::string(message->src->name) == "stream-sink") {
+			onStreamSinkError(message);
+			break;
+		}
 		GError *err;
 		gchar  *debug_info;
 		gst_message_parse_error(message, &err, &debug_info);
@@ -668,6 +713,163 @@ gchararray VideoOutputImpl::onLocationFull(
 	    slog::Duration("PTS", std::chrono::nanoseconds{PTS})
 	);
 	return res;
+}
+
+void VideoOutputImpl::disconnectStream() {
+	auto streamSink =
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink");
+
+	if (streamSink == nullptr) {
+		d_logger.Error("No stream sink, not disconnecting");
+		return;
+	}
+	Defer {
+		gst_object_unref(streamSink);
+	};
+	auto streamParse =
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-parse");
+	if (streamParse == nullptr) {
+		d_logger.Error("not stream-parse, not disconnecting");
+		return;
+	}
+
+	Defer {
+		gst_object_unref(streamParse);
+	};
+
+	auto srcPad = gst_element_get_static_pad(streamParse, "src");
+	if (srcPad == nullptr) {
+		d_logger.Error("could not get stream-parse.src");
+		return;
+	}
+	Defer {
+		gst_object_unref(srcPad);
+	};
+
+	auto sinkPad = gst_element_get_static_pad(streamSink, "sink_0");
+	if (sinkPad == nullptr) {
+		d_logger.Error("could not get stream-parse.src_0");
+		return;
+	}
+	Defer {
+		gst_object_unref(sinkPad);
+	};
+
+	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
+	Defer {
+		gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+	};
+
+	d_logger.Info("disconnecting stream");
+	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
+		d_logger.Warn("pad unlink returned false");
+	}
+	gst_element_set_state(streamSink, GST_STATE_NULL);
+	if (gst_bin_remove(GST_BIN(d_pipeline.get()), streamSink) == FALSE) {
+		d_logger.Warn("could not remove stream-sink");
+	}
+
+	auto fakesink = GstElementFactory("fakesink", "name", "stream-fake-sink");
+	gst_bin_add(GST_BIN(d_pipeline.get()), fakesink);
+	if (gst_element_link(streamParse, fakesink) == FALSE) {
+		d_logger.Error("could not link stream-parse and stream-fake-sink");
+	}
+	gst_element_sync_state_with_parent(fakesink);
+	d_logger.Debug("disconnected");
+}
+
+void VideoOutputImpl::reconnectStream() {
+	auto streamFakeSink =
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-fake-sink");
+	if (streamFakeSink == nullptr) {
+		d_logger.Error("no fakesink element, not reconnecting");
+		return;
+	}
+	Defer {
+		gst_object_unref(streamFakeSink);
+	};
+	auto streamParse =
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-parse");
+	if (streamParse == nullptr) {
+		d_logger.Error("no stream-parse element, not reconnecting");
+		return;
+	}
+	Defer {
+		gst_object_unref(streamParse);
+	};
+
+	auto srcPad = gst_element_get_static_pad(streamParse, "src");
+	if (srcPad == nullptr) {
+		d_logger.Error("could not get stream-parse.src");
+		return;
+	}
+	Defer {
+		gst_object_unref(srcPad);
+	};
+
+	auto sinkPad = gst_element_get_static_pad(streamFakeSink, "sink");
+	if (sinkPad == nullptr) {
+		d_logger.Error("could not get stream-fake-sink.sink");
+		return;
+	}
+	Defer {
+		gst_object_unref(sinkPad);
+	};
+	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
+	Defer {
+		gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+	};
+
+	d_logger.Info("reconnecting", slog::String("host", d_host));
+
+	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
+		d_logger.Warn(
+		    "could not unlink stream-parse.src and stream-fake-sink.sink"
+		);
+	}
+	gst_element_set_state(streamFakeSink, GST_STATE_NULL);
+	if (gst_bin_remove(GST_BIN(d_pipeline.get()), streamFakeSink) == FALSE) {
+		d_logger.Warn("could not remove  stream-fake-sink");
+	}
+	auto streamSink = GstElementFactory(
+	    "rtspclientsink",
+	    "name",
+	    "stream-sink",
+	    "location",
+	    d_host.c_str()
+	);
+	gst_bin_add(GST_BIN(d_pipeline.get()), streamSink);
+	if (gst_element_link(streamParse, streamSink) == FALSE) {
+		d_logger.Error(
+		    "could not link stream-parse.src and rtspclientsink.sink_%u"
+		);
+	}
+	gst_element_sync_state_with_parent(streamSink);
+}
+
+void VideoOutputImpl::scheduleReconnect() {
+	bool scheduled = false;
+	if (d_reconnectionScheduled.compare_exchange_strong(scheduled, true) ==
+	    false) {
+		return;
+	}
+
+	g_timeout_add(
+	    RECONNECT_TIMEOUT.count(),
+	    [](gpointer userdata) {
+		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
+
+		    try {
+			    self->reconnectStream();
+		    } catch (const std::exception &e) {
+			    self->d_logger.Error("could not reconnect", slog::Err(e));
+		    }
+		    self->d_reconnectionScheduled.store(false);
+
+		    return G_SOURCE_REMOVE;
+	    },
+	    this
+	);
 }
 
 } // namespace artemis

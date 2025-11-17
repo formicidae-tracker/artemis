@@ -3,11 +3,15 @@
 #include "Options.hpp"
 #include "gmock/gmock.h"
 #include <chrono>
+#include <cpptrace/exceptions.hpp>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <future>
 #include <glib.h>
 #include <gtest/gtest.h>
+#include <iterator>
+#include <sstream>
 #include <thread>
 
 namespace fort {
@@ -131,7 +135,20 @@ private:
 	fort::Time d_time;
 };
 
-TEST_F(VideoOutputTest, EncodesMultipleFiles) {
+std::string readFileContent(const std::filesystem::path &filepath) {
+	std::ifstream file{filepath};
+	if (file.is_open() == false) {
+		throw cpptrace::runtime_error{
+		    "could not open '" + filepath.string() + "'"
+		};
+	}
+	return {
+	    std::istreambuf_iterator<char>{file},
+	    std::istreambuf_iterator<char>{}
+	};
+}
+
+TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 
 	WithTimeout(2500ms, [this]() {
 		VideoOutput output(
@@ -195,6 +212,36 @@ TEST_F(VideoOutputTest, EncodesMultipleFiles) {
 	        Property(&path::filename, "stream.frame-matching.0002.txt"),
 	        Property(&path::filename, "stream.frame-matching.0003.txt")
 	    )
+	);
+
+	std::ostringstream expectedFileContent[4];
+	for (int i = 0; i < 30; ++i) {
+		expectedFileContent[0] << i << " " << i << std::endl;
+		expectedFileContent[1] << i << " " << i + 30 << std::endl;
+		expectedFileContent[2] << i << " " << i + 60 << std::endl;
+		if (i < 10) {
+			expectedFileContent[3] << i << " " << i + 90 << std::endl;
+		}
+	}
+
+	EXPECT_EQ(
+	    readFileContent(s_output / "stream.frame-matching.0000.txt"),
+	    expectedFileContent[0].str()
+	);
+
+	EXPECT_EQ(
+	    readFileContent(s_output / "stream.frame-matching.0001.txt"),
+	    expectedFileContent[1].str()
+	);
+
+	EXPECT_EQ(
+	    readFileContent(s_output / "stream.frame-matching.0002.txt"),
+	    expectedFileContent[2].str()
+	);
+
+	EXPECT_EQ(
+	    readFileContent(s_output / "stream.frame-matching.0003.txt"),
+	    expectedFileContent[3].str()
 	);
 }
 
