@@ -1,13 +1,14 @@
 #include "VideoOutput.hpp"
 #include "ImageU8.hpp"
 #include "Options.hpp"
-#include "StubFrameGrabber.hpp"
+#include "gmock/gmock.h"
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <future>
 #include <glib.h>
 #include <gtest/gtest.h>
+#include <thread>
 
 namespace fort {
 namespace artemis {
@@ -46,6 +47,14 @@ protected:
 	}
 
 	void SetUp() {
+		for (auto entry : std::filesystem::directory_iterator{s_output}) {
+			if (entry.is_regular_file() == false ||
+			    entry.path().extension() != ".mp4") {
+				continue;
+			}
+			std::filesystem::remove(entry);
+		}
+
 		d_mainLoopThread       = std::thread([this]() {
             d_loop = g_main_loop_new(nullptr, FALSE);
             Defer {
@@ -122,12 +131,13 @@ private:
 	fort::Time d_time;
 };
 
-TEST_F(VideoOutputTest, EncodesMultipleImages) {
+TEST_F(VideoOutputTest, EncodesMultipleFiles) {
+
 	WithTimeout(2500ms, [this]() {
 		VideoOutput output(
 		    d_options,
 		    {
-		        .FilePeriod      = 2 * Duration::Second,
+		        .FilePeriod      = 3 * Duration::Second,
 		        .FPS             = 10.0,
 		        .InputResolution = {640, 480},
 		        .LeakyPush       = false,
@@ -154,7 +164,38 @@ TEST_F(VideoOutputTest, EncodesMultipleImages) {
 			output.PushFrame(buildFrame(i));
 		}
 	});
-	ADD_FAILURE() << "coucou";
+	std::vector<std::string> videofiles;
+	std::vector<std::string> metadata;
+	for (auto entry : std::filesystem::directory_iterator{s_output}) {
+		if (entry.is_regular_file() && entry.path().extension() == ".mp4") {
+			videofiles.push_back(entry.path().string());
+		}
+		if (entry.is_regular_file() &&
+		    entry.path().stem().stem().extension() == ".frame-matching") {
+			metadata.push_back(entry.path().string());
+		}
+	}
+	using ::testing::Property;
+	using ::testing::UnorderedElementsAre;
+	using namespace std::filesystem;
+	ASSERT_THAT(
+	    videofiles,
+	    UnorderedElementsAre(
+	        Property(&path::filename, "stream.0000.mp4"),
+	        Property(&path::filename, "stream.0001.mp4"),
+	        Property(&path::filename, "stream.0002.mp4"),
+	        Property(&path::filename, "stream.0003.mp4")
+	    )
+	);
+	ASSERT_THAT(
+	    metadata,
+	    UnorderedElementsAre(
+	        Property(&path::filename, "stream.frame-matching.0000.txt"),
+	        Property(&path::filename, "stream.frame-matching.0001.txt"),
+	        Property(&path::filename, "stream.frame-matching.0002.txt"),
+	        Property(&path::filename, "stream.frame-matching.0003.txt")
+	    )
+	);
 }
 
 } // namespace artemis

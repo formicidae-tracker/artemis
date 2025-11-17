@@ -1,11 +1,16 @@
+#include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <glib-object.h>
 #include <glib.h>
 #include <glibconfig.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <gst/gstbin.h>
 #include <gst/gstbuffer.h>
+#include <gst/gstbufferlist.h>
 #include <gst/gstbus.h>
+#include <gst/gstdebugutils.h>
 #include <gst/gstelement.h>
 #include <gst/gstformat.h>
 #include <gst/gstobject.h>
@@ -15,8 +20,11 @@
 #include <gst/gstvalue.h>
 
 #include <cstdint>
+#include <fstream>
 #include <ios>
+#include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -27,6 +35,8 @@
 
 #include "Options.hpp"
 #include "VideoOutput.hpp"
+#include "concurrentqueue.h"
+#include "readerwriterqueue.h"
 
 namespace fort {
 namespace artemis {
@@ -45,6 +55,118 @@ template <typename T>
 using glib_owned_ptr = std::unique_ptr<T, GObjectUnrefer<T>>;
 using GstElementPtr  = glib_owned_ptr<GstElement>;
 using GstElementRef  = GstElement *;
+
+class MetadataFile {
+public:
+	MetadataFile(const std::filesystem::path &path)
+	    : d_file{path} {
+		if (d_file.is_open() == false) {
+			throw cpptrace::runtime_error{"could not create file"};
+		}
+	}
+
+	~MetadataFile() {
+		d_file.close();
+	}
+
+	// disable copy and move
+	MetadataFile(const MetadataFile &)            = delete;
+	MetadataFile(MetadataFile &&)                 = delete;
+	MetadataFile &operator=(const MetadataFile &) = delete;
+	MetadataFile &operator=(MetadataFile &&)      = delete;
+
+	void Write(uint64_t streamFrameID, uint64_t globalFrameID) {
+		d_file << streamFrameID << " " << globalFrameID << std::endl;
+	}
+
+private:
+	std::ofstream d_file;
+};
+
+class MetadataHandler {
+public:
+	constexpr static size_t BUFFER_SIZE = 30;
+	constexpr static size_t RB_SIZE     = 64;
+	constexpr static size_t RB_MASK     = RB_SIZE - 1;
+
+	static_assert(
+	    RB_SIZE > 0 && (RB_SIZE & RB_MASK) == 0,
+	    "RB_SIZE must be a power of two"
+	);
+
+	MetadataHandler() {
+		d_frames.resize(RB_SIZE);
+	}
+
+	~MetadataHandler() {
+		std::lock_guard<std::mutex> lock{d_mutex};
+
+		if (d_file == nullptr) {
+			return;
+		}
+		while (bufferSize() > 0) {
+			d_file->Write(++d_framesWritten, popFrameID());
+		}
+	}
+
+	void Register(uint64_t frameID, uint64_t PTS) {
+		std::lock_guard<std::mutex> lock{d_mutex};
+
+		if (d_registerPTSOffset.has_value() == false) {
+			d_registerPTSOffset = frameID;
+		}
+
+		enqueue(frameID, PTS - d_registerPTSOffset.value());
+	}
+
+	void
+	NewSegment(const std::filesystem::path &path, uint64_t startStreamPTS) {
+		std::lock_guard<std::mutex> lock{d_mutex};
+		if (d_streamPTSOffset.has_value() == false) {
+			d_streamPTSOffset = startStreamPTS;
+		}
+		startStreamPTS -= d_streamPTSOffset.value();
+
+		if (d_file != nullptr) {
+			while (peekPTS() < startStreamPTS) {
+				d_file->Write(++d_framesWritten, popFrameID());
+			}
+		}
+		d_file          = std::make_unique<MetadataFile>(path);
+		d_framesWritten = 0;
+		while (bufferSize() >= BUFFER_SIZE) {
+			d_file->Write(++d_framesWritten, popFrameID());
+		}
+	}
+
+private:
+	struct FrameAssociation {
+		uint64_t FrameID, PTS;
+	};
+
+	size_t bufferSize() const {
+		return d_head - d_tail;
+	}
+
+	uint64_t peekPTS() const {
+		return d_frames[d_tail & RB_MASK].PTS;
+	}
+
+	uint64_t popFrameID() {
+		return d_frames[(++d_tail) & RB_MASK].FrameID;
+	}
+
+	void enqueue(uint64_t frameID, uint64_t PTS) {
+		d_frames[(++d_head) & RB_MASK] = {.FrameID = frameID, .PTS = PTS};
+	}
+
+	std::unique_ptr<MetadataFile> d_file;
+	uint64_t                      d_framesWritten;
+	std::optional<uint64_t>       d_registerPTSOffset, d_streamPTSOffset;
+	std::vector<FrameAssociation> d_frames;
+	size_t                        d_head{0}, d_tail{0};
+	std::mutex                    d_mutex;
+};
 
 class VideoOutputImpl {
 public:
@@ -72,6 +194,7 @@ private:
 	    GstSample  *first_sample,
 	    gpointer    userdata
 	);
+
 	std::string buildInputPipeline(const VideoOutput::Config &config);
 	std::string buildStreamPipeline(
 	    const VideoOutputOptions &options, const Size &inputResolution
@@ -86,18 +209,21 @@ private:
 	);
 
 	void onFrameDone(uint64_t frameID);
-	void onFramePass(uint64_t frameID);
+	void onFramePass(uint64_t frameID, uint64_t PTS);
 	void onMessage(GstBus *bus, GstMessage *message);
 
 	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
 	GstElementPtr   d_pipeline;
 	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
 	GstElementPtr d_appsrc;
+	GstElementPtr d_filesplitmux;
 
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
 	std::filesystem::path   d_outputFileTemplate{};
 	std::atomic<bool>       d_eosReached{false};
+
+	MetadataHandler d_metadata;
 };
 
 VideoOutput::VideoOutput(
@@ -260,13 +386,29 @@ VideoOutputImpl::VideoOutputImpl(
 		    auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
 		    if (buffer != nullptr) {
 			    uint64_t frameID = GST_BUFFER_OFFSET(buffer);
-			    self->onFramePass(frameID);
+			    uint64_t PTS     = GST_BUFFER_PTS(buffer);
+			    self->onFramePass(frameID, PTS);
 		    }
 		    return GST_PAD_PROBE_OK;
 	    },
 	    this,
 	    nullptr
 	);
+
+	d_filesplitmux = GstElementPtr{
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "file-muxsink")
+	};
+	if (options.OutputDir.empty() == false && d_filesplitmux == nullptr) {
+		throw cpptrace::runtime_error{"missing file-muxsink element"};
+	}
+	if (d_filesplitmux != nullptr) {
+		g_signal_connect(
+		    d_filesplitmux.get(),
+		    "format-location-full",
+		    G_CALLBACK(&VideoOutputImpl::onLocationFull),
+		    this
+		);
+	}
 
 	d_logger.Debug("Starting pipeline");
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
@@ -348,8 +490,6 @@ std::string VideoOutputImpl::buildFilePipeline(
 	    << " bitrate=" << options.Bitrate_KB                            //
 	    << " rate-control=vbr"                                          //
 	    << " target-percentage=" << int(100 / options.BitrateMaxRatio); //
-	oss << " ! capsfilter name=file-encoder-format"                     //
-	    << " caps=video/x-h265,profile=screen-extended-main";           //
 	oss << " ! h265parse name=file-h265parse";                          //
 	oss << " ! splitmuxsink name=file-muxsink"                          //
 	    << " location=" << d_outputFileTemplate.c_str()                 //
@@ -376,33 +516,23 @@ std::string VideoOutputImpl::buildBothPipeline(
 	return oss.str();
 }
 
-gchararray VideoOutputImpl::onLocationFull(
-    GstElement *filesink,
-    guint       fragment_id,
-    GstSample  *first_sample,
-    gpointer    userdata
-) {
-	auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
-	auto res = g_strdup_printf(self->d_outputFileTemplate.c_str(), fragment_id);
-	auto buffer      = gst_sample_get_buffer(first_sample);
-	uint64_t frameID = -1UL;
-	if (buffer == nullptr) {
-		self->d_logger.Warn("no buffer associated at segment beginning");
-	} else {
-		frameID = GST_BUFFER_OFFSET(buffer);
-	}
-
-	self->d_logger.Info(
-	    "new file segment",
-	    slog::Int("fragment", fragment_id),
-	    slog::String("path", res),
-	    slog::Int("frame_id", frameID)
-	);
-	return res;
-}
-
 VideoOutputImpl::~VideoOutputImpl() {
+#ifndef NDEBUG
+	auto          data     = std::string{gst_debug_bin_to_dot_data(
+        GST_BIN(d_pipeline.get()),
+        GST_DEBUG_GRAPH_SHOW_ALL
+    )};
+	auto          filepath = std::filesystem::path("/tmp/videooutput.dot");
+	std::ofstream file(filepath);
+	file << data;
+	file.close();
+	d_logger.Info(
+	    "saved pipeline debug file",
+	    slog::String("filepath", filepath)
+	);
+#endif
 	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
+
 	d_eosReached.wait(false);
 }
 
@@ -440,6 +570,11 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
+	d_logger.Debug(
+	    "frame pushed",
+	    slog::Int("ID", GST_BUFFER_OFFSET(buffer)),
+	    slog::Duration("PTS", std::chrono::nanoseconds{GST_BUFFER_PTS(buffer)})
+	);
 
 	auto res = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
 
@@ -449,8 +584,9 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 	}
 }
 
-void VideoOutputImpl::onFramePass(uint64_t frameID) {
+void VideoOutputImpl::onFramePass(uint64_t frameID, uint64_t PTS) {
 	d_lastFramePassed.store(frameID);
+	d_metadata.Register(frameID, PTS);
 	d_logger.Debug("frame passed", slog::Int("ID", frameID));
 }
 
@@ -498,10 +634,40 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 		break;
 	}
 	default:
-
-		// Unhandled message
 		break;
 	}
+}
+
+gchararray VideoOutputImpl::onLocationFull(
+    GstElement *filesink,
+    guint       fragment_id,
+    GstSample  *first_sample,
+    gpointer    userdata
+) {
+	auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
+	auto res = g_strdup_printf(self->d_outputFileTemplate.c_str(), fragment_id);
+	auto buffer = gst_sample_get_buffer(first_sample);
+	uint64_t PTS{0};
+	if (buffer == nullptr) {
+		self->d_logger.Warn("no buffer associated at segment beginning");
+	} else {
+		PTS = GST_BUFFER_DTS(buffer);
+	}
+
+	std::filesystem::path movieFile = std::filesystem::path{res};
+
+	auto metadataFile = movieFile.parent_path() /
+	                    (movieFile.stem().stem().string() + ".frame-matching" +
+	                     movieFile.stem().extension().string() + ".txt");
+	self->d_metadata.NewSegment(metadataFile, PTS);
+	self->d_logger.Info(
+	    "new file segment",
+	    slog::Int("fragment", fragment_id),
+	    slog::String("movie", movieFile),
+	    slog::String("metadata", metadataFile),
+	    slog::Duration("PTS", std::chrono::nanoseconds{PTS})
+	);
+	return res;
 }
 
 } // namespace artemis
