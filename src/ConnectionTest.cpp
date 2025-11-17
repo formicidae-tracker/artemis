@@ -62,15 +62,18 @@ public:
 		g_object_ref(connection);
 		std::thread([self, toRead, connection]() {
 			Defer {
-				self->d_logger.Info("closing");
 				g_io_stream_close(
 				    G_IO_STREAM(connection),
 				    self->d_cancel,
 				    nullptr
 				);
 				g_object_unref(connection);
+				self->d_connectionClosed.fetch_add(1);
+				self->d_connectionClosed.notify_all();
+				self->d_logger.Info("closed");
 			};
 			if (toRead == 0) {
+				self->d_logger.Info("reading none");
 				return;
 			}
 
@@ -123,6 +126,10 @@ public:
 		return d_context;
 	}
 
+	const std::atomic<size_t> &ConnectionClosed() const {
+		return d_connectionClosed;
+	}
+
 protected:
 	slog::Logger<1> d_logger;
 	GMainContext   *d_context = nullptr;
@@ -130,8 +137,9 @@ protected:
 	GSocketService *d_service = nullptr;
 	GCancellable   *d_cancel;
 
-	std::thread       d_mainLoopThread;
-	std::atomic<bool> d_ready{false};
+	std::thread         d_mainLoopThread;
+	std::atomic<bool>   d_ready{false};
+	std::atomic<size_t> d_connectionClosed{0};
 }; // namespace artemis
 
 LetoService::LetoService()
@@ -244,11 +252,13 @@ void ConnectionTest::TearDown() {
 	}
 }
 
+using namespace std::chrono_literals;
+
 TEST_F(ConnectionTest, Reconnect) {
 	std::atomic<size_t> connections = 0;
 
 	EXPECT_CALL(*d_service, OnConnection())
-	    .Times(2)
+	    .Times(::testing::AnyNumber())
 	    .WillRepeatedly([&connections]() {
 		    connections.fetch_add(1);
 		    connections.notify_all();
@@ -261,21 +271,23 @@ TEST_F(ConnectionTest, Reconnect) {
 	    std::chrono::milliseconds{5}
 	);
 
-	auto future = std::async(std::launch::async, [&connections, &connection]() {
-		slog::Info("waiting first connection");
-		connections.wait(0);
-		fort::hermes::FrameReadout ro;
-		ro.set_frameid(1);
-		connection.PostMessage(ro);
-		ro.set_frameid(2);
-		connection.PostMessage(ro);
-		slog::Info("waiting second connection");
-		connections.wait(1);
-		ASSERT_EQ(connections.load(), 2);
-	});
+	auto future =
+	    std::async(std::launch::async, [&connections, &connection, this]() {
+		    for (size_t i = 0; i < 5; ++i) {
+			    slog::Info("waiting connection", slog::Int("iter", i));
+			    connections.wait(i);
+			    d_service->ConnectionClosed().wait(i);
+			    fort::hermes::FrameReadout ro;
+			    ro.set_frameid(2 * i);
+			    connection.PostMessage(ro);
+			    ro.set_frameid(2 * i + 1);
+			    connection.PostMessage(ro);
+		    };
 
-	if (future.wait_for(std::chrono::milliseconds{500}) ==
-	    std::future_status::timeout) {
+		    ASSERT_EQ(connections.load(), 5);
+	    });
+
+	if (future.wait_for(500ms) == std::future_status::timeout) {
 		ADD_FAILURE() << "Reconnection timeouted";
 		new std::future<void>(std::move(future)); // intentionally leaking.
 		return;
@@ -285,60 +297,59 @@ TEST_F(ConnectionTest, Reconnect) {
 using ::testing::Property;
 
 TEST_F(ConnectionTest, DoesNotMangle) {
-	constexpr size_t    SEQUENCE_SIZE = 100;
-	std::atomic<size_t> connections{0};
-	std::atomic<size_t> reads{0};
-	EXPECT_CALL(*d_service, OnConnection())
-	    .Times(::testing::AnyNumber())
-	    .WillRepeatedly([&connections]() -> int {
-		    connections.fetch_add(1);
-		    connections.notify_all();
-		    return SEQUENCE_SIZE;
-	    });
+		constexpr size_t    SEQUENCE_SIZE = 100;
+		std::atomic<size_t> connections{0};
+		std::atomic<size_t> reads{0};
+		EXPECT_CALL(*d_service, OnConnection())
+		    .Times(::testing::AnyNumber())
+		    .WillRepeatedly([&connections]() -> int {
+			    connections.fetch_add(1);
+			    connections.notify_all();
+			    return SEQUENCE_SIZE;
+		    });
 
-	{
-		::testing::InSequence seq;
+		{
+			::testing::InSequence seq;
+			for (size_t i = 0; i < SEQUENCE_SIZE; ++i) {
+				EXPECT_CALL(
+				    *d_service,
+				    OnReadout(Property(&hermes::FrameReadout::frameid, i + 1))
+				)
+				    .WillOnce([&reads]() {
+					    reads.fetch_add(1);
+					    reads.notify_all();
+				    });
+			}
+		}
+		auto connection = Connection(
+		    nullptr,
+		    "localhost",
+		    LetoService::PORT,
+		    std::chrono::milliseconds{5}
+		);
+
+		connections.wait(0);
+		fort::hermes::FrameReadout ro;
 		for (size_t i = 0; i < SEQUENCE_SIZE; ++i) {
-			EXPECT_CALL(
-			    *d_service,
-			    OnReadout(Property(&hermes::FrameReadout::frameid, i + 1))
-			)
-			    .WillOnce([&reads]() {
-				    reads.fetch_add(1);
-				    reads.notify_all();
-			    });
+			ro.set_frameid(i + 1);
+			ASSERT_TRUE(connection.PostMessage(ro));
+			std::this_thread::sleep_for(std::chrono::milliseconds{1});
 		}
-	}
-	auto connection = Connection(
-	    nullptr,
-	    "localhost",
-	    LetoService::PORT,
-	    std::chrono::milliseconds{5}
-	);
+		// needed as our implementation of LetoService reads the full stream of
+		// data.
+		connection.Close();
 
-	connections.wait(0);
-	fort::hermes::FrameReadout ro;
-	for (size_t i = 0; i < SEQUENCE_SIZE; ++i) {
-		ro.set_frameid(i + 1);
-		ASSERT_TRUE(connection.PostMessage(ro));
-		std::this_thread::sleep_for(std::chrono::milliseconds{1});
-	}
-	// needed as our implementation of LetoService reads the full stream of
-	// data.
-	connection.Close();
-
-	auto future = std::async(std::launch::async, [&reads]() {
-		auto current = reads.load();
-		while (current != SEQUENCE_SIZE) {
-			reads.wait(current);
-			current = reads.load();
+		auto future = std::async(std::launch::async, [&reads]() {
+			auto current = reads.load();
+			while (current != SEQUENCE_SIZE) {
+				reads.wait(current);
+				current = reads.load();
+			}
+		});
+		if (future.wait_for(500ms) == std::future_status::timeout) {
+			ADD_FAILURE() << "Write timeouted";
+			new std::future<void>(std::move(future)); // intentional leak.
 		}
-	});
-	if (future.wait_for(std::chrono::milliseconds{500}) ==
-	    std::future_status::timeout) {
-		ADD_FAILURE() << "Write timeouted";
-		new std::future<void>(std::move(future)); // intentional leak.
-	}
 }
 
 } // namespace artemis

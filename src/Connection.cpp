@@ -130,7 +130,7 @@ void Connection::mainLoopDispatch() {
 }
 
 void Connection::connectAsync() {
-	if (d_state.load() != State::INITIAL) {
+	if (d_state.load() != State::INITIAL || d_closing.load() == true) {
 		return;
 	}
 
@@ -209,7 +209,9 @@ void Connection::scheduleReconnect() {
 }
 
 void Connection::sendNextBuffer() {
+
 	if (d_state.load() != State::CONNECTED) {
+
 		return;
 	}
 
@@ -224,29 +226,47 @@ void Connection::sendNextBuffer() {
 	    slog::Int("total", next.size()),
 	    slog::Int("txID", d_txID.fetch_add(1) + 1)
 	);
-	g_output_stream_write_async(
+	auto cancel = g_cancellable_new();
+	g_timeout_add(
+	    2000,
+	    [](gpointer userdata) {
+		    auto cancel = reinterpret_cast<GCancellable *>(userdata);
+		    g_cancellable_cancel(cancel);
+		    g_object_unref(cancel);
+
+		    return G_SOURCE_REMOVE;
+	    },
+	    cancel
+	);
+
+	g_output_stream_write_all_async(
 	    d_stream,
 	    next.data(),
 	    next.size(),
 	    G_PRIORITY_DEFAULT,
-	    nullptr,
+	    cancel,
 	    [](GObject *source, GAsyncResult *result, gpointer userData) -> void {
 		    auto self = reinterpret_cast<Connection *>(userData);
 		    auto logger =
 		        self->d_logger.With(slog::Int("txID", self->d_txID.load()));
+
+#ifndef NDEBUG
 		    logger.DDebug("writeCallback");
 		    Defer {
 			    logger.DDebug("writeCallback done");
 		    };
+#endif
 
-		    GError *error   = nullptr;
-		    gssize  written = g_output_stream_write_finish(
-                G_OUTPUT_STREAM(source),
-                result,
-                &error
-            );
+		    GError  *error = nullptr;
+		    gsize    written;
+		    gboolean ok = g_output_stream_write_all_finish(
+		        G_OUTPUT_STREAM(source),
+		        result,
+		        &written,
+		        &error
+		    );
 
-		    if (written < 0) {
+		    if (ok == false) {
 			    logger.Error(
 			        "write failed",
 			        slog::String(
@@ -259,6 +279,7 @@ void Connection::sendNextBuffer() {
 			    }
 			    self->closeConnection();
 			    self->scheduleReconnect();
+			    self->scheduleDispatch();
 			    return;
 		    }
 		    logger.DDebug("written", slog::Int("bytes", written));
@@ -272,44 +293,44 @@ void Connection::sendNextBuffer() {
 }
 
 inline std::string serialize(const google::protobuf::MessageLite &m) {
-		std::ostringstream oss;
-		google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
-		return oss.str();
+	std::ostringstream oss;
+	google::protobuf::util::SerializeDelimitedToOstream(m, &oss);
+	return oss.str();
 }
 
 bool Connection::PostMessage(const google::protobuf::MessageLite &m) {
-		const auto state = d_state.load();
-		if (d_closing.load() == true || state == State::CLOSED) {
-			slog::Warn(
-			    "discarding as connection is closed",
-			    slog::String("message", m.Utf8DebugString())
-			);
-			return false;
-		}
-		if (d_queue.try_enqueue(serialize(m)) == false) {
-			slog::Error(
-			    "discarding as input queue is full",
-			    slog::String("message", m.Utf8DebugString())
-			);
-			return false;
-		}
-		scheduleDispatch();
-		return true;
+	const auto state = d_state.load();
+	if (d_closing.load() == true || state == State::CLOSED) {
+		slog::Warn(
+		    "discarding as connection is closed",
+		    slog::String("message", m.Utf8DebugString())
+		);
+		return false;
+	}
+	if (d_queue.try_enqueue(serialize(m)) == false) {
+		slog::Error(
+		    "discarding as input queue is full",
+		    slog::String("message", m.Utf8DebugString())
+		);
+		return false;
+	}
+	scheduleDispatch();
+	return true;
 }
 
 void Connection::scheduleDispatch() {
-		d_logger.DDebug("scheduling dispatch");
-		d_refCount.fetch_add(1);
-		g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
+	d_logger.DDebug("scheduling dispatch");
+	d_refCount.fetch_add(1);
+	g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
 }
 
 void Connection::startClosing() {
-		d_closing.store(true);
-		scheduleDispatch();
+	d_closing.store(true);
+	scheduleDispatch();
 }
 
 void Connection::waitClosed() {
-		atomic_wait_for_value(d_state, State::CLOSED);
+	atomic_wait_for_value(d_state, State::CLOSED);
 }
 
 } // namespace artemis
