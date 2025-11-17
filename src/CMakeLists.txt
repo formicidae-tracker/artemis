@@ -35,6 +35,7 @@ set(SRC_FILES
 	utils/StringManipulation.cpp
 	utils/Partitions.cpp
 	utils/SignalTraceHandler.cpp
+	utils/exec.hpp
 	ImageU8.cpp
 	Task.cpp
 	Options.cpp

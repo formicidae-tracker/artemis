@@ -232,12 +232,24 @@ protected:
 };
 
 void ConnectionTest::SetUp() {
-	d_loop            = g_main_loop_new(nullptr, FALSE);
+	d_loop = g_main_loop_new(nullptr, FALSE);
+	std::atomic<bool> ready{false};
+	g_timeout_add(
+	    1,
+	    [](gpointer udata) {
+		    auto ready = reinterpret_cast<std::atomic<bool> *>(udata);
+		    ready->store(true);
+		    ready->notify_all();
+		    return G_SOURCE_REMOVE;
+	    },
+	    &ready
+	);
 	d_defaultMainLoop = std::thread([this]() {
 		g_main_loop_run(d_loop);
 		g_main_loop_unref(d_loop);
 	});
-	d_service         = std::make_unique<LetoService>();
+	ready.wait(false);
+	d_service = std::make_unique<LetoService>();
 }
 
 void ConnectionTest::TearDown() {

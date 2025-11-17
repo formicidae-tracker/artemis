@@ -1,18 +1,28 @@
 #include "VideoOutput.hpp"
 #include "ImageU8.hpp"
 #include "Options.hpp"
+#include "utils/exec.hpp"
+
+#include <atomic>
+#include <glib.h>
+
 #include "gmock/gmock.h"
+
 #include <chrono>
-#include <cpptrace/exceptions.hpp>
+
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <glib.h>
-#include <gtest/gtest.h>
 #include <iterator>
 #include <sstream>
+#include <sys/wait.h>
 #include <thread>
+
+#include <gtest/gtest.h>
+
+#include <cpptrace/exceptions.hpp>
+using namespace std::chrono_literals;
 
 namespace fort {
 namespace artemis {
@@ -20,12 +30,25 @@ namespace artemis {
 class VideoOutputTest : public ::testing::Test {
 protected:
 	static std::filesystem::path s_output;
+	static pid_t                 s_dockerPID;
 	GMainLoop                   *d_loop;
 	std::thread                  d_mainLoopThread;
 
 	VideoOutputOptions d_options;
 
 	static void SetUpTestSuite() {
+		try {
+			s_dockerPID =
+			    Exec("docker", "run", "--rm", "bluenviron/mediamtx:1");
+
+			auto [output, res] = ExecAndCapture("docker", "ps");
+			if (output.find(" bluenviron/mediamtx:1 ") == std::string::npos) {
+				s_dockerPID = -1;
+			}
+		} catch (const std::exception &e) {
+			s_dockerPID = -1;
+		}
+
 		char tempdir[] = "/tmp/artemis-video-test-XXXXXX";
 		auto res       = mkdtemp(tempdir);
 		if (res == nullptr) {
@@ -43,6 +66,11 @@ protected:
 	}
 
 	static void TearDownTestSuite() {
+		if (s_dockerPID > 0) {
+			kill(s_dockerPID, SIGINT);
+			int status = 0;
+			waitpid(s_dockerPID, &status, 0);
+		}
 		if (s_output.empty() ||
 		    std::getenv("ARTEMIS_TESTS_VIDEO_KEEP") != nullptr) {
 			return;
@@ -59,13 +87,24 @@ protected:
 			std::filesystem::remove(entry);
 		}
 
-		d_mainLoopThread       = std::thread([this]() {
-            d_loop = g_main_loop_new(nullptr, FALSE);
-            Defer {
-                g_main_loop_unref(d_loop);
-            };
-            g_main_loop_run(d_loop);
-        });
+		d_loop = g_main_loop_new(nullptr, FALSE);
+		std::atomic<bool> ready{false};
+		g_timeout_add(
+		    1,
+		    [](gpointer udata) {
+			    auto ready = reinterpret_cast<std::atomic<bool> *>(udata);
+			    ready->store(true);
+
+			    ready->notify_all();
+			    return G_SOURCE_REMOVE;
+		    },
+		    &ready
+		);
+		d_mainLoopThread = std::thread([this]() {
+			g_main_loop_run(d_loop);
+			g_main_loop_unref(d_loop);
+		});
+		ready.wait(false);
 		d_options.OutputDir    = s_output;
 		d_options.Height       = 360;
 		d_options.StreamHeight = 240;
@@ -87,6 +126,7 @@ protected:
 };
 
 std::filesystem::path VideoOutputTest::s_output;
+pid_t                 VideoOutputTest::s_dockerPID = -1;
 using namespace std::chrono_literals;
 
 TEST_F(VideoOutputTest, BuildsAndReachEOS) {
@@ -243,6 +283,12 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 	    readFileContent(s_output / "stream.frame-matching.0003.txt"),
 	    expectedFileContent[3].str()
 	);
+}
+
+TEST_F(VideoOutputTest, ServerConnection) {
+	if (s_dockerPID <= 0) {
+		GTEST_SKIP() << "No mediaserver running";
+	}
 }
 
 } // namespace artemis
