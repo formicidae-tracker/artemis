@@ -58,7 +58,7 @@ public:
 		auto self = reinterpret_cast<LetoService *>(userdata);
 
 		auto toRead = self->OnConnection();
-		self->d_logger.Info("new connection", slog::Int("accepting", toRead));
+		self->d_logger.DInfo("new connection", slog::Int("accepting", toRead));
 		g_object_ref(connection);
 		std::thread([self, toRead, connection]() {
 			Defer {
@@ -70,10 +70,10 @@ public:
 				g_object_unref(connection);
 				self->d_connectionClosed.fetch_add(1);
 				self->d_connectionClosed.notify_all();
-				self->d_logger.Info("closed");
+				self->d_logger.DInfo("closed");
 			};
 			if (toRead == 0) {
-				self->d_logger.Info("reading none");
+				self->d_logger.DInfo("reading none");
 				return;
 			}
 
@@ -116,7 +116,7 @@ public:
 					self->OnReadout(readout);
 				}
 			}
-			self->d_logger.Info("Closing connection");
+			self->d_logger.DInfo("Closing connection");
 		}).detach();
 
 		return G_SOURCE_REMOVE;
@@ -153,7 +153,7 @@ LetoService::LetoService()
 		g_main_context_push_thread_default(d_context);
 
 		auto logger = slog::With(slog::String("task", "mainLoop"));
-		logger.Info("started");
+		logger.DInfo("started");
 		auto source = g_idle_source_new();
 		g_source_set_callback(
 		    source,
@@ -195,10 +195,10 @@ LetoService::LetoService()
 		d_cancel = g_cancellable_new();
 		g_signal_connect(d_service, "incoming", G_CALLBACK(onConnection), this);
 		g_socket_service_start(d_service);
-		d_logger.Info("service started");
+		d_logger.DInfo("service started");
 
 		g_main_loop_run(d_loop);
-		logger.Info("done");
+		logger.DInfo("done");
 	});
 
 	d_ready.wait(false);
@@ -206,7 +206,7 @@ LetoService::LetoService()
 		d_mainLoopThread.join();
 		throw std::runtime_error("could not initialize thread");
 	}
-	d_logger.Info("ready");
+	d_logger.DInfo("ready");
 }
 
 LetoService::~LetoService() {

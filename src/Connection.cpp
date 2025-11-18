@@ -6,7 +6,6 @@
 #include <glib.h>
 
 #include <sstream>
-#include <thread>
 
 #include <google/protobuf/message_lite.h>
 #include <google/protobuf/util/delimited_message_util.h>
@@ -24,19 +23,10 @@ namespace artemis {
 using namespace std::chrono_literals;
 
 template <typename T>
-void atomic_wait_for_value(std::atomic<T> &a, T newValue, bool log = false) {
+void atomic_wait_for_value(std::atomic<T> &a, T newValue) {
 	T current = a.load();
 	while (current != newValue) {
-		if (log) {
-			slog::Info(
-			    "current",
-			    slog::Int("value", int(current)),
-			    slog::Int("target", int(newValue))
-			);
-			std::this_thread::sleep_for(800ms);
-		} else {
-			a.wait(current);
-		}
+		a.wait(current);
 		// wait for a change.
 		current = a.load();
 	}
@@ -47,7 +37,7 @@ Connection::~Connection() {
 	// The refcount is needed as scheduled dispatch may still need this object
 	// to be alive.
 	decrementRefcount();
-	atomic_wait_for_value<size_t>(d_refCount, 0, true);
+	atomic_wait_for_value<size_t>(d_refCount, 0);
 }
 
 Connection::Connection(
@@ -130,11 +120,12 @@ void Connection::mainLoopDispatch() {
 	};
 
 	if (d_closing.load()) {
-		if (d_stream == nullptr) {
+		if (d_stream == nullptr && d_queue.size_approx() > 0) {
 			d_logger.Warn(
 			    "dropping message queue as not connected on close",
 			    slog::Int("size", d_queue.size_approx())
 			);
+
 			std::string buf;
 			while (d_queue.try_dequeue(buf)) {
 			}
