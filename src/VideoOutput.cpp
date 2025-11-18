@@ -8,32 +8,21 @@
 
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
-#include <gst/gstbin.h>
-#include <gst/gstbuffer.h>
-#include <gst/gstbufferlist.h>
-#include <gst/gstbus.h>
-#include <gst/gstdebugutils.h>
 #include <gst/gstelement.h>
 #include <gst/gstenumtypes.h>
-#include <gst/gstformat.h>
 #include <gst/gstmessage.h>
-#include <gst/gstobject.h>
-#include <gst/gstpad.h>
-#include <gst/gstparse.h>
-#include <gst/gstsample.h>
-#include <gst/gstutils.h>
-#include <gst/gstvalue.h>
 #include <gst/rtsp/gstrtsptransport.h>
-#include <gst/rtsp/rtsp.h>
 
 #include <cstdint>
 #include <fstream>
 #include <ios>
 #include <memory>
 #include <mutex>
+#include <slog++/Level.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unistd.h>
 #include <utility>
 
@@ -227,6 +216,7 @@ private:
 	void onFramePass(uint64_t frameID, uint64_t PTS);
 	void onMessage(GstBus *bus, GstMessage *message);
 	void onStreamSinkError(GstMessage *message);
+	void printMessage(GstMessage *message);
 
 	void scheduleReconnect();
 	void disconnectStream();
@@ -250,6 +240,8 @@ private:
 	std::filesystem::path d_outputFileTemplate{};
 	std::atomic<bool>     d_eosReached{false}, d_closing{false},
 	    d_reconnectionScheduled{false}, d_reconfiguring{false};
+
+	guint d_reconnection{0}, d_watch{0};
 
 	MetadataHandler d_metadata;
 
@@ -390,17 +382,17 @@ VideoOutputImpl::VideoOutputImpl(
 	}
 
 	auto bus = GstBusPtr{gst_element_get_bus(d_pipeline.get())};
-	gst_bus_add_watch(
-	    bus.get(),
-	    [](GstBus *bus, GstMessage *message, gpointer userdata) -> gboolean {
-		    reinterpret_cast<VideoOutputImpl *>(userdata)->onMessage(
-		        bus,
-		        message
-		    );
-		    return G_SOURCE_CONTINUE;
-	    },
-	    this
-	);
+	d_watch  = gst_bus_add_watch(
+        bus.get(),
+        [](GstBus *bus, GstMessage *message, gpointer userdata) -> gboolean {
+            reinterpret_cast<VideoOutputImpl *>(userdata)->onMessage(
+                bus,
+                message
+            );
+            return G_SOURCE_CONTINUE;
+        },
+        this
+    );
 
 	d_appsrc = GstElementPtr{
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "input-src")
@@ -603,13 +595,60 @@ void VideoOutputImpl::printDebug(const std::filesystem::path &filepath) {
 
 VideoOutputImpl::~VideoOutputImpl() {
 	printDebug("/tmp/videooutput.dot");
+	d_logger.DDebug("marking closing");
 	d_closing.store(true);
-	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
+	// ensure we are not reconfiguring, closing flag will disable any future
+	// reconfiguring.
+	g_main_context_invoke(
+	    g_main_context_default(),
+	    [](gpointer userdata) {
+		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
+		    if (self->d_reconnection == 0) {
+			    // reconnect not scheduled and not already fired, nothing to do.
+			    return G_SOURCE_REMOVE;
+		    }
+		    g_source_remove(self->d_reconnection);
+		    self->d_logger.DDebug("Removing scheduled reconnection timeout");
+		    self->d_reconnectionScheduled.store(false);
+		    self->d_reconnectionScheduled.notify_all();
 
-	d_eosReached.wait(false);
+		    return G_SOURCE_REMOVE;
+	    },
+	    this
+	);
+	// wait for none sheduled, no reconfiguration pending
+	d_logger.DDebug("waiting scheduled false");
+	d_reconnectionScheduled.wait(true);
+	d_logger.DDebug("waiting reconfiguring false");
+	d_reconfiguring.wait(true);
+	d_logger.DDebug("Sending EOS through appsrc");
+	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
+	d_logger.DDebug("Waiting EOS");
+
+	while (d_eosReached.load() == false) {
+		GstState state, pending;
+		auto     ret = gst_element_get_state(
+            d_pipeline.get(),
+            &state,
+            &pending,
+            std::chrono::nanoseconds{std::chrono::milliseconds{100}}.count()
+        );
+		if (state != GST_STATE_PLAYING || ret == GST_STATE_CHANGE_FAILURE) {
+			d_logger.Error("Pipeline is not playing on closing, data maybe lost"
+			);
+			d_eosReached.store(true);
+			break;
+		}
+	}
+	g_source_remove(d_watch);
+	gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
 }
 
 bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
+	if (d_closing.load() == true) {
+		notifyDrop(frame->ID());
+		return false;
+	}
 	d_reconfiguring.wait(true); // wait if reconfiguring pipeline
 
 	struct InflightFrame {
@@ -645,7 +684,7 @@ bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
-	d_logger.Debug(
+	d_logger.DDebug(
 	    "frame pushed",
 	    slog::Int("ID", GST_BUFFER_OFFSET(buffer)),
 	    slog::Duration("PTS", std::chrono::nanoseconds{GST_BUFFER_PTS(buffer)})
@@ -669,7 +708,7 @@ bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 void VideoOutputImpl::onFramePass(uint64_t frameID, uint64_t PTS) {
 	d_lastFramePassed.store(frameID);
 	d_metadata.Register(frameID, PTS);
-	d_logger.Debug("frame passed", slog::Int("ID", frameID));
+	d_logger.DDebug("frame passed", slog::Int("ID", frameID));
 }
 
 void VideoOutputImpl::notifyDrop(uint64_t frameID) {
@@ -714,41 +753,119 @@ void VideoOutputImpl::onStreamSinkError(GstMessage *message) {
 	    )
 	);
 
+	if (d_closing.load() == true) {
+		// if closing the pipeline would not be PLAYING, and prevents EOS to
+		// propagate
+		GstState state, pending;
+		auto ret = gst_element_get_state(d_pipeline.get(), &state, &pending, 0);
+
+		d_logger.Warn(
+		    "Gstreamer ERROR while closing. Data maybe lost.",
+		    slog::String(
+		        "state",
+		        (const char *)g_enum_to_string(gst_state_get_type(), state)
+		    ),
+		    slog::String(
+		        "pending",
+		        (const char *)g_enum_to_string(gst_state_get_type(), pending)
+		    ),
+		    slog::String(
+		        "state_change",
+		        (const char *)
+		            g_enum_to_string(gst_state_change_return_get_type(), ret)
+		    )
+		);
+		return;
+	}
 	disconnectStream();
 	scheduleReconnect();
 }
 
 void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
-	switch (GST_MESSAGE_TYPE(message)) {
-	case GST_MESSAGE_EOS:
+	auto type = GST_MESSAGE_TYPE(message);
+	if (type == GST_MESSAGE_EOS) {
 		d_logger.Info("End-Of-Stream reached");
 		gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
 		d_eosReached.store(true);
-		d_eosReached.notify_all();
-		break;
-	case GST_MESSAGE_ERROR: {
-		if (std::string(message->src->name) == "stream-sink") {
-			onStreamSinkError(message);
-			break;
-		}
-		GError *err;
-		gchar  *debug_info;
-		gst_message_parse_error(message, &err, &debug_info);
-		d_logger.Error(
-		    "Pipeline Error",
-		    slog::String("element", GST_OBJECT_NAME(message->src)),
-		    slog::String("error", err->message),
-		    slog::String(
-		        "debug_info",
-		        debug_info == nullptr ? "none" : std::string{debug_info}
-		    )
-		);
-		g_clear_error(&err);
-		g_free(debug_info);
-		break;
+		return;
 	}
+	if (type == GST_MESSAGE_ERROR &&
+	    std::string{message->src->name} == "stream-sink") {
+		onStreamSinkError(message);
+		return;
+	}
+	switch (type) {
+	case GST_MESSAGE_ERROR:
+	case GST_MESSAGE_WARNING:
+	case GST_MESSAGE_INFO:
+		printMessage(message);
+		return;
+#ifndef NDEBUG
+	case GST_MESSAGE_STATE_CHANGED:
+		GstState oldstate, newstate, pending;
+		gst_message_parse_state_changed(
+		    message,
+		    &oldstate,
+		    &newstate,
+		    &pending
+		);
+		d_logger.Debug(
+		    "state changed",
+		    slog::String("element", (const char *)message->src->name),
+		    slog::String(
+		        "oldstate",
+		        (const char *)g_enum_to_string(gst_state_get_type(), oldstate)
+		    ),
+		    slog::String(
+		        "newstate",
+		        (const char *)g_enum_to_string(gst_state_get_type(), newstate)
+		    ),
+		    slog::String(
+		        "pending",
+		        (const char *)g_enum_to_string(gst_state_get_type(), pending)
+		    )
+
+		);
+		return;
+#endif
 	default:
+		return;
+	}
+}
+
+void VideoOutputImpl::printMessage(GstMessage *message) {
+	GError *err{nullptr};
+	gchar  *debug_info{nullptr};
+	auto    level = slog::Level::Info;
+	switch (GST_MESSAGE_TYPE(message)) {
+	case GST_MESSAGE_INFO:
+		level = slog::Level::Info;
 		break;
+	case GST_MESSAGE_ERROR:
+		level = slog::Level::Error;
+		break;
+	case GST_MESSAGE_WARNING:
+		level = slog::Level::Warn;
+		break;
+	default:
+		return;
+	}
+
+	gst_message_parse_error(message, &err, &debug_info);
+	d_logger.Log(
+	    level,
+	    "pipeline message",
+	    slog::String("source", message->src->name),
+	    slog::String("error", err->message),
+	    slog::String(
+	        "debug_info",
+	        debug_info == nullptr ? "<none>" : debug_info
+	    )
+	);
+
+	g_clear_error(&err);
+	if (debug_info != nullptr) {
+		g_free(debug_info);
 	}
 }
 
@@ -785,10 +902,12 @@ gchararray VideoOutputImpl::onLocationFull(
 }
 
 void VideoOutputImpl::disconnectStream() {
-	if (d_closing.load() == true) {
-		d_logger.Error("Not disconnectiong as EOS pushed");
-		return;
-	}
+	d_reconfiguring.store(true);
+	Defer {
+		d_reconfiguring.store(false);
+		d_reconfiguring.notify_all();
+	};
+
 	auto streamSink =
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink");
 
@@ -828,13 +947,18 @@ void VideoOutputImpl::disconnectStream() {
 		gst_object_unref(sinkPad);
 	};
 	d_logger.Info("disconnecting stream");
-	d_reconfiguring.store(true);
+
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
 	Defer {
-		gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-		d_logger.DDebug("stream disconnected");
-		d_reconfiguring.store(false);
-		d_reconfiguring.notify_all();
+		auto ret = gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+		d_logger.DInfo(
+		    "disconnected",
+		    slog::String(
+		        "state_change_return",
+		        (const char *)
+		            g_enum_to_string(gst_state_change_return_get_type(), ret)
+		    )
+		);
 		printDebug("/tmp/videooutput-disabled.dot");
 	};
 	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
@@ -850,10 +974,18 @@ void VideoOutputImpl::disconnectStream() {
 	if (gst_element_link(streamParse, fakesink) == FALSE) {
 		d_logger.Error("could not link stream-parse and stream-fake-sink");
 	}
-	gst_element_sync_state_with_parent(fakesink);
+	if (gst_element_sync_state_with_parent(fakesink) == FALSE) {
+		d_logger.Error("could not sync state with pipeline");
+	}
 }
 
 void VideoOutputImpl::reconnectStream() {
+	d_reconfiguring.store(true);
+	Defer {
+		d_reconfiguring.store(false);
+		d_reconfiguring.notify_all();
+	};
+
 	if (d_closing.load() == true) {
 		d_logger.Error("Not reconnecting as EOS pushed");
 		return;
@@ -900,13 +1032,18 @@ void VideoOutputImpl::reconnectStream() {
 	    slog::String("host", d_host),
 	    slog::Int("attemps", d_reconnections.fetch_add(1) + 1)
 	);
-	d_reconfiguring.store(true);
+
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
 	Defer {
-		gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-		d_logger.DDebug("reconnected");
-		d_reconfiguring.store(false);
-		d_reconfiguring.notify_all();
+		auto ret = gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+		d_logger.DInfo(
+		    "reconnected",
+		    slog::String(
+		        "state_change_return",
+		        (const char *)
+		            g_enum_to_string(gst_state_change_return_get_type(), ret)
+		    )
+		);
 		printDebug("/tmp/videooutput-reconnected.dot");
 	};
 
@@ -944,7 +1081,7 @@ void VideoOutputImpl::scheduleReconnect() {
 		return;
 	}
 
-	g_timeout_add(
+	d_reconnection = g_timeout_add(
 	    d_reconnectTimeout.count(),
 	    [](gpointer userdata) {
 		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
@@ -955,7 +1092,8 @@ void VideoOutputImpl::scheduleReconnect() {
 			    self->d_logger.Error("could not reconnect", slog::Err(e));
 		    }
 		    self->d_reconnectionScheduled.store(false);
-
+		    self->d_reconnectionScheduled.notify_all();
+		    self->d_reconnection = 0;
 		    return G_SOURCE_REMOVE;
 	    },
 	    this

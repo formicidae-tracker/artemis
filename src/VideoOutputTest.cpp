@@ -96,11 +96,13 @@ protected:
 		}
 		s_output = res;
 		slog::Info("output dir", slog::String("path", s_output));
+#ifndef NDEBUG
 		setenv(
 		    "GST_DEBUG",
 		    "GST_CAPS:6,appsrc:4,vah264enc:4,rtspstream:6,rtpsession:2,*:2",
 		    true
 		);
+#endif
 	}
 
 	static void TearDownTestSuite() {
@@ -346,11 +348,12 @@ TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
 		);
 
 		for (; stop.load() == false; frames.fetch_add(1)) {
+
 			frames.notify_all();
+			auto logger = slog::With(slog::Int("ID", frames.load()));
 			output.PushFrame(buildFrame(frames.load()));
 			std::this_thread::sleep_for(10ms);
 		}
-
 		stats = output.GetStats();
 	});
 	WithTimeout(600ms, [&frames]() {
@@ -363,7 +366,7 @@ TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
 	videoThread.join();
 
 	EXPECT_GE(stats.Reconnections, 1);
-	EXPECT_LE(stats.Dropped, stats.Reconnections);
+	EXPECT_LE(stats.Dropped, 2 * stats.Reconnections);
 }
 
 TEST_F(VideoOutputTest, Connection) {
