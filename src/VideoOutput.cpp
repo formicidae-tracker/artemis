@@ -8,27 +8,19 @@
 
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
-#include <gst/gstelement.h>
-#include <gst/gstenumtypes.h>
-#include <gst/gstmessage.h>
 #include <gst/rtsp/gstrtsptransport.h>
 
 #include <cstdint>
 #include <fstream>
-#include <ios>
 #include <memory>
 #include <mutex>
-#include <slog++/Level.hpp>
 #include <sstream>
-#include <string>
-#include <string_view>
-#include <thread>
-#include <unistd.h>
 #include <utility>
 
 #include <cpptrace/exceptions.hpp>
 
 #include <slog++/Attribute.hpp>
+#include <slog++/Level.hpp>
 
 #include "Options.hpp"
 #include "VideoOutput.hpp"
