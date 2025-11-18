@@ -1,7 +1,3 @@
-#include <algorithm>
-#include <atomic>
-#include <chrono>
-#include <exception>
 #include <glib-object.h>
 #include <glib.h>
 #include <glibconfig.h>
@@ -10,6 +6,8 @@
 #include <gst/gst.h>
 #include <gst/rtsp/gstrtsptransport.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <memory>
@@ -625,8 +623,28 @@ VideoOutputImpl::~VideoOutputImpl() {
             &pending,
             std::chrono::nanoseconds{std::chrono::milliseconds{100}}.count()
         );
+		if (state == GST_STATE_NULL) {
+			continue;
+		}
 		if (state != GST_STATE_PLAYING || ret == GST_STATE_CHANGE_FAILURE) {
-			d_logger.Error("Pipeline is not playing on closing, data maybe lost"
+			d_logger.Error(
+			    "Pipeline is not playing on closing, data maybe lost",
+			    slog::String(
+			        "state",
+			        (const char *)g_enum_to_string(gst_state_get_type(), state)
+			    ),
+			    slog::String(
+			        "pending",
+			        (const char *)
+			            g_enum_to_string(gst_state_get_type(), pending)
+			    ),
+			    slog::String(
+			        "state_change",
+			        (const char *)g_enum_to_string(
+			            gst_state_change_return_get_type(),
+			            ret
+			        )
+			    )
 			);
 			d_eosReached.store(true);
 			break;
@@ -852,11 +870,11 @@ void VideoOutputImpl::logGstMessage(GstMessage *message) {
 	d_logger.Log(
 	    level,
 	    "pipeline message",
-	    slog::String("source", message->src->name),
-	    slog::String("error", err->message),
+	    slog::String("source", (const char *)message->src->name),
+	    slog::String("error", (const char *)err->message),
 	    slog::String(
 	        "debug_info",
-	        debug_info == nullptr ? "<none>" : debug_info
+	        debug_info == nullptr ? "<none>" : (const char *)debug_info
 	    )
 	);
 
