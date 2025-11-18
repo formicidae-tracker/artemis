@@ -15,7 +15,8 @@ public:
 		Duration FilePeriod = 2 * Duration::Hour;
 		float    FPS        = 10.0;
 		Size     InputResolution;
-		bool     LeakyPush = false;
+		bool     LeakyPush         = false;
+		Duration ConnectionTimeout = 5 * Duration::Second;
 	};
 
 	VideoOutput(const VideoOutputOptions &options, const Config &config);
@@ -26,10 +27,10 @@ public:
 	// Close the stream and wait for it to be closed.
 	void Close();
 
-	void PushFrame(const Frame::Ptr &frame);
+	bool PushFrame(const Frame::Ptr &frame);
 
 	struct Stats {
-		uint64_t Processed{0}, Dropped{0};
+		uint64_t Processed{0}, Dropped{0}, Reconnections{0};
 	};
 
 	Stats GetStats() const;

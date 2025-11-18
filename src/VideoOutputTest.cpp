@@ -28,151 +28,6 @@ using namespace std::chrono_literals;
 namespace fort {
 namespace artemis {
 
-class VideoOutputTest : public ::testing::Test {
-protected:
-	static std::filesystem::path s_output;
-	std::string                  d_dockerContainerID;
-	GMainLoop                   *d_loop;
-	std::thread                  d_mainLoopThread;
-
-	VideoOutputOptions d_options;
-
-	static void SetUpTestSuite() {
-		char tempdir[] = "/tmp/artemis-video-test-XXXXXX";
-		auto res       = mkdtemp(tempdir);
-		if (res == nullptr) {
-			FAIL() << "Could not create tempdir: " << errno;
-			s_output = "";
-			return;
-		}
-		s_output = res;
-		slog::Info("output dir", slog::String("path", s_output));
-		setenv(
-		    "GST_DEBUG",
-		    "GST_CAPS:6,appsrc:6,videoconvert:6,x264enc:6,*:2",
-		    true
-		);
-	}
-
-	static void TearDownTestSuite() {
-		if (s_output.empty() ||
-		    std::getenv("ARTEMIS_TESTS_VIDEO_KEEP") != nullptr) {
-			return;
-		}
-		std::filesystem::remove_all(s_output);
-	}
-
-	void SetUp() {
-		for (auto entry : std::filesystem::directory_iterator{s_output}) {
-			if (entry.is_regular_file() == false ||
-			    entry.path().extension() != ".mp4") {
-				continue;
-			}
-			std::filesystem::remove(entry);
-		}
-
-		d_loop = g_main_loop_new(nullptr, FALSE);
-		std::atomic<bool> ready{false};
-		g_timeout_add(
-		    1,
-		    [](gpointer udata) {
-			    auto ready = reinterpret_cast<std::atomic<bool> *>(udata);
-			    ready->store(true);
-
-			    ready->notify_all();
-			    return G_SOURCE_REMOVE;
-		    },
-		    &ready
-		);
-		d_mainLoopThread = std::thread([this]() {
-			g_main_loop_run(d_loop);
-			g_main_loop_unref(d_loop);
-		});
-		ready.wait(false);
-		d_options.OutputDir    = s_output;
-		d_options.Height       = 360;
-		d_options.StreamHeight = 240;
-	}
-
-	bool StartRtscpServer(bool assert = false) {
-		if (d_dockerContainerID.empty() == false) {
-			throw cpptrace::runtime_error{"docker container started"};
-		}
-		try {
-			auto [output, res] = ExecAndCapture(
-			    "docker",
-			    "run",
-			    "--rm",
-			    "-d",
-			    "-p",
-			    "127.0.0.1:1935:1935",
-			    "bluenviron/mediamtx:1"
-			);
-			if (res != 0 || output.empty()) {
-				if (assert == true) {
-					ADD_FAILURE()
-					    << "Could not start docker image : " << output;
-				}
-				return false;
-			}
-			d_dockerContainerID = base::TrimSpaces(output);
-			slog::Info(
-			    "docker container",
-			    slog::String("ID", d_dockerContainerID)
-			);
-		} catch (const std::exception &e) {
-			if (assert == true) {
-				ADD_FAILURE() << "Could not start docker image: " << e.what();
-			}
-			return false;
-		}
-		return true;
-	}
-
-	void StopRtscpServer() {
-		if (d_dockerContainerID.empty()) {
-			return;
-		}
-
-		try {
-			auto [output, res] =
-			    ExecAndCapture("docker", "stop", d_dockerContainerID.c_str());
-			if (res == 0) {
-				d_dockerContainerID = "";
-			}
-		} catch (const std::exception &e) {
-			ADD_FAILURE() << "Could not stop docker container: " << e.what();
-		}
-	}
-
-	void TearDown() {
-		StopRtscpServer();
-		g_main_loop_quit(d_loop);
-		d_mainLoopThread.join();
-	}
-
-	void
-	WithTimeout(std::chrono::milliseconds timeout, std::function<void()> &&fn) {
-		auto future = std::async(std::launch::async, fn);
-		if (future.wait_for(timeout) == std::future_status::timeout) {
-			ADD_FAILURE() << "Test Timeouted";
-			new std::future<void>(std::move(future)); // Intentional leak.
-		}
-	}
-};
-
-std::filesystem::path VideoOutputTest::s_output;
-using namespace std::chrono_literals;
-
-TEST_F(VideoOutputTest, BuildsAndReachEOS) {
-	WithTimeout(500ms, [this]() {
-		VideoOutput output(
-		    d_options,
-		    {.FPS = 10.0, .InputResolution = {640, 480}}
-		);
-	});
-}
-
 class MockFrame : public Frame {
 public:
 	MockFrame(const ImageU8 &img, uint64_t ID, const fort::Time &time)
@@ -210,6 +65,171 @@ private:
 	fort::Time d_time;
 };
 
+class VideoOutputTest : public ::testing::Test {
+protected:
+	static std::filesystem::path s_output;
+	const Size                   INPUT_RESOLUTION = {640, 480};
+
+	std::string d_dockerContainerID;
+	GMainLoop  *d_loop;
+	std::thread d_mainLoopThread;
+	ImageU8::OwnedPtr d_image = ImageU8::OwnedPtr{new ImageU8{
+	    640, 480, (uint8_t *)malloc(640 * 480 * sizeof(uint8_t)), 640
+	}};
+
+	Frame::Ptr buildFrame(uint64_t ID) {
+		static auto start = Time::Now();
+		return std::make_shared<MockFrame>(
+		    ImageU8{*d_image},
+		    ID,
+		    start.Add(ID * 100 * Duration::Millisecond)
+		);
+	};
+
+	static void SetUpTestSuite() {
+		char tempdir[] = "/tmp/artemis-video-test-XXXXXX";
+		auto res       = mkdtemp(tempdir);
+		if (res == nullptr) {
+			FAIL() << "Could not create tempdir: " << errno;
+			s_output = "";
+			return;
+		}
+		s_output = res;
+		slog::Info("output dir", slog::String("path", s_output));
+		setenv(
+		    "GST_DEBUG",
+		    "GST_CAPS:6,appsrc:6,videoconvert:6,x264enc:6,*:2",
+		    true
+		);
+	}
+
+	static void TearDownTestSuite() {
+		if (s_output.empty() ||
+		    std::getenv("ARTEMIS_TESTS_VIDEO_KEEP") != nullptr) {
+			return;
+		}
+		std::filesystem::remove_all(s_output);
+	}
+
+	void SetUp() {
+		memset(d_image->buffer, 127, d_image->NeededSize());
+
+		for (auto entry : std::filesystem::directory_iterator{s_output}) {
+			if (entry.is_regular_file() == false ||
+			    entry.path().extension() != ".mp4") {
+				continue;
+			}
+			std::filesystem::remove(entry);
+		}
+
+		d_loop = g_main_loop_new(nullptr, FALSE);
+		std::atomic<bool> ready{false};
+		g_timeout_add(
+		    1,
+		    [](gpointer udata) {
+			    auto ready = reinterpret_cast<std::atomic<bool> *>(udata);
+			    ready->store(true);
+
+			    ready->notify_all();
+			    return G_SOURCE_REMOVE;
+		    },
+		    &ready
+		);
+		d_mainLoopThread = std::thread([this]() {
+			g_main_loop_run(d_loop);
+			g_main_loop_unref(d_loop);
+		});
+		ready.wait(false);
+	}
+
+	bool StartRtscpServer(bool assert = false) {
+		if (d_dockerContainerID.empty() == false) {
+			throw cpptrace::runtime_error{"docker container started"};
+		}
+		try {
+			auto [output, res] = ExecAndCapture(
+			    "docker",
+			    "run",
+			    "--rm",
+			    "-d",
+			    "-p",
+			    "127.0.0.1:8554:8554",
+			    "bluenviron/mediamtx:1"
+			);
+			if (res != 0 || output.empty()) {
+				if (assert == true) {
+					ADD_FAILURE()
+					    << "Could not start docker image : " << output;
+				}
+				return false;
+			}
+			d_dockerContainerID = base::TrimSpaces(output);
+			slog::Info(
+			    "docker container",
+			    slog::String("ID", d_dockerContainerID)
+			);
+		} catch (const std::exception &e) {
+			if (assert == true) {
+				ADD_FAILURE() << "Could not start docker image: " << e.what();
+			}
+			return false;
+		}
+		return true;
+	}
+
+	void StopRtscpServer() {
+		if (d_dockerContainerID.empty()) {
+			return;
+		}
+		slog::Info(
+		    "stopping container",
+		    slog::String("ID", d_dockerContainerID)
+		);
+		try {
+			auto [output, res] =
+			    ExecAndCapture("docker", "stop", d_dockerContainerID.c_str());
+			if (res == 0) {
+				d_dockerContainerID = "";
+			} else {
+				ADD_FAILURE()
+				    << "Could not stop docker docker container: " << output;
+			}
+		} catch (const std::exception &e) {
+			ADD_FAILURE() << "Could not stop docker container: " << e.what();
+		}
+	}
+
+	void TearDown() {
+		StopRtscpServer();
+		g_main_loop_quit(d_loop);
+		d_mainLoopThread.join();
+	}
+
+	void
+	WithTimeout(std::chrono::milliseconds timeout, std::function<void()> &&fn) {
+		auto future = std::async(std::launch::async, fn);
+		if (future.wait_for(timeout) == std::future_status::timeout) {
+			ADD_FAILURE() << "Test Timeouted";
+			new std::future<void>(std::move(future)); // Intentional leak.
+		}
+	}
+};
+
+std::filesystem::path VideoOutputTest::s_output;
+using namespace std::chrono_literals;
+
+TEST_F(VideoOutputTest, BuildsAndReachEOS) {
+	WithTimeout(500ms, []() {
+		VideoOutputOptions options;
+		options.OutputDir = s_output;
+		options.Height    = 320;
+		VideoOutput output(
+		    options,
+		    {.FPS = 10.0, .InputResolution = {640, 480}}
+		);
+	});
+}
+
 std::string readFileContent(const std::filesystem::path &filepath) {
 	std::ifstream file{filepath};
 	if (file.is_open() == false) {
@@ -226,8 +246,11 @@ std::string readFileContent(const std::filesystem::path &filepath) {
 TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 
 	WithTimeout(2500ms, [this]() {
+		VideoOutputOptions options;
+		options.OutputDir = s_output;
+		options.Height    = 320;
 		VideoOutput output(
-		    d_options,
+		    options,
 		    {
 		        .FilePeriod      = 3 * Duration::Second,
 		        .FPS             = 10.0,
@@ -235,23 +258,6 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 		        .LeakyPush       = false,
 		    }
 		);
-		auto img = ImageU8::OwnedPtr{new ImageU8{
-		    640,
-		    480,
-		    (uint8_t *)malloc(640 * 480 * sizeof(uint8_t)),
-		    640
-		}};
-		memset(img->buffer, 127, img->NeededSize());
-
-		auto buildFrame = [&img](uint64_t ID) {
-			static auto start = Time::Now();
-			return std::make_shared<MockFrame>(
-			    ImageU8{*img},
-			    ID,
-			    start.Add(ID * 100 * Duration::Millisecond)
-			);
-		};
-
 		for (size_t i = 0; i < 100; ++i) {
 			output.PushFrame(buildFrame(i));
 		}
@@ -320,10 +326,85 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 	);
 }
 
-TEST_F(VideoOutputTest, ServerConnection) {
-	if (StartRtscpServer() == false) {
-		GTEST_SKIP() << "Skipped test as I cannot start the RTSCP server";
-	}
+TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
+	std::atomic<bool>   stop{false};
+	std::atomic<size_t> frames{0};
+	VideoOutput::Stats  stats;
+	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
+		VideoOutputOptions options;
+		options.Host         = "localhost";
+		options.StreamHeight = 240;
+
+		VideoOutput output(
+		    options,
+		    {
+		        .FPS               = 10.0,
+		        .InputResolution   = {640, 480},
+		        .LeakyPush         = true,
+		        .ConnectionTimeout = 100 * Duration::Millisecond,
+		    }
+		);
+
+		for (; stop.load() == false; frames.fetch_add(1)) {
+			frames.notify_all();
+			output.PushFrame(buildFrame(frames.load()));
+			std::this_thread::sleep_for(10ms);
+		}
+
+		stats = output.GetStats();
+	});
+	WithTimeout(600ms, [&frames]() {
+		while (frames.load() < 30) {
+			frames.wait(frames.load());
+		}
+	});
+
+	stop.store(true);
+	videoThread.join();
+
+	EXPECT_GE(stats.Reconnections, 1);
+	EXPECT_LE(stats.Dropped, stats.Reconnections);
+}
+
+TEST_F(VideoOutputTest, Connection) {
+	StartRtscpServer(true);
+	std::atomic<bool>   stop{false};
+	std::atomic<size_t> frames{0};
+	VideoOutput::Stats  stats;
+	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
+		VideoOutputOptions options;
+		options.Host         = "localhost";
+		options.StreamHeight = 240;
+
+		VideoOutput output(
+		    options,
+		    {
+		        .FPS               = 10.0,
+		        .InputResolution   = {640, 480},
+		        .LeakyPush         = true,
+		        .ConnectionTimeout = 100 * Duration::Millisecond,
+		    }
+		);
+
+		for (; stop.load() == false; frames.fetch_add(1)) {
+			frames.notify_all();
+			output.PushFrame(buildFrame(frames.load()));
+			std::this_thread::sleep_for(100ms);
+		}
+
+		stats = output.GetStats();
+	});
+	WithTimeout(500ms, [&frames]() {
+		while (frames.load() < 30) {
+			frames.wait(frames.load());
+		}
+	});
+
+	stop.store(true);
+	videoThread.join();
+
+	EXPECT_EQ(stats.Reconnections, 0);
+	EXPECT_EQ(stats.Dropped, 0);
 }
 
 } // namespace artemis

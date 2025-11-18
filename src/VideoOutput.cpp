@@ -13,6 +13,7 @@
 #include <gst/gstbus.h>
 #include <gst/gstdebugutils.h>
 #include <gst/gstelement.h>
+#include <gst/gstenumtypes.h>
 #include <gst/gstformat.h>
 #include <gst/gstmessage.h>
 #include <gst/gstobject.h>
@@ -30,6 +31,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <unistd.h>
 #include <utility>
 
 #include <cpptrace/exceptions.hpp>
@@ -188,10 +190,14 @@ public:
 	VideoOutputImpl &operator=(const VideoOutputImpl &) = delete;
 	VideoOutputImpl &operator=(VideoOutputImpl &&)      = delete;
 
-	void PushFrame(const Frame::Ptr &frame);
+	bool PushFrame(const Frame::Ptr &frame);
 
 	VideoOutput::Stats GetStats() const {
-		return {.Processed = d_processed.load(), .Dropped = d_dropped.load()};
+		return {
+		    .Processed     = d_processed.load(),
+		    .Dropped       = d_dropped.load(),
+		    .Reconnections = d_reconnections.load()
+		};
 	}
 
 private:
@@ -215,6 +221,7 @@ private:
 	    const VideoOutputOptions &options, const VideoOutput::Config &config
 	);
 
+	void notifyDrop(uint64_t frameID);
 	void onFrameDone(uint64_t frameID);
 	void onFramePass(uint64_t frameID, uint64_t PTS);
 	void onMessage(GstBus *bus, GstMessage *message);
@@ -224,6 +231,12 @@ private:
 	void disconnectStream();
 	void reconnectStream();
 
+	void printDebug(const std::filesystem::path &path);
+
+	std::string targetURL() const {
+		return "rtsp://" + d_host + ":8554/" + d_hostname;
+	}
+
 	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
 	GstElementPtr   d_pipeline;
 	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
@@ -231,15 +244,17 @@ private:
 	GstElementPtr d_filesplitmux;
 
 	std::optional<uint64_t> d_firstTimestamp;
-	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
+	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0},
+	    d_reconnections{0};
 	std::filesystem::path   d_outputFileTemplate{};
 	std::atomic<bool>       d_eosReached{false};
 
 	MetadataHandler d_metadata;
 
-	std::string                                d_host;
-	constexpr static std::chrono::milliseconds RECONNECT_TIMEOUT{5000};
-	std::atomic<bool>                          d_reconnectionScheduled{false};
+	std::string               d_host;
+	std::string               d_hostname;
+	std::chrono::milliseconds d_reconnectTimeout;
+	std::atomic<bool> d_reconnectionScheduled{false}, d_reconfiguring{false};
 };
 
 VideoOutput::VideoOutput(
@@ -255,8 +270,8 @@ void VideoOutput::Close() {
 	d_impl.reset();
 }
 
-void VideoOutput::PushFrame(const Frame::Ptr &frame) {
-	d_impl->PushFrame(frame);
+bool VideoOutput::PushFrame(const Frame::Ptr &frame) {
+	return d_impl->PushFrame(frame);
 }
 
 VideoOutput::Stats VideoOutput::GetStats() const {
@@ -322,7 +337,14 @@ GstElement *GstElementFactory(Str &&name, Args &&...args) {
 VideoOutputImpl::VideoOutputImpl(
     const VideoOutputOptions &options, const VideoOutput::Config &config
 )
-    : d_host{options.Host} {
+    : d_host{options.Host}
+    , d_reconnectTimeout{int64_t(config.ConnectionTimeout.Milliseconds())} {
+	char buffer[1024];
+	if (gethostname(buffer, 1024) != 0) {
+		throw cpptrace::runtime_error("could not get hostname");
+	}
+	d_hostname = buffer;
+
 	std::call_once(gst_initialized, []() {
 		int    argc = 0;
 		char **argv = {nullptr};
@@ -441,12 +463,14 @@ VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
 	    << " block=" << std::boolalpha << !config.LeakyPush           //
 	    << " max-buffers=1"                                           //
 	    << " emit-signals=false";                                     //
-	oss << " ! video/x-raw"                                           //
-	    << ",width=" << config.InputResolution.width()                //
-	    << ",height=" << config.InputResolution.height()              //
-	    << ",format=GRAY8"                                            //
-	    << ",framerate=0/1" // variable framerate
+
+	oss << " ! video/x-raw"                              //
+	    << ",width=" << config.InputResolution.width()   //
+	    << ",height=" << config.InputResolution.height() //
+	    << ",format=GRAY8"                               //
+	    << ",framerate=0/1"                              // variable framerate
 	    << ",max-framerate=" << int(std::ceil(config.FPS * 10)) << "/10";
+
 	return oss.str();
 }
 
@@ -460,22 +484,28 @@ std::string VideoOutputImpl::buildStreamPipeline(
 
 	std::ostringstream oss;
 	oss << " ! videoscale name=stream-scale";
-	oss << " ! capsfilter name=stream-video-format"        //
-	    << "caps=video/x-raw"                              //
-	    << ",width=" << streamSize.width()                 //
-	    << ",height=" << streamSize.height();              //
-	oss << " ! videoconvert name=stream-videoconvert";     //
+
+	oss << " ! capsfilter name=stream-video-format" //
+	    << "caps=video/x-raw"                       //
+	    << ",width=" << streamSize.width()          //
+	    << ",height=" << streamSize.height();       //
+
+	oss << " ! videoconvert name=stream-videoconvert"; //
+
 	oss << " ! capsfilter name=stream-videoconvert-format" //
-	    << " caps=video/x-raw(VAMemory),format=NV12";      //
-	oss << " ! vah264enc name=stream-encoder"              //
-	    << " bitrate=" << 1000                             // 1Mbit/s
-	    << " rate-control=vbr"                             //
-	    << "target-percentage=" << int(100 / options.BitrateMaxRatio); //
-	oss << " ! capsfilter name=stream-encoder-format"                  //
-	    << " caps=video/h-264,profile=constrained-baseline";           //
-	oss << " ! h264parse name=stream-parse";                           //
-	oss << " ! rtspclientsink name=stream-sink"                        //
-	    << " location=" << options.Host;
+	    << " caps=video/x-raw,format=NV12";                //
+
+	oss << " ! vah264enc name=stream-encoder" //
+	    << " bitrate=" << 2000                // 1Mbit/s
+	    << " rate-control=cbr";               //
+
+	oss << " ! capsfilter name=stream-encoder-format"         //
+	    << " caps=video/x-h264,profile=constrained-baseline"; //
+
+	oss << " ! h264parse name=stream-parse"; //
+
+	oss << " ! rtspclientsink name=stream-sink" //
+	    << " location=" << targetURL();
 	return oss.str();
 }
 
@@ -495,22 +525,27 @@ std::string VideoOutputImpl::buildFilePipeline(
 	}
 
 	std::ostringstream oss;
-	oss << " ! videoscale name=file-scale"                              //
-	    << " ! capsfilter name=file-video-format"                       //
-	    << "caps=video/x-raw"                                           //
-	    << ",width=" << fileResolution.width()                          //
-	    << ",height=" << fileResolution.height();                       //
-	oss << " ! videoconvert name=file-videoconvert";                    //
-	oss << " ! capsfilter name=file-videoconvert-format"                //
-	    << " caps=video/x-raw,format=NV12";                             //
+	oss << " ! videoscale name=file-scale"        //
+	    << " ! capsfilter name=file-video-format" //
+	    << "caps=video/x-raw"                     //
+	    << ",width=" << fileResolution.width()    //
+	    << ",height=" << fileResolution.height(); //
+
+	oss << " ! videoconvert name=file-videoconvert"; //
+
+	oss << " ! capsfilter name=file-videoconvert-format" //
+	    << " caps=video/x-raw,format=NV12";              //
+
 	oss << " ! vah265enc name=file-encoder"                             //
 	    << " bitrate=" << options.Bitrate_KB                            //
 	    << " rate-control=vbr"                                          //
 	    << " target-percentage=" << int(100 / options.BitrateMaxRatio); //
-	oss << " ! h265parse name=file-h265parse";                          //
-	oss << " ! splitmuxsink name=file-muxsink"                          //
-	    << " location=" << d_outputFileTemplate.c_str()                 //
-	    << " max-size-time=" << segmentDuration.Nanoseconds()           //
+
+	oss << " ! h265parse name=file-h265parse"; //
+
+	oss << " ! splitmuxsink name=file-muxsink"                //
+	    << " location=" << d_outputFileTemplate.c_str()       //
+	    << " max-size-time=" << segmentDuration.Nanoseconds() //
 	    << " muxer=mp4mux";
 	return oss.str();
 }
@@ -533,13 +568,12 @@ std::string VideoOutputImpl::buildBothPipeline(
 	return oss.str();
 }
 
-VideoOutputImpl::~VideoOutputImpl() {
+void VideoOutputImpl::printDebug(const std::filesystem::path &filepath) {
 #ifndef NDEBUG
-	auto          data     = std::string{gst_debug_bin_to_dot_data(
+	auto          data = std::string{gst_debug_bin_to_dot_data(
         GST_BIN(d_pipeline.get()),
         GST_DEBUG_GRAPH_SHOW_ALL
     )};
-	auto          filepath = std::filesystem::path("/tmp/videooutput.dot");
 	std::ofstream file(filepath);
 	file << data;
 	file.close();
@@ -547,13 +581,21 @@ VideoOutputImpl::~VideoOutputImpl() {
 	    "saved pipeline debug file",
 	    slog::String("filepath", filepath)
 	);
+#else
+	(void)filepath;
 #endif
+}
+
+VideoOutputImpl::~VideoOutputImpl() {
+	printDebug("/tmp/videoutput.dot");
 	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
 
 	d_eosReached.wait(false);
 }
 
-void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
+bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
+	d_reconfiguring.wait(true); // wait if reconfiguring pipeline
+
 	struct InflightFrame {
 		VideoOutputImpl *self;
 		Frame::Ptr       frame;
@@ -596,9 +638,16 @@ void VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 	auto res = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
 
 	if (res != GST_FLOW_OK) {
-		gst_buffer_unref(buffer);
-		throw cpptrace::runtime_error("Could not push buffer");
+		auto name = g_enum_to_string(gst_flow_return_get_type(), res);
+		d_logger.Error(
+		    "could not push buffer",
+		    slog::Int("ID", frame->ID()),
+		    slog::String("return", name != nullptr ? name : "UNKNOWN")
+		);
+		notifyDrop(frame->ID());
+		return false;
 	}
+	return true;
 }
 
 void VideoOutputImpl::onFramePass(uint64_t frameID, uint64_t PTS) {
@@ -607,21 +656,25 @@ void VideoOutputImpl::onFramePass(uint64_t frameID, uint64_t PTS) {
 	d_logger.Debug("frame passed", slog::Int("ID", frameID));
 }
 
+void VideoOutputImpl::notifyDrop(uint64_t frameID) {
+	d_dropped.fetch_add(1);
+	d_logger.Warn(
+	    "frame dropped",
+	    slog::Int("ID", frameID),
+	    slog::Int("total_dropped", d_dropped.load()),
+	    slog::Float(
+	        "percent_dropped",
+	        100.0 * float(d_dropped.load()) /
+	            (d_dropped.load() + d_processed.load())
+	    )
+	);
+}
+
 void VideoOutputImpl::onFrameDone(uint64_t frameID) {
 	if (frameID <= d_lastFramePassed.load()) {
 		d_processed.fetch_add(1);
 	} else {
-		d_dropped.fetch_add(1);
-		d_logger.Warn(
-		    "frame dropped",
-		    slog::Int("ID", frameID),
-		    slog::Int("total_dropped", d_dropped.load()),
-		    slog::Float(
-		        "percent_dropped",
-		        100.0 * float(d_dropped.load()) /
-		            (d_dropped.load() + d_processed.load())
-		    )
-		);
+		notifyDrop(frameID);
 	}
 }
 
@@ -729,7 +782,7 @@ void VideoOutputImpl::disconnectStream() {
 	auto streamParse =
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-parse");
 	if (streamParse == nullptr) {
-		d_logger.Error("not stream-parse, not disconnecting");
+		d_logger.Error("stream-parse not found, not disconnecting");
 		return;
 	}
 
@@ -754,13 +807,16 @@ void VideoOutputImpl::disconnectStream() {
 	Defer {
 		gst_object_unref(sinkPad);
 	};
-
+	d_logger.Info("disconnecting stream");
+	d_reconfiguring.store(true);
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
 	Defer {
 		gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+		d_logger.DDebug("stream disconnected");
+		d_reconfiguring.store(false);
+		d_reconfiguring.notify_all();
+		printDebug("/tmp/videooutput-disabled.dot");
 	};
-
-	d_logger.Info("disconnecting stream");
 	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
 		d_logger.Warn("pad unlink returned false");
 	}
@@ -775,7 +831,6 @@ void VideoOutputImpl::disconnectStream() {
 		d_logger.Error("could not link stream-parse and stream-fake-sink");
 	}
 	gst_element_sync_state_with_parent(fakesink);
-	d_logger.Debug("disconnected");
 }
 
 void VideoOutputImpl::reconnectStream() {
@@ -791,7 +846,7 @@ void VideoOutputImpl::reconnectStream() {
 	auto streamParse =
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-parse");
 	if (streamParse == nullptr) {
-		d_logger.Error("no stream-parse element, not reconnecting");
+		d_logger.Error("element stream-parse not found, not reconnecting");
 		return;
 	}
 	Defer {
@@ -800,7 +855,7 @@ void VideoOutputImpl::reconnectStream() {
 
 	auto srcPad = gst_element_get_static_pad(streamParse, "src");
 	if (srcPad == nullptr) {
-		d_logger.Error("could not get stream-parse.src");
+		d_logger.Error("could not get stream-parse.src, not reconnecting");
 		return;
 	}
 	Defer {
@@ -809,18 +864,26 @@ void VideoOutputImpl::reconnectStream() {
 
 	auto sinkPad = gst_element_get_static_pad(streamFakeSink, "sink");
 	if (sinkPad == nullptr) {
-		d_logger.Error("could not get stream-fake-sink.sink");
+		d_logger.Error("could not get stream-fake-sink.sink, not reconnecting");
 		return;
 	}
 	Defer {
 		gst_object_unref(sinkPad);
 	};
+	d_logger.Info(
+	    "reconnecting",
+	    slog::String("host", d_host),
+	    slog::Int("attemps", d_reconnections.fetch_add(1) + 1)
+	);
+	d_reconfiguring.store(true);
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
 	Defer {
 		gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+		d_logger.DDebug("reconnected");
+		d_reconfiguring.store(false);
+		d_reconfiguring.notify_all();
+		printDebug("/tmp/videooutput-reconnected.dot");
 	};
-
-	d_logger.Info("reconnecting", slog::String("host", d_host));
 
 	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
 		d_logger.Warn(
@@ -836,7 +899,7 @@ void VideoOutputImpl::reconnectStream() {
 	    "name",
 	    "stream-sink",
 	    "location",
-	    d_host.c_str()
+	    targetURL().c_str()
 	);
 	gst_bin_add(GST_BIN(d_pipeline.get()), streamSink);
 	if (gst_element_link(streamParse, streamSink) == FALSE) {
@@ -855,7 +918,7 @@ void VideoOutputImpl::scheduleReconnect() {
 	}
 
 	g_timeout_add(
-	    RECONNECT_TIMEOUT.count(),
+	    d_reconnectTimeout.count(),
 	    [](gpointer userdata) {
 		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
 
