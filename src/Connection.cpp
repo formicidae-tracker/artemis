@@ -373,10 +373,6 @@ void Connection::waitClosed() {
 	atomic_wait_for_value(d_state, State::CLOSED);
 }
 
-#ifndef NDEBUG
-#define DEBUG_REFCOUNT 1
-#endif
-
 void Connection::incrementRefcount() {
 	auto cur = d_refCount.fetch_add(1) + 1;
 #ifdef DEBUG_REFCOUNT
