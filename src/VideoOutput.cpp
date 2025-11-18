@@ -216,7 +216,7 @@ private:
 	void onFramePass(uint64_t frameID, uint64_t PTS);
 	void onMessage(GstBus *bus, GstMessage *message);
 	void onStreamSinkError(GstMessage *message);
-	void printMessage(GstMessage *message);
+	void logGstMessage(GstMessage *message);
 
 	void scheduleReconnect();
 	void disconnectStream();
@@ -798,7 +798,7 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	case GST_MESSAGE_ERROR:
 	case GST_MESSAGE_WARNING:
 	case GST_MESSAGE_INFO:
-		printMessage(message);
+		logGstMessage(message);
 		return;
 #ifndef NDEBUG
 	case GST_MESSAGE_STATE_CHANGED:
@@ -833,25 +833,30 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	}
 }
 
-void VideoOutputImpl::printMessage(GstMessage *message) {
+void VideoOutputImpl::logGstMessage(GstMessage *message) {
 	GError *err{nullptr};
 	gchar  *debug_info{nullptr};
 	auto    level = slog::Level::Info;
 	switch (GST_MESSAGE_TYPE(message)) {
 	case GST_MESSAGE_INFO:
+#ifdef NDEBUG
+		return;
+#endif
+		gst_message_parse_info(message, &err, &debug_info);
 		level = slog::Level::Info;
 		break;
 	case GST_MESSAGE_ERROR:
 		level = slog::Level::Error;
+		gst_message_parse_error(message, &err, &debug_info);
 		break;
 	case GST_MESSAGE_WARNING:
+		gst_message_parse_warning(message, &err, &debug_info);
 		level = slog::Level::Warn;
 		break;
 	default:
 		return;
 	}
 
-	gst_message_parse_error(message, &err, &debug_info);
 	d_logger.Log(
 	    level,
 	    "pipeline message",
