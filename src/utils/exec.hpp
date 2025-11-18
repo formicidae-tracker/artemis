@@ -32,10 +32,6 @@ std::tuple<std::string, int> ExecAndCapture(Str &&filepath, Args &&...args) {
 		dup2(pipefd[1], STDERR_FILENO);
 		close(pipefd[0]);
 		close(pipefd[1]);
-		std::cerr << filepath << " ";
-		((std::cerr << std::forward<Args>(args) << " "), ...);
-		std::cerr << std::endl;
-
 		execlp(
 		    std::forward<Str>(filepath),
 		    std::forward<Str>(filepath),

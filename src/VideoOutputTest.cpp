@@ -1,6 +1,7 @@
 #include "VideoOutput.hpp"
 #include "ImageU8.hpp"
 #include "Options.hpp"
+#include "utils/StringManipulation.hpp"
 #include "utils/exec.hpp"
 
 #include <atomic>
@@ -30,25 +31,13 @@ namespace artemis {
 class VideoOutputTest : public ::testing::Test {
 protected:
 	static std::filesystem::path s_output;
-	static pid_t                 s_dockerPID;
+	std::string                  d_dockerContainerID;
 	GMainLoop                   *d_loop;
 	std::thread                  d_mainLoopThread;
 
 	VideoOutputOptions d_options;
 
 	static void SetUpTestSuite() {
-		try {
-			s_dockerPID =
-			    Exec("docker", "run", "--rm", "bluenviron/mediamtx:1");
-
-			auto [output, res] = ExecAndCapture("docker", "ps");
-			if (output.find(" bluenviron/mediamtx:1 ") == std::string::npos) {
-				s_dockerPID = -1;
-			}
-		} catch (const std::exception &e) {
-			s_dockerPID = -1;
-		}
-
 		char tempdir[] = "/tmp/artemis-video-test-XXXXXX";
 		auto res       = mkdtemp(tempdir);
 		if (res == nullptr) {
@@ -66,11 +55,6 @@ protected:
 	}
 
 	static void TearDownTestSuite() {
-		if (s_dockerPID > 0) {
-			kill(s_dockerPID, SIGINT);
-			int status = 0;
-			waitpid(s_dockerPID, &status, 0);
-		}
 		if (s_output.empty() ||
 		    std::getenv("ARTEMIS_TESTS_VIDEO_KEEP") != nullptr) {
 			return;
@@ -110,7 +94,59 @@ protected:
 		d_options.StreamHeight = 240;
 	}
 
+	bool StartRtscpServer(bool assert = false) {
+		if (d_dockerContainerID.empty() == false) {
+			throw cpptrace::runtime_error{"docker container started"};
+		}
+		try {
+			auto [output, res] = ExecAndCapture(
+			    "docker",
+			    "run",
+			    "--rm",
+			    "-d",
+			    "-p",
+			    "127.0.0.1:1935:1935",
+			    "bluenviron/mediamtx:1"
+			);
+			if (res != 0 || output.empty()) {
+				if (assert == true) {
+					ADD_FAILURE()
+					    << "Could not start docker image : " << output;
+				}
+				return false;
+			}
+			d_dockerContainerID = base::TrimSpaces(output);
+			slog::Info(
+			    "docker container",
+			    slog::String("ID", d_dockerContainerID)
+			);
+		} catch (const std::exception &e) {
+			if (assert == true) {
+				ADD_FAILURE() << "Could not start docker image: " << e.what();
+			}
+			return false;
+		}
+		return true;
+	}
+
+	void StopRtscpServer() {
+		if (d_dockerContainerID.empty()) {
+			return;
+		}
+
+		try {
+			auto [output, res] =
+			    ExecAndCapture("docker", "stop", d_dockerContainerID.c_str());
+			if (res == 0) {
+				d_dockerContainerID = "";
+			}
+		} catch (const std::exception &e) {
+			ADD_FAILURE() << "Could not stop docker container: " << e.what();
+		}
+	}
+
 	void TearDown() {
+		StopRtscpServer();
 		g_main_loop_quit(d_loop);
 		d_mainLoopThread.join();
 	}
@@ -126,7 +162,6 @@ protected:
 };
 
 std::filesystem::path VideoOutputTest::s_output;
-pid_t                 VideoOutputTest::s_dockerPID = -1;
 using namespace std::chrono_literals;
 
 TEST_F(VideoOutputTest, BuildsAndReachEOS) {
@@ -286,8 +321,8 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 }
 
 TEST_F(VideoOutputTest, ServerConnection) {
-	if (s_dockerPID <= 0) {
-		GTEST_SKIP() << "No mediaserver running";
+	if (StartRtscpServer() == false) {
+		GTEST_SKIP() << "Skipped test as I cannot start the RTSCP server";
 	}
 }
 
