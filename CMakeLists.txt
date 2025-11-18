@@ -168,6 +168,7 @@ pkg_check_modules(
 	gobject-2.0
 	gstreamer-1.0
 	gstreamer-app-1.0
+	gstreamer-rtsp-1.0
 )
 
 set(INSTALL_GTEST Off)

@@ -5,6 +5,7 @@
 #include <glib-object.h>
 #include <glib.h>
 #include <glibconfig.h>
+
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <gst/gstbin.h>
@@ -22,6 +23,8 @@
 #include <gst/gstsample.h>
 #include <gst/gstutils.h>
 #include <gst/gstvalue.h>
+#include <gst/rtsp/gstrtsptransport.h>
+#include <gst/rtsp/rtsp.h>
 
 #include <cstdint>
 #include <fstream>
@@ -40,8 +43,6 @@
 
 #include "Options.hpp"
 #include "VideoOutput.hpp"
-#include "concurrentqueue.h"
-#include "readerwriterqueue.h"
 
 namespace fort {
 namespace artemis {
@@ -210,7 +211,7 @@ private:
 
 	std::string buildInputPipeline(const VideoOutput::Config &config);
 	std::string buildStreamPipeline(
-	    const VideoOutputOptions &options, const Size &inputResolution
+	    const VideoOutputOptions &options, const VideoOutput::Config &config
 	);
 	std::string buildFilePipeline(
 	    const VideoOutputOptions &options,
@@ -246,15 +247,15 @@ private:
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0},
 	    d_reconnections{0};
-	std::filesystem::path   d_outputFileTemplate{};
-	std::atomic<bool>       d_eosReached{false};
+	std::filesystem::path d_outputFileTemplate{};
+	std::atomic<bool>     d_eosReached{false}, d_closing{false},
+	    d_reconnectionScheduled{false}, d_reconfiguring{false};
 
 	MetadataHandler d_metadata;
 
 	std::string               d_host;
 	std::string               d_hostname;
 	std::chrono::milliseconds d_reconnectTimeout;
-	std::atomic<bool> d_reconnectionScheduled{false}, d_reconfiguring{false};
 };
 
 VideoOutput::VideoOutput(
@@ -355,8 +356,7 @@ VideoOutputImpl::VideoOutputImpl(
 	if (options.Host.empty() == false && options.OutputDir.empty() == false) {
 		processPipelineDesc += buildBothPipeline(options, config);
 	} else if (options.Host.empty() == false) {
-		processPipelineDesc +=
-		    buildStreamPipeline(options, config.InputResolution);
+		processPipelineDesc += buildStreamPipeline(options, config);
 	} else if (options.OutputDir.empty() == false) {
 		processPipelineDesc += buildFilePipeline(
 		    options,
@@ -461,7 +461,7 @@ VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
 	    << " is-live=true"                                            //
 	    << " leaky-type=" << (config.LeakyPush ? "upstream" : "none") //
 	    << " block=" << std::boolalpha << !config.LeakyPush           //
-	    << " max-buffers=1"                                           //
+	    << " max-buffers=2"                                           //
 	    << " emit-signals=false";                                     //
 
 	oss << " ! video/x-raw"                              //
@@ -475,11 +475,11 @@ VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
 }
 
 std::string VideoOutputImpl::buildStreamPipeline(
-    const VideoOutputOptions &options, const Size &inputResolution
+    const VideoOutputOptions &options, const VideoOutput::Config &config
 ) {
 	auto streamSize = VideoOutputOptions::TargetResolution(
 	    options.StreamHeight,
-	    inputResolution
+	    config.InputResolution
 	);
 
 	std::ostringstream oss;
@@ -495,6 +495,20 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	oss << " ! capsfilter name=stream-videoconvert-format" //
 	    << " caps=video/x-raw,format=NV12";                //
 
+	if (config.EnforceStreamVideoRate) {
+
+		oss << " ! videorate name=stream-videorate";
+
+		oss << " ! capsfilter name=stream-videorate-caps" //
+		    << " caps=video/x-raw,framerate=" << int(config.FPS * 10)
+		    << "/10"; //
+	}
+
+	oss << " ! queue2 name=stream-encoder-queue"                      //
+	    << " max-size-bytes=0"                                        //
+	    << " max-size-buffers=0"                                      //
+	    << " max-size-time=" << (2 * Duration::Second).Nanoseconds(); //
+
 	oss << " ! vah264enc name=stream-encoder" //
 	    << " bitrate=" << 2000                // 1Mbit/s
 	    << " rate-control=cbr";               //
@@ -505,7 +519,8 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	oss << " ! h264parse name=stream-parse"; //
 
 	oss << " ! rtspclientsink name=stream-sink" //
-	    << " location=" << targetURL();
+	    << " protocols=tcp"                     //
+	    << " location=" << targetURL();         //
 	return oss.str();
 }
 
@@ -563,7 +578,7 @@ std::string VideoOutputImpl::buildBothPipeline(
 	           config.FilePeriod
 	       );
 	oss << " t.src_1 ! queue name=stream-queue"
-	    << buildStreamPipeline(options, config.InputResolution);
+	    << buildStreamPipeline(options, config);
 
 	return oss.str();
 }
@@ -587,7 +602,8 @@ void VideoOutputImpl::printDebug(const std::filesystem::path &filepath) {
 }
 
 VideoOutputImpl::~VideoOutputImpl() {
-	printDebug("/tmp/videoutput.dot");
+	printDebug("/tmp/videooutput.dot");
+	d_closing.store(true);
 	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
 
 	d_eosReached.wait(false);
@@ -769,6 +785,10 @@ gchararray VideoOutputImpl::onLocationFull(
 }
 
 void VideoOutputImpl::disconnectStream() {
+	if (d_closing.load() == true) {
+		d_logger.Error("Not disconnectiong as EOS pushed");
+		return;
+	}
 	auto streamSink =
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink");
 
@@ -834,6 +854,11 @@ void VideoOutputImpl::disconnectStream() {
 }
 
 void VideoOutputImpl::reconnectStream() {
+	if (d_closing.load() == true) {
+		d_logger.Error("Not reconnecting as EOS pushed");
+		return;
+	}
+
 	auto streamFakeSink =
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-fake-sink");
 	if (streamFakeSink == nullptr) {
@@ -898,6 +923,8 @@ void VideoOutputImpl::reconnectStream() {
 	    "rtspclientsink",
 	    "name",
 	    "stream-sink",
+	    "protocols",
+	    GST_RTSP_LOWER_TRANS_TCP,
 	    "location",
 	    targetURL().c_str()
 	);

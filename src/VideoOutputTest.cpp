@@ -98,7 +98,7 @@ protected:
 		slog::Info("output dir", slog::String("path", s_output));
 		setenv(
 		    "GST_DEBUG",
-		    "GST_CAPS:6,appsrc:6,videoconvert:6,x264enc:6,*:2",
+		    "GST_CAPS:6,appsrc:4,vah264enc:4,rtspstream:6,rtpsession:2,*:2",
 		    true
 		);
 	}
@@ -368,9 +368,12 @@ TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
 
 TEST_F(VideoOutputTest, Connection) {
 	StartRtscpServer(true);
-	std::atomic<bool>   stop{false};
-	std::atomic<size_t> frames{0};
-	VideoOutput::Stats  stats;
+	std::atomic<bool>     stop{false};
+	std::atomic<size_t>   frames{0};
+	VideoOutput::Stats    stats;
+	static constexpr auto FRAME_DURATION = 40ms;
+	constexpr size_t      N_FRAMES       = 20;
+
 	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
 		VideoOutputOptions options;
 		options.Host         = "localhost";
@@ -379,23 +382,25 @@ TEST_F(VideoOutputTest, Connection) {
 		VideoOutput output(
 		    options,
 		    {
-		        .FPS               = 10.0,
-		        .InputResolution   = {640, 480},
-		        .LeakyPush         = true,
-		        .ConnectionTimeout = 100 * Duration::Millisecond,
+		        .FPS                    = 1000.0 / FRAME_DURATION.count(),
+		        .InputResolution        = {640, 480},
+		        .LeakyPush              = true,
+		        .ConnectionTimeout      = 2000 * Duration::Millisecond,
+		        .EnforceStreamVideoRate = false,
 		    }
 		);
 
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load()));
-			std::this_thread::sleep_for(100ms);
+			std::this_thread::sleep_for(FRAME_DURATION);
 		}
 
 		stats = output.GetStats();
 	});
-	WithTimeout(500ms, [&frames]() {
-		while (frames.load() < 30) {
+
+	WithTimeout((N_FRAMES + 10) * FRAME_DURATION, [&frames]() {
+		while (frames.load() < N_FRAMES) {
 			frames.wait(frames.load());
 		}
 	});

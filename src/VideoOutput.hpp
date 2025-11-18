@@ -15,8 +15,9 @@ public:
 		Duration FilePeriod = 2 * Duration::Hour;
 		float    FPS        = 10.0;
 		Size     InputResolution;
-		bool     LeakyPush         = false;
-		Duration ConnectionTimeout = 5 * Duration::Second;
+		bool     LeakyPush              = false;
+		Duration ConnectionTimeout      = 5 * Duration::Second;
+		bool     EnforceStreamVideoRate = false;
 	};
 
 	VideoOutput(const VideoOutputOptions &options, const Config &config);
