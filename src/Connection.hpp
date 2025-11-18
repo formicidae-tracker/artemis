@@ -52,6 +52,9 @@ private:
 	void startClosing();
 	void waitClosed();
 
+	void incrementRefcount();
+	void decrementRefcount();
+
 	const std::string d_host;
 	const uint16_t    d_port;
 	const Duration    d_reconnectPeriod;
@@ -61,6 +64,8 @@ private:
 	GSocketClient     *d_client;
 	GSocketConnection *d_connection;
 	GOutputStream     *d_stream;
+
+	guint d_reconnectionSource{0};
 
 	Queue d_queue;
 

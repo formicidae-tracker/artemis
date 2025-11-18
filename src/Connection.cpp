@@ -1,25 +1,42 @@
 #include "Connection.hpp"
 
-#include <fort/utils/Defer.hpp>
+#include <cpptrace/basic.hpp>
 #include <gio/gio.h>
 #include <glib-object.h>
 #include <glib.h>
 
+#include <sstream>
+#include <thread>
+
 #include <google/protobuf/message_lite.h>
 #include <google/protobuf/util/delimited_message_util.h>
-#include <slog++/slog++.hpp>
-#include <sstream>
 
 #include <magic_enum/magic_enum.hpp>
 
+#include <slog++/slog++.hpp>
+
+#include <cpptrace/cpptrace.hpp>
+
+#include <fort/utils/Defer.hpp>
+
 namespace fort {
 namespace artemis {
+using namespace std::chrono_literals;
 
 template <typename T>
-void atomic_wait_for_value(std::atomic<T> &a, T newValue) {
+void atomic_wait_for_value(std::atomic<T> &a, T newValue, bool log = false) {
 	T current = a.load();
 	while (current != newValue) {
-		a.wait(current);
+		if (log) {
+			slog::Info(
+			    "current",
+			    slog::Int("value", int(current)),
+			    slog::Int("target", int(newValue))
+			);
+			std::this_thread::sleep_for(800ms);
+		} else {
+			a.wait(current);
+		}
 		// wait for a change.
 		current = a.load();
 	}
@@ -29,8 +46,8 @@ Connection::~Connection() {
 	Close();
 	// The refcount is needed as scheduled dispatch may still need this object
 	// to be alive.
-	d_refCount.fetch_add(-1);
-	atomic_wait_for_value<size_t>(d_refCount, 0);
+	decrementRefcount();
+	atomic_wait_for_value<size_t>(d_refCount, 0, true);
 }
 
 Connection::Connection(
@@ -54,6 +71,23 @@ Connection::Connection(
 }
 
 void Connection::Close() {
+	incrementRefcount();
+	g_main_context_invoke(
+	    d_context,
+	    [](gpointer userdata) {
+		    auto self = reinterpret_cast<Connection *>(userdata);
+		    if (self->d_reconnectionSource == 0) {
+			    self->decrementRefcount(); // for myself.
+			    return G_SOURCE_REMOVE;
+		    }
+		    g_source_remove(self->d_reconnectionSource);
+		    self->decrementRefcount(); // for reconnection callback
+		    self->decrementRefcount(); // for myself.
+		    return G_SOURCE_REMOVE;
+	    },
+	    this
+	);
+
 	startClosing();
 	waitClosed();
 }
@@ -92,8 +126,7 @@ void Connection::mainLoopDispatch() {
 		        std::string(magic_enum::enum_name(d_state.load()))
 		    )
 		);
-		d_refCount.fetch_add(-1);
-		d_refCount.notify_all();
+		decrementRefcount();
 	};
 
 	if (d_closing.load()) {
@@ -139,6 +172,7 @@ void Connection::connectAsync() {
 	}
 	d_state.store(State::CONNECTING);
 	d_logger.Info("connecting");
+	incrementRefcount();
 	g_socket_client_connect_to_host_async(
 	    d_client,
 	    d_host.c_str(),
@@ -146,7 +180,9 @@ void Connection::connectAsync() {
 	    nullptr,
 	    [](GObject *source, GAsyncResult *res, gpointer data) {
 		    auto self = reinterpret_cast<Connection *>(data);
-
+		    Defer {
+			    self->decrementRefcount();
+		    };
 		    GError            *error = nullptr;
 		    GSocketConnection *connection =
 		        G_SOCKET_CONNECTION(g_socket_client_connect_finish(
@@ -190,22 +226,32 @@ void Connection::connectAsync() {
 }
 
 void Connection::scheduleReconnect() {
-		d_state.store(State::CONNECTING);
-		auto source =
-		    g_timeout_source_new(guint(d_reconnectPeriod.Milliseconds()));
-		g_source_set_callback(
-		    source,
-		    [](gpointer userData) -> gboolean {
-			    auto self = reinterpret_cast<Connection *>(userData);
-			    self->d_state.store(State::INITIAL);
-			    self->connectAsync();
-			    return G_SOURCE_REMOVE;
-		    },
-		    this,
-		    nullptr
-		);
-		g_source_attach(source, d_context);
-		g_source_unref(source);
+	if (d_reconnectionSource != 0) {
+		d_logger.Warn("double reconnection attempt");
+		return;
+	}
+
+	d_state.store(State::CONNECTING);
+	incrementRefcount();
+	auto source = g_timeout_source_new(guint(d_reconnectPeriod.Milliseconds()));
+
+	g_source_set_callback(
+	    source,
+	    [](gpointer userData) -> gboolean {
+		    auto self = reinterpret_cast<Connection *>(userData);
+		    self->d_state.store(State::INITIAL);
+		    self->connectAsync();
+		    self->decrementRefcount();
+		    self->d_reconnectionSource = 0;
+		    return G_SOURCE_REMOVE;
+	    },
+	    this,
+	    nullptr
+	);
+	g_source_attach(source, d_context);
+	d_reconnectionSource = g_source_get_id(source);
+
+	g_source_unref(source);
 }
 
 void Connection::sendNextBuffer() {
@@ -238,7 +284,7 @@ void Connection::sendNextBuffer() {
 	    },
 	    cancel
 	);
-
+	incrementRefcount();
 	g_output_stream_write_all_async(
 	    d_stream,
 	    next.data(),
@@ -247,6 +293,9 @@ void Connection::sendNextBuffer() {
 	    cancel,
 	    [](GObject *source, GAsyncResult *result, gpointer userData) -> void {
 		    auto self = reinterpret_cast<Connection *>(userData);
+		    Defer {
+			    self->decrementRefcount();
+		    };
 		    auto logger =
 		        self->d_logger.With(slog::Int("txID", self->d_txID.load()));
 
@@ -320,7 +369,7 @@ bool Connection::PostMessage(const google::protobuf::MessageLite &m) {
 
 void Connection::scheduleDispatch() {
 	d_logger.DDebug("scheduling dispatch");
-	d_refCount.fetch_add(1);
+	incrementRefcount();
 	g_main_context_invoke(d_context, Connection::mainLoopDispatchCb, this);
 }
 
@@ -331,6 +380,36 @@ void Connection::startClosing() {
 
 void Connection::waitClosed() {
 	atomic_wait_for_value(d_state, State::CLOSED);
+}
+
+#ifndef NDEBUG
+#define DEBUG_REFCOUNT 1
+#endif
+
+void Connection::incrementRefcount() {
+	auto cur = d_refCount.fetch_add(1) + 1;
+#ifdef DEBUG_REFCOUNT
+	auto stack = cpptrace::stacktrace::current(1);
+
+	d_logger.Debug(
+	    "incremented refcount",
+	    slog::Int("refCount", cur),
+	    slog::String("caller", stack.frames.front().to_string())
+	);
+#endif
+}
+
+void Connection::decrementRefcount() {
+	auto cur = d_refCount.fetch_add(-1) - 1;
+	d_refCount.notify_all();
+#ifdef DEBUG_REFCOUNT
+	auto stack = cpptrace::stacktrace::current(1);
+	d_logger.Debug(
+	    "decremented refcount",
+	    slog::Int("refCount", cur),
+	    slog::String("caller", stack.frames.front().to_string())
+	);
+#endif
 }
 
 } // namespace artemis
