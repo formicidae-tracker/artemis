@@ -8,6 +8,7 @@
 #include <gio/gio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <gst/gstbin.h>
 #include <gst/gstelement.h>
 #include <gst/rtsp/gstrtsptransport.h>
 
@@ -411,7 +412,7 @@ private:
 	GstElementPtr   d_pipeline;
 	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
 	GstElementPtr d_appsrc;
-	GstElementPtr d_filesplitmux;
+	GstElementPtr d_fileSplitMux, d_streamValve, d_streamSink;
 
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0},
@@ -610,19 +611,33 @@ VideoOutputImpl::VideoOutputImpl(
 	    nullptr
 	);
 
-	d_filesplitmux = GstElementPtr{
+	d_fileSplitMux = GstElementPtr{
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "file-muxsink")
 	};
-	if (options.OutputDir.empty() == false && d_filesplitmux == nullptr) {
+	if (options.OutputDir.empty() == false && d_fileSplitMux == nullptr) {
 		throw cpptrace::runtime_error{"missing file-muxsink element"};
 	}
-	if (d_filesplitmux != nullptr) {
+	if (d_fileSplitMux != nullptr) {
 		g_signal_connect(
-		    d_filesplitmux.get(),
+		    d_fileSplitMux.get(),
 		    "format-location-full",
 		    G_CALLBACK(&VideoOutputImpl::onLocationFull),
 		    this
 		);
+	}
+
+	d_streamValve = GstElementPtr{
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-valve")
+	};
+	d_streamSink = GstElementPtr{
+	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink")
+	};
+	if (options.Host.empty() == false &&
+	    (d_streamValve == nullptr || d_streamSink == nullptr)) {
+		throw cpptrace::logic_error{
+		    "could not found stream-sink and stream-valve element in streaming "
+		    "pipeline"
+		};
 	}
 
 	d_logger.Debug("Starting pipeline");
@@ -661,6 +676,10 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	);
 
 	std::ostringstream oss;
+
+	oss << " ! valve name=stream-valve" //
+	    << " drop=false";
+
 	oss << " ! videoscale name=stream-scale";
 
 	oss << " ! capsfilter name=stream-video-format" //
@@ -1007,24 +1026,27 @@ void VideoOutputImpl::onStreamSinkError(GstMessage *message) {
 
 void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	auto type = GST_MESSAGE_TYPE(message);
+
 	if (type == GST_MESSAGE_EOS) {
 		d_logger.Info("End-Of-Stream reached");
 		gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
 		d_eosReached.store(true);
 		return;
 	}
+
 	if (type == GST_MESSAGE_ERROR &&
 	    std::string{message->src->name} == "stream-sink") {
 		onStreamSinkError(message);
 		return;
 	}
+
 	switch (type) {
 	case GST_MESSAGE_ERROR:
 	case GST_MESSAGE_WARNING:
 	case GST_MESSAGE_INFO:
 		logGstMessage(message);
 		return;
-#ifndef NDEBUG
+#ifndef NDEBUG1
 	case GST_MESSAGE_STATE_CHANGED:
 		GstState oldstate, newstate, pending;
 		gst_message_parse_state_changed(
@@ -1033,7 +1055,7 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 		    &newstate,
 		    &pending
 		);
-		d_logger.Debug(
+		d_logger.Info(
 		    "state changed",
 		    slog::String("element", (const char *)message->src->name),
 		    slog::String(
@@ -1133,166 +1155,42 @@ gchararray VideoOutputImpl::onLocationFull(
 void VideoOutputImpl::disconnectStream() {
 	std::lock_guard<std::mutex> lock{d_reconfiguring};
 
-	auto streamSink =
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink");
+	g_object_set(d_streamValve.get(), "drop", TRUE, nullptr);
 
-	if (streamSink == nullptr) {
-		d_logger.Error("No stream sink, not disconnecting");
-		return;
-	}
-	Defer {
-		gst_object_unref(streamSink);
-	};
-	auto streamParse =
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-parse");
-	if (streamParse == nullptr) {
-		d_logger.Error("stream-parse not found, not disconnecting");
-		return;
+	auto streamSinkchange =
+	    gst_element_set_state(d_streamSink.get(), GST_STATE_NULL);
+
+	if (d_fileSplitMux != nullptr) {
+		gst_element_set_state(d_fileSplitMux.get(), GST_STATE_PLAYING);
 	}
 
-	Defer {
-		gst_object_unref(streamParse);
-	};
-
-	auto srcPad = gst_element_get_static_pad(streamParse, "src");
-	if (srcPad == nullptr) {
-		d_logger.Error("could not get stream-parse.src");
-		return;
-	}
-	Defer {
-		gst_object_unref(srcPad);
-	};
-
-	auto sinkPad = gst_element_get_static_pad(streamSink, "sink_0");
-	if (sinkPad == nullptr) {
-		d_logger.Error("could not get stream-parse.src_0");
-		return;
-	}
-	Defer {
-		gst_object_unref(sinkPad);
-	};
-	d_logger.Info("disconnecting stream");
-
-	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
-	Defer {
-		auto ret = gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-		d_logger.Info(
-		    "disconnected",
-		    slog::String(
-		        "state_change_return",
-		        (const char *)
-		            g_enum_to_string(gst_state_change_return_get_type(), ret)
-		    )
-		);
-		printDebug("/tmp/videooutput-disabled.dot");
-	};
-	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
-		d_logger.Warn("pad unlink returned false");
-	}
-	gst_element_set_state(streamSink, GST_STATE_NULL);
-	if (gst_bin_remove(GST_BIN(d_pipeline.get()), streamSink) == FALSE) {
-		d_logger.Warn("could not remove stream-sink");
-	}
-
-	auto fakesink = GstElementFactory("fakesink", "name", "stream-fake-sink");
-	gst_bin_add(GST_BIN(d_pipeline.get()), fakesink);
-	if (gst_element_link(streamParse, fakesink) == FALSE) {
-		d_logger.Error("could not link stream-parse and stream-fake-sink");
-	}
-	if (gst_element_sync_state_with_parent(fakesink) == FALSE) {
-		d_logger.Error("could not sync state with pipeline");
-	}
+	d_logger.Info(
+	    "disconnected",
+	    slog::String(
+	        "streamSink_change",
+	        (const char *)g_enum_to_string(
+	            gst_state_change_return_get_type(),
+	            streamSinkchange
+	        )
+	    )
+	);
 }
 
 void VideoOutputImpl::reconnectStream() {
 	std::lock_guard<std::mutex> lock{d_reconfiguring};
+	d_reconnections.fetch_add(1);
 
-	if (d_closing.load() == true) {
-		d_logger.Error("Not reconnecting as EOS pushed");
-		return;
-	}
+	auto change = gst_element_set_state(d_streamSink.get(), GST_STATE_PLAYING);
+	g_object_set(d_streamValve.get(), "drop", FALSE, nullptr);
 
-	auto streamFakeSink =
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-fake-sink");
-	if (streamFakeSink == nullptr) {
-		d_logger.Error("no fakesink element, not reconnecting");
-		return;
-	}
-	Defer {
-		gst_object_unref(streamFakeSink);
-	};
-	auto streamParse =
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-parse");
-	if (streamParse == nullptr) {
-		d_logger.Error("element stream-parse not found, not reconnecting");
-		return;
-	}
-	Defer {
-		gst_object_unref(streamParse);
-	};
-
-	auto srcPad = gst_element_get_static_pad(streamParse, "src");
-	if (srcPad == nullptr) {
-		d_logger.Error("could not get stream-parse.src, not reconnecting");
-		return;
-	}
-	Defer {
-		gst_object_unref(srcPad);
-	};
-
-	auto sinkPad = gst_element_get_static_pad(streamFakeSink, "sink");
-	if (sinkPad == nullptr) {
-		d_logger.Error("could not get stream-fake-sink.sink, not reconnecting");
-		return;
-	}
-	Defer {
-		gst_object_unref(sinkPad);
-	};
 	d_logger.Info(
-	    "reconnecting",
-	    slog::String("host", d_host),
-	    slog::Int("attemps", d_reconnections.fetch_add(1) + 1)
+	    "connecting",
+	    slog::String(
+	        "change_return",
+	        (const char *)
+	            g_enum_to_string(gst_state_change_return_get_type(), change)
+	    )
 	);
-
-	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
-	Defer {
-		auto ret = gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-		d_logger.Info(
-		    "reconnected",
-		    slog::String(
-		        "state_change_return",
-		        (const char *)
-		            g_enum_to_string(gst_state_change_return_get_type(), ret)
-		    )
-		);
-		printDebug("/tmp/videooutput-reconnected.dot");
-	};
-
-	if (gst_pad_unlink(srcPad, sinkPad) == FALSE) {
-		d_logger.Warn(
-		    "could not unlink stream-parse.src and stream-fake-sink.sink"
-		);
-	}
-	gst_element_set_state(streamFakeSink, GST_STATE_NULL);
-	if (gst_bin_remove(GST_BIN(d_pipeline.get()), streamFakeSink) == FALSE) {
-		d_logger.Warn("could not remove  stream-fake-sink");
-	}
-	auto streamSink = GstElementFactory(
-	    "rtspclientsink",
-	    "name",
-	    "stream-sink",
-	    "protocols",
-	    GST_RTSP_LOWER_TRANS_TCP,
-	    "location",
-	    targetURL().c_str()
-	);
-	gst_bin_add(GST_BIN(d_pipeline.get()), streamSink);
-	if (gst_element_link(streamParse, streamSink) == FALSE) {
-		d_logger.Error(
-		    "could not link stream-parse.src and rtspclientsink.sink_%u"
-		);
-	}
-	gst_element_sync_state_with_parent(streamSink);
 }
 
 void VideoOutputImpl::scheduleReconnect() {

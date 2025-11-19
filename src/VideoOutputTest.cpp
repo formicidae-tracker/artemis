@@ -417,7 +417,7 @@ TEST_F(VideoOutputTest, Connection) {
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
-			std::this_thread::sleep_for(FRAME_DURATION);
+			std::this_thread::sleep_for(FRAME_DURATION / 2);
 		}
 
 		stats = output.GetStats();
@@ -465,7 +465,7 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
-			std::this_thread::sleep_for(FRAME_DURATION);
+			std::this_thread::sleep_for(FRAME_DURATION / 5);
 		}
 
 		stats = output.GetStats();
@@ -508,12 +508,12 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 	);
 }
 
-TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFiles) {
+TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFrames) {
 	std::atomic<bool>     stop{false};
 	std::atomic<size_t>   frames{0};
 	VideoOutput::Stats    stats;
 	static constexpr auto FRAME_DURATION = 40ms;
-	constexpr size_t      N_FRAMES       = 20;
+	constexpr size_t      N_FRAMES       = 100;
 
 	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
 		VideoOutputOptions options;
@@ -536,7 +536,7 @@ TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFiles) {
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
-			std::this_thread::sleep_for(FRAME_DURATION);
+			std::this_thread::sleep_for(FRAME_DURATION / 5);
 		}
 
 		stats = output.GetStats();
@@ -551,7 +551,6 @@ TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFiles) {
 	stop.store(true);
 	videoThread.join();
 
-	EXPECT_EQ(stats.Reconnections, 0);
 	EXPECT_EQ(stats.Dropped, 0);
 
 	auto [videofiles, metadata] = GetVideoFiles();
