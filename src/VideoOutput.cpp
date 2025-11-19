@@ -8,6 +8,7 @@
 #include <gio/gio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <gst/gstelement.h>
 #include <gst/rtsp/gstrtsptransport.h>
 
 #include <atomic>
@@ -417,7 +418,8 @@ private:
 	    d_reconnections{0};
 	std::filesystem::path d_outputFileTemplate{};
 	std::atomic<bool>     d_eosReached{false}, d_closing{false},
-	    d_reconnectionScheduled{false}, d_reconfiguring{false};
+	    d_reconnectionScheduled{false};
+	std::mutex d_reconfiguring;
 
 	guint d_reconnection{0}, d_watch{0};
 
@@ -817,8 +819,8 @@ VideoOutputImpl::~VideoOutputImpl() {
 	// wait for none sheduled, no reconfiguration pending
 	d_logger.DDebug("waiting scheduled false");
 	d_reconnectionScheduled.wait(true);
-	d_logger.DDebug("waiting reconfiguring false");
-	d_reconfiguring.wait(true);
+
+	std::lock_guard<std::mutex> lock{d_reconfiguring};
 	d_logger.DDebug("Sending EOS through appsrc");
 	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
 	d_logger.DDebug("Waiting EOS");
@@ -902,8 +904,11 @@ bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
 
-	d_reconfiguring.wait(true); // wait if reconfiguring pipeline
-	auto res = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
+	GstFlowReturn ret;
+	{
+		std::lock_guard<std::mutex> lock{d_reconfiguring};
+		ret = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
+	}
 
 	d_logger.DDebug(
 	    "frame pushed",
@@ -911,8 +916,8 @@ bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 	    slog::Duration("PTS", std::chrono::nanoseconds{GST_BUFFER_PTS(buffer)})
 	);
 
-	if (res != GST_FLOW_OK) {
-		auto name = g_enum_to_string(gst_flow_return_get_type(), res);
+	if (ret != GST_FLOW_OK) {
+		auto name = g_enum_to_string(gst_flow_return_get_type(), ret);
 		d_logger.Error(
 		    "could not push buffer",
 		    slog::Int("ID", frame->ID()),
@@ -1126,11 +1131,7 @@ gchararray VideoOutputImpl::onLocationFull(
 }
 
 void VideoOutputImpl::disconnectStream() {
-	d_reconfiguring.store(true);
-	Defer {
-		d_reconfiguring.store(false);
-		d_reconfiguring.notify_all();
-	};
+	std::lock_guard<std::mutex> lock{d_reconfiguring};
 
 	auto streamSink =
 	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink");
@@ -1175,7 +1176,7 @@ void VideoOutputImpl::disconnectStream() {
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
 	Defer {
 		auto ret = gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-		d_logger.DInfo(
+		d_logger.Info(
 		    "disconnected",
 		    slog::String(
 		        "state_change_return",
@@ -1204,11 +1205,7 @@ void VideoOutputImpl::disconnectStream() {
 }
 
 void VideoOutputImpl::reconnectStream() {
-	d_reconfiguring.store(true);
-	Defer {
-		d_reconfiguring.store(false);
-		d_reconfiguring.notify_all();
-	};
+	std::lock_guard<std::mutex> lock{d_reconfiguring};
 
 	if (d_closing.load() == true) {
 		d_logger.Error("Not reconnecting as EOS pushed");
@@ -1260,7 +1257,7 @@ void VideoOutputImpl::reconnectStream() {
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PAUSED);
 	Defer {
 		auto ret = gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-		d_logger.DInfo(
+		d_logger.Info(
 		    "reconnected",
 		    slog::String(
 		        "state_change_return",
