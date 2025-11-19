@@ -28,6 +28,8 @@
 #include "VideoOutput.hpp"
 #include "readerwriterqueue.h"
 
+using namespace std::chrono_literals;
+
 namespace fort {
 namespace artemis {
 
@@ -372,12 +374,15 @@ private:
 
 	std::string buildInputPipeline(const VideoOutput::Config &config);
 	std::string buildStreamPipeline(
-	    const VideoOutputOptions &options, const VideoOutput::Config &config
+	    const VideoOutputOptions  &options,
+	    const VideoOutput::Config &config,
+	    bool                       withQueue
 	);
 	std::string buildFilePipeline(
 	    const VideoOutputOptions &options,
 	    const Size               &inputResolution,
-	    const Duration           &segmentDuration
+	    const Duration           &segmentDuration,
+	    bool                      withQueue
 	);
 	std::string buildBothPipeline(
 	    const VideoOutputOptions &options, const VideoOutput::Config &config
@@ -527,12 +532,13 @@ VideoOutputImpl::VideoOutputImpl(
 	if (options.Host.empty() == false && options.OutputDir.empty() == false) {
 		processPipelineDesc += buildBothPipeline(options, config);
 	} else if (options.Host.empty() == false) {
-		processPipelineDesc += buildStreamPipeline(options, config);
+		processPipelineDesc += buildStreamPipeline(options, config, false);
 	} else if (options.OutputDir.empty() == false) {
 		processPipelineDesc += buildFilePipeline(
 		    options,
 		    config.InputResolution,
-		    config.FilePeriod
+		    config.FilePeriod,
+		    false
 		);
 	} else {
 		throw cpptrace::runtime_error("Both Host and OutputDir cannot be empty"
@@ -643,7 +649,9 @@ VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
 }
 
 std::string VideoOutputImpl::buildStreamPipeline(
-    const VideoOutputOptions &options, const VideoOutput::Config &config
+    const VideoOutputOptions  &options,
+    const VideoOutput::Config &config,
+    bool                       withQueue
 ) {
 	auto streamSize = VideoOutputOptions::TargetResolution(
 	    options.StreamHeight,
@@ -657,6 +665,12 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	    << "caps=video/x-raw"                       //
 	    << ",width=" << streamSize.width()          //
 	    << ",height=" << streamSize.height();       //
+
+	if (withQueue == true) {
+		oss << " ! queue name=stream-queue" //
+		    << " leaky=downstream"          //
+		    << " max-size-time=0";
+	}
 
 	oss << " ! videoconvert name=stream-videoconvert"; //
 
@@ -695,7 +709,8 @@ std::string VideoOutputImpl::buildStreamPipeline(
 std::string VideoOutputImpl::buildFilePipeline(
     const VideoOutputOptions &options,
     const Size               &inputResolution,
-    const Duration           &segmentDuration
+    const Duration           &segmentDuration,
+    bool                      withQueue
 ) {
 	d_outputFileTemplate =
 	    std::filesystem::path(options.OutputDir) / "stream.%04d.mp4";
@@ -713,6 +728,10 @@ std::string VideoOutputImpl::buildFilePipeline(
 	    << "caps=video/x-raw"                     //
 	    << ",width=" << fileResolution.width()    //
 	    << ",height=" << fileResolution.height(); //
+
+	if (withQueue == true) {
+		oss << " ! queue name=file-queue";
+	}
 
 	oss << " ! videoconvert name=file-videoconvert"; //
 
@@ -739,14 +758,16 @@ std::string VideoOutputImpl::buildBothPipeline(
 	std::ostringstream oss;
 
 	oss << " ! tee name=t";
-	oss << " t.src_0 ! queue name=file-queue"
+
+	oss << " t.src_0" //
 	    << buildFilePipeline(
 	           options,
 	           config.InputResolution,
-	           config.FilePeriod
+	           config.FilePeriod,
+	           true
 	       );
-	oss << " t.src_1 ! queue name=stream-queue"
-	    << buildStreamPipeline(options, config);
+	oss << " t.src_1" //
+	    << buildStreamPipeline(options, config, true);
 
 	return oss.str();
 }
@@ -780,7 +801,8 @@ VideoOutputImpl::~VideoOutputImpl() {
 	    [](gpointer userdata) {
 		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
 		    if (self->d_reconnection == 0) {
-			    // reconnect not scheduled and not already fired, nothing to do.
+			    // reconnect not scheduled and not already fired, nothing to
+			    // do.
 			    return G_SOURCE_REMOVE;
 		    }
 		    g_source_remove(self->d_reconnection);
@@ -845,7 +867,6 @@ bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 		notifyDrop(frame->ID());
 		return false;
 	}
-	d_reconfiguring.wait(true); // wait if reconfiguring pipeline
 
 	struct InflightFrame {
 		VideoOutputImpl *self;
@@ -880,13 +901,15 @@ bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
 
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
+
+	d_reconfiguring.wait(true); // wait if reconfiguring pipeline
+	auto res = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
+
 	d_logger.DDebug(
 	    "frame pushed",
 	    slog::Int("ID", GST_BUFFER_OFFSET(buffer)),
 	    slog::Duration("PTS", std::chrono::nanoseconds{GST_BUFFER_PTS(buffer)})
 	);
-
-	auto res = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
 
 	if (res != GST_FLOW_OK) {
 		auto name = g_enum_to_string(gst_flow_return_get_type(), res);

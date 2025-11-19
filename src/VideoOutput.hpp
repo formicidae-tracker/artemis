@@ -17,7 +17,7 @@ public:
 		Size     InputResolution;
 		bool     LeakyPush              = true;
 		Duration ConnectionTimeout      = 5 * Duration::Second;
-		bool     EnforceStreamVideoRate = true;
+		bool     EnforceStreamVideoRate = false;
 		size_t   InputBuffer            = 1;
 	};
 
