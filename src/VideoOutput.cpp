@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <glib-object.h>
 #include <glib.h>
 #include <glibconfig.h>
@@ -43,10 +44,13 @@ using GstElementRef  = GstElement *;
 
 class MetadataFile {
 public:
-	MetadataFile(const std::filesystem::path &path)
-	    : d_file{path} {
+	MetadataFile(const std::filesystem::path &path) {
+		std::filesystem::create_directories(path.parent_path());
+		d_file = std::ofstream{path};
 		if (d_file.is_open() == false) {
-			throw cpptrace::runtime_error{"could not create file"};
+			throw cpptrace::runtime_error{
+			    "could not create file '" + path.string() + "'"
+			};
 		}
 	}
 
@@ -79,6 +83,11 @@ public:
 	    "RB_SIZE must be a power of two"
 	);
 
+	static_assert(
+	    BUFFER_SIZE < (RB_SIZE - 1),
+	    "RB_SIZE must be large enough to hold BUFFER_SIZE"
+	);
+
 	MetadataHandler() {
 		d_frames.resize(RB_SIZE);
 	}
@@ -89,9 +98,7 @@ public:
 		if (d_file == nullptr) {
 			return;
 		}
-		while (bufferSize() > 0) {
-			popWrite();
-		}
+		popUntilSizeIs(0);
 	}
 
 	void Register(uint64_t frameID, uint64_t PTS) {
@@ -102,6 +109,10 @@ public:
 		}
 
 		enqueue(frameID, PTS - d_registerPTSOffset.value());
+		if (d_file == nullptr) {
+			return;
+		}
+		popUntilSizeIs(BUFFER_SIZE);
 	}
 
 	void
@@ -119,9 +130,7 @@ public:
 		}
 		d_file          = std::make_unique<MetadataFile>(path);
 		d_framesWritten = 0;
-		while (bufferSize() >= BUFFER_SIZE) {
-			popWrite();
-		}
+		popUntilSizeIs(BUFFER_SIZE);
 	}
 
 private:
@@ -129,7 +138,13 @@ private:
 		uint64_t FrameID, PTS;
 	};
 
-	size_t bufferSize() const {
+	void popUntilSizeIs(size_t count) {
+		while (bufferSize() > count) {
+			popWrite();
+		}
+	}
+
+	inline size_t bufferSize() const {
 		return d_head - d_tail;
 	}
 
@@ -357,10 +372,7 @@ VideoOutputImpl::VideoOutputImpl(
 		);
 	}
 
-	d_logger.Debug(
-	    "pipeline",
-	    slog::String("description", processPipelineDesc)
-	);
+	d_logger.Info("pipeline", slog::String("description", processPipelineDesc));
 
 	GError *error = nullptr;
 	d_pipeline =
