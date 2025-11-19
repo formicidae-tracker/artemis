@@ -1,8 +1,11 @@
+#include <cstdio>
 #include <filesystem>
 #include <glib-object.h>
 #include <glib.h>
+#include <glib/gprintf.h>
 #include <glibconfig.h>
 
+#include <gio/gio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <gst/rtsp/gstrtsptransport.h>
@@ -10,9 +13,9 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <fstream>
 #include <memory>
 #include <mutex>
+#include <slog++/Logger.hpp>
 #include <sstream>
 #include <utility>
 
@@ -23,6 +26,7 @@
 
 #include "Options.hpp"
 #include "VideoOutput.hpp"
+#include "readerwriterqueue.h"
 
 namespace fort {
 namespace artemis {
@@ -44,18 +48,51 @@ using GstElementRef  = GstElement *;
 
 class MetadataFile {
 public:
-	MetadataFile(const std::filesystem::path &path) {
+	MetadataFile(const std::filesystem::path &path)
+	    : d_logger{slog::With(slog::String("metadata_file", path.string()))} {
 		std::filesystem::create_directories(path.parent_path());
-		d_file = std::ofstream{path};
-		if (d_file.is_open() == false) {
-			throw cpptrace::runtime_error{
-			    "could not create file '" + path.string() + "'"
-			};
+
+		// open the file for write at filepath,truncating any, and throw
+		// cpptrace::runtime_error on issue.
+		GError *error = nullptr;
+		Defer {
+			if (error != nullptr) {
+				g_error_free(error);
+			}
+		};
+
+		d_file = g_file_new_for_path(path.c_str());
+		if (d_file == nullptr) {
+			throw cpptrace::runtime_error(
+			    "could not create GFile for '" + path.string() + "'"
+			);
 		}
+		d_stream = g_file_replace(
+		    d_file,
+		    nullptr,
+		    FALSE,
+		    G_FILE_CREATE_NONE,
+		    nullptr,
+		    &error
+		);
+		if (d_stream == nullptr || error != nullptr) {
+			throw cpptrace::runtime_error(
+			    "could not open metadata file '" + path.string() + "': " +
+			    std::string{error == nullptr ? "unknown error" : error->message}
+			);
+		}
+		d_logger.Debug("opened");
 	}
 
 	~MetadataFile() {
-		d_file.close();
+		d_logger.Debug("closing");
+		d_closing.store(true);
+		scheduleDispatch();
+		decrementRef();
+		size_t current;
+		while ((current = d_refCount.load()) != 0) {
+			d_refCount.wait(current);
+		}
 	}
 
 	// disable copy and move
@@ -65,18 +102,148 @@ public:
 	MetadataFile &operator=(MetadataFile &&)      = delete;
 
 	void Write(uint64_t streamFrameID, uint64_t globalFrameID) {
-		d_file << streamFrameID << " " << globalFrameID << std::endl;
+		if (d_closing.load() == true) {
+			return;
+		}
+		d_queue.enqueue({.Stream = streamFrameID, .Global = globalFrameID});
+		scheduleDispatch();
 	}
 
 private:
-	std::ofstream d_file;
+	void scheduleDispatch() {
+		incrementRef();
+		g_main_context_invoke(
+		    g_main_context_default(),
+		    [](gpointer userdata) {
+			    auto self = reinterpret_cast<MetadataFile *>(userdata);
+			    self->dispatch();
+			    self->decrementRef();
+			    return G_SOURCE_REMOVE;
+		    },
+		    this
+		);
+	}
+
+	void dispatch() {
+		if (d_closing.load() == true) {
+			if (d_stream == nullptr) {
+				if (d_queue.size_approx() > 0) {
+					d_logger.Error(
+					    "loosing data as file is not opened on closing"
+					);
+				}
+				return;
+			}
+			if (d_writing.load() == true) {
+				// write will re-dispatch
+				return;
+			}
+			Association a;
+			while (d_queue.try_dequeue(a)) {
+				g_output_stream_printf(
+				    G_OUTPUT_STREAM(d_stream),
+				    nullptr,
+				    nullptr,
+				    nullptr,
+				    "%lu %lu\n",
+				    a.Stream,
+				    a.Global
+				);
+			}
+
+			g_output_stream_close(G_OUTPUT_STREAM(d_stream), nullptr, nullptr);
+			g_object_unref(d_stream);
+			g_object_unref(d_file);
+			d_stream = nullptr;
+			d_file   = nullptr;
+
+			return;
+		}
+
+		if (d_writing.load() == true) {
+			return;
+		}
+		Association a;
+		if (d_queue.try_dequeue(a) == false) {
+			return;
+		}
+		writeAsync(a);
+	}
+
+	void incrementRef() {
+		d_refCount.fetch_add(1);
+	}
+
+	void decrementRef() {
+		d_refCount.fetch_sub(1);
+		d_refCount.notify_all();
+	}
+
+	struct Association {
+		uint64_t Stream, Global;
+	};
+
+	void writeAsync(const Association &a) {
+		d_writing.store(true);
+		auto size = snprintf(
+		    d_buffer,
+		    sizeof(d_buffer),
+		    "%lu %lu\n",
+		    a.Stream,
+		    a.Global
+		);
+		incrementRef();
+		g_output_stream_write_async(
+		    G_OUTPUT_STREAM(d_stream),
+		    d_buffer,
+		    size,
+		    G_PRIORITY_DEFAULT,
+		    nullptr,
+		    [](GObject *source_object, GAsyncResult *res, gpointer userdata) {
+			    auto    self  = reinterpret_cast<MetadataFile *>(userdata);
+			    GError *error = nullptr;
+			    g_output_stream_write_finish(
+			        G_OUTPUT_STREAM(source_object),
+			        res,
+			        &error
+			    );
+			    if (error != nullptr) {
+				    self->d_logger.Error(
+				        "could not write metadata: " +
+				        std::string{error->message}
+				    );
+				    g_error_free(error);
+			    }
+			    self->d_writing.store(false);
+			    self->d_writing.notify_all();
+			    self->dispatch();
+			    self->decrementRef();
+		    },
+		    this
+		);
+	}
+
+	slog::Logger<1>                            d_logger;
+	moodycamel::ReaderWriterQueue<Association> d_queue;
+	std::atomic<size_t>                        d_refCount{1};
+	std::atomic<bool>  d_closing{false}, d_writing{false};
+	GFile             *d_file{nullptr};
+	GFileOutputStream *d_stream{nullptr};
+	char               d_buffer[1024];
 };
+
+// #define TEST_SMALL_BUFFER 1
 
 class MetadataHandler {
 public:
+#ifdef TEST_SMALL_BUFFER
+	constexpr static size_t BUFFER_SIZE = 10;
+	constexpr static size_t RB_SIZE     = 16;
+#else
 	constexpr static size_t BUFFER_SIZE = 30;
 	constexpr static size_t RB_SIZE     = 64;
-	constexpr static size_t RB_MASK     = RB_SIZE - 1;
+#endif
+	constexpr static size_t RB_MASK = RB_SIZE - 1;
 
 	static_assert(
 	    RB_SIZE > 0 && (RB_SIZE & RB_MASK) == 0,
@@ -125,7 +292,7 @@ public:
 
 		if (d_file != nullptr) {
 			while (bufferSize() > 0 && peekPTS() < startStreamPTS) {
-				popWrite();
+				popAndWrite();
 			}
 		}
 		d_file          = std::make_unique<MetadataFile>(path);
@@ -140,7 +307,7 @@ private:
 
 	void popUntilSizeIs(size_t count) {
 		while (bufferSize() > count) {
-			popWrite();
+			popAndWrite();
 		}
 	}
 
@@ -160,7 +327,7 @@ private:
 		d_frames[(d_head++) & RB_MASK] = {.FrameID = frameID, .PTS = PTS};
 	}
 
-	void popWrite() {
+	void popAndWrite() {
 		d_file->Write(d_framesWritten++, popFrameID());
 	}
 

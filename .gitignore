@@ -12,3 +12,4 @@ deps/
 /graph.dot
 /graph.svg
 /valgrind-out.txt
+/movies/

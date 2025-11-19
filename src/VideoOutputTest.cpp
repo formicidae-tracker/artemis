@@ -278,10 +278,10 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 		    options,
 		    {
 		        .FilePeriod      = 30 * PERIOD,
-		        .InputBuffer     = 1,
 		        .FPS             = FPS,
 		        .InputResolution = {640, 480},
 		        .LeakyPush       = true,
+		        .InputBuffer     = 1,
 		    }
 		);
 		for (size_t i = 0; i < 100; ++i) {
@@ -407,11 +407,10 @@ TEST_F(VideoOutputTest, Connection) {
 		VideoOutput output(
 		    options,
 		    {
-		        .FPS                    = 1000.0 / FRAME_DURATION.count(),
-		        .InputResolution        = {640, 480},
-		        .LeakyPush              = true,
-		        .ConnectionTimeout      = 2000 * Duration::Millisecond,
-		        .EnforceStreamVideoRate = false,
+		        .FPS               = 1000.0 / FRAME_DURATION.count(),
+		        .InputResolution   = {640, 480},
+		        .LeakyPush         = true,
+		        .ConnectionTimeout = 2000 * Duration::Millisecond,
 		    }
 		);
 
@@ -455,12 +454,11 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 		VideoOutput output(
 		    options,
 		    {
-		        .InputBuffer            = 1,
-		        .FPS                    = 1000.0 / FRAME_DURATION.count(),
-		        .InputResolution        = {640, 480},
-		        .LeakyPush              = true,
-		        .ConnectionTimeout      = 5000 * Duration::Millisecond,
-		        .EnforceStreamVideoRate = false,
+		        .FPS               = 1000.0 / FRAME_DURATION.count(),
+		        .InputResolution   = {640, 480},
+		        .LeakyPush         = true,
+		        .ConnectionTimeout = 5000 * Duration::Millisecond,
+		        .InputBuffer       = 1,
 		    }
 		);
 
@@ -527,12 +525,11 @@ TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFiles) {
 		VideoOutput output(
 		    options,
 		    {
-		        .InputBuffer            = 1,
-		        .FPS                    = 1000.0 / FRAME_DURATION.count(),
-		        .InputResolution        = {640, 480},
-		        .LeakyPush              = true,
-		        .ConnectionTimeout      = 5000 * Duration::Millisecond,
-		        .EnforceStreamVideoRate = false,
+		        .FPS               = 1000.0 / FRAME_DURATION.count(),
+		        .InputResolution   = {640, 480},
+		        .LeakyPush         = true,
+		        .ConnectionTimeout = 5000 * Duration::Millisecond,
+		        .InputBuffer       = 1,
 		    }
 		);
 
