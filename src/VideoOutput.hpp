@@ -12,8 +12,9 @@ class VideoOutputImpl;
 class VideoOutput {
 public:
 	struct Config {
-		Duration FilePeriod = 2 * Duration::Hour;
-		float    FPS        = 10.0;
+		Duration FilePeriod  = 2 * Duration::Hour;
+		size_t   InputBuffer = 2;
+		float    FPS         = 10.0;
 		Size     InputResolution;
 		bool     LeakyPush              = false;
 		Duration ConnectionTimeout      = 5 * Duration::Second;
@@ -27,6 +28,8 @@ public:
 
 	// Close the stream and wait for it to be closed.
 	void Close();
+
+	size_t InflightBufferSize() const;
 
 	bool PushFrame(const Frame::Ptr &frame);
 

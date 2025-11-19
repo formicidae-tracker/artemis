@@ -1,6 +1,7 @@
 #include "VideoOutput.hpp"
 #include "ImageU8.hpp"
 #include "Options.hpp"
+#include "fort/time/Time.hpp"
 #include "utils/StringManipulation.hpp"
 #include "utils/exec.hpp"
 
@@ -70,19 +71,19 @@ protected:
 	static std::filesystem::path s_output;
 	const Size                   INPUT_RESOLUTION = {640, 480};
 
-	std::string d_dockerContainerID;
-	GMainLoop  *d_loop;
-	std::thread d_mainLoopThread;
+	std::string       d_dockerContainerID;
+	GMainLoop        *d_loop;
+	std::thread       d_mainLoopThread;
 	ImageU8::OwnedPtr d_image = ImageU8::OwnedPtr{new ImageU8{
 	    640, 480, (uint8_t *)malloc(640 * 480 * sizeof(uint8_t)), 640
 	}};
 
-	Frame::Ptr buildFrame(uint64_t ID) {
+	Frame::Ptr buildFrame(uint64_t ID, Duration period) {
 		static auto start = Time::Now();
 		return std::make_shared<MockFrame>(
 		    ImageU8{*d_image},
 		    ID,
-		    start.Add(ID * 100 * Duration::Millisecond)
+		    start.Add(ID * period)
 		);
 	};
 
@@ -117,8 +118,9 @@ protected:
 		memset(d_image->buffer, 127, d_image->NeededSize());
 
 		for (auto entry : std::filesystem::directory_iterator{s_output}) {
-			if (entry.is_regular_file() == false ||
-			    entry.path().extension() != ".mp4") {
+			if (entry.is_regular_file() == true &&
+			    (entry.path().extension() == ".mp4" |
+			     entry.path().extension() == ".txt")) {
 				continue;
 			}
 			std::filesystem::remove(entry);
@@ -215,6 +217,22 @@ protected:
 			new std::future<void>(std::move(future)); // Intentional leak.
 		}
 	}
+
+	std::tuple<std::vector<std::string>, std::vector<std::string>>
+	GetVideoFiles() {
+		std::vector<std::string> videofiles;
+		std::vector<std::string> metadata;
+		for (auto entry : std::filesystem::directory_iterator{s_output}) {
+			if (entry.is_regular_file() && entry.path().extension() == ".mp4") {
+				videofiles.push_back(entry.path().string());
+			}
+			if (entry.is_regular_file() &&
+			    entry.path().stem().stem().extension() == ".frame-matching") {
+				metadata.push_back(entry.path().string());
+			}
+		}
+		return {videofiles, metadata};
+	}
 };
 
 std::filesystem::path VideoOutputTest::s_output;
@@ -245,38 +263,40 @@ std::string readFileContent(const std::filesystem::path &filepath) {
 	};
 }
 
-TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
+using ::testing::Property;
+using ::testing::UnorderedElementsAre;
 
-	WithTimeout(2500ms, [this]() {
+TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
+	static constexpr float FPS    = 10.0;
+	static const Duration  PERIOD = 100 * Duration::Millisecond;
+	VideoOutput::Stats     stats;
+	WithTimeout(5000ms, [this, &stats]() {
 		VideoOutputOptions options;
 		options.OutputDir = s_output;
 		options.Height    = 320;
 		VideoOutput output(
 		    options,
 		    {
-		        .FilePeriod      = 3 * Duration::Second,
-		        .FPS             = 10.0,
+		        .FilePeriod      = 30 * PERIOD,
+		        .InputBuffer     = 1,
+		        .FPS             = FPS,
 		        .InputResolution = {640, 480},
-		        .LeakyPush       = false,
+		        .LeakyPush       = true,
 		    }
 		);
 		for (size_t i = 0; i < 100; ++i) {
-			output.PushFrame(buildFrame(i));
+			output.PushFrame(buildFrame(i, PERIOD));
+			std::this_thread::sleep_for(
+			    std::chrono::nanoseconds{PERIOD.Nanoseconds() / 15}
+			);
 		}
+		stats = output.GetStats();
 	});
-	std::vector<std::string> videofiles;
-	std::vector<std::string> metadata;
-	for (auto entry : std::filesystem::directory_iterator{s_output}) {
-		if (entry.is_regular_file() && entry.path().extension() == ".mp4") {
-			videofiles.push_back(entry.path().string());
-		}
-		if (entry.is_regular_file() &&
-		    entry.path().stem().stem().extension() == ".frame-matching") {
-			metadata.push_back(entry.path().string());
-		}
-	}
-	using ::testing::Property;
-	using ::testing::UnorderedElementsAre;
+
+	ASSERT_EQ(stats.Dropped, 0);
+	ASSERT_EQ(stats.Processed, 100);
+
+	auto [videofiles, metadata] = GetVideoFiles();
 	using namespace std::filesystem;
 	ASSERT_THAT(
 	    videofiles,
@@ -351,7 +371,9 @@ TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
 
 			frames.notify_all();
 			auto logger = slog::With(slog::Int("ID", frames.load()));
-			output.PushFrame(buildFrame(frames.load()));
+			output.PushFrame(
+			    buildFrame(frames.load(), 100 * Duration::Millisecond)
+			);
 			std::this_thread::sleep_for(10ms);
 		}
 		stats = output.GetStats();
@@ -395,7 +417,7 @@ TEST_F(VideoOutputTest, Connection) {
 
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
-			output.PushFrame(buildFrame(frames.load()));
+			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
 			std::this_thread::sleep_for(FRAME_DURATION);
 		}
 
@@ -413,6 +435,151 @@ TEST_F(VideoOutputTest, Connection) {
 
 	EXPECT_EQ(stats.Reconnections, 0);
 	EXPECT_EQ(stats.Dropped, 0);
+}
+
+TEST_F(VideoOutputTest, ConnectionAndFile) {
+	StartRtscpServer(true);
+	std::atomic<bool>     stop{false};
+	std::atomic<size_t>   frames{0};
+	VideoOutput::Stats    stats;
+	static constexpr auto FRAME_DURATION = 40ms;
+	constexpr size_t      N_FRAMES       = 20;
+
+	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
+		VideoOutputOptions options;
+		options.Host         = "localhost";
+		options.StreamHeight = 240;
+		options.Height       = 320;
+		options.OutputDir    = s_output;
+
+		VideoOutput output(
+		    options,
+		    {
+		        .InputBuffer            = 1,
+		        .FPS                    = 1000.0 / FRAME_DURATION.count(),
+		        .InputResolution        = {640, 480},
+		        .LeakyPush              = true,
+		        .ConnectionTimeout      = 5000 * Duration::Millisecond,
+		        .EnforceStreamVideoRate = false,
+		    }
+		);
+
+		for (; stop.load() == false; frames.fetch_add(1)) {
+			frames.notify_all();
+			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
+			std::this_thread::sleep_for(FRAME_DURATION);
+		}
+
+		stats = output.GetStats();
+	});
+
+	WithTimeout((N_FRAMES + 10) * FRAME_DURATION, [&frames]() {
+		while (frames.load() < N_FRAMES) {
+			frames.wait(frames.load());
+		}
+	});
+
+	stop.store(true);
+	videoThread.join();
+
+	EXPECT_EQ(stats.Reconnections, 0);
+	EXPECT_EQ(stats.Dropped, 0);
+
+	auto [videofiles, metadata] = GetVideoFiles();
+
+	using namespace std::filesystem;
+	ASSERT_THAT(
+	    videofiles,
+	    UnorderedElementsAre(Property(&path::filename, "stream.0000.mp4"))
+	);
+	ASSERT_THAT(
+	    metadata,
+	    UnorderedElementsAre(
+	        Property(&path::filename, "stream.frame-matching.0000.txt")
+	    )
+	);
+
+	std::ostringstream expectedFileContent;
+	for (int i = 0; i < frames.load(); ++i) {
+		expectedFileContent << i << " " << i << std::endl;
+	}
+
+	EXPECT_EQ(
+	    readFileContent(s_output / "stream.frame-matching.0000.txt"),
+	    expectedFileContent.str()
+	);
+}
+
+TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFiles) {
+	std::atomic<bool>     stop{false};
+	std::atomic<size_t>   frames{0};
+	VideoOutput::Stats    stats;
+	static constexpr auto FRAME_DURATION = 40ms;
+	constexpr size_t      N_FRAMES       = 20;
+
+	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
+		VideoOutputOptions options;
+		options.Host         = "localhost";
+		options.StreamHeight = 240;
+		options.Height       = 320;
+		options.OutputDir    = s_output;
+
+		VideoOutput output(
+		    options,
+		    {
+		        .InputBuffer            = 1,
+		        .FPS                    = 1000.0 / FRAME_DURATION.count(),
+		        .InputResolution        = {640, 480},
+		        .LeakyPush              = true,
+		        .ConnectionTimeout      = 5000 * Duration::Millisecond,
+		        .EnforceStreamVideoRate = false,
+		    }
+		);
+
+		for (; stop.load() == false; frames.fetch_add(1)) {
+			frames.notify_all();
+			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
+			std::this_thread::sleep_for(FRAME_DURATION);
+		}
+
+		stats = output.GetStats();
+	});
+
+	WithTimeout((N_FRAMES + 10) * FRAME_DURATION, [&frames]() {
+		while (frames.load() < N_FRAMES) {
+			frames.wait(frames.load());
+		}
+	});
+
+	stop.store(true);
+	videoThread.join();
+
+	EXPECT_EQ(stats.Reconnections, 0);
+	EXPECT_EQ(stats.Dropped, 0);
+
+	auto [videofiles, metadata] = GetVideoFiles();
+
+	using namespace std::filesystem;
+	ASSERT_THAT(
+	    videofiles,
+	    UnorderedElementsAre(Property(&path::filename, "stream.0000.mp4"))
+	);
+	ASSERT_THAT(
+	    metadata,
+	    UnorderedElementsAre(
+	        Property(&path::filename, "stream.frame-matching.0000.txt")
+	    )
+	);
+
+	std::ostringstream expectedFileContent;
+	for (int i = 0; i < frames.load(); ++i) {
+		expectedFileContent << i << " " << i << std::endl;
+	}
+
+	EXPECT_EQ(
+	    readFileContent(s_output / "stream.frame-matching.0000.txt"),
+	    expectedFileContent.str()
+	);
 }
 
 } // namespace artemis

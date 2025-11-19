@@ -219,6 +219,7 @@ private:
 	}
 
 	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
+	const size_t    d_inputBuffers;
 	GstElementPtr   d_pipeline;
 	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
 	GstElementPtr d_appsrc;
@@ -238,6 +239,7 @@ private:
 	std::string               d_host;
 	std::string               d_hostname;
 	std::chrono::milliseconds d_reconnectTimeout;
+	friend class VideoOutput;
 };
 
 VideoOutput::VideoOutput(
@@ -259,6 +261,10 @@ bool VideoOutput::PushFrame(const Frame::Ptr &frame) {
 
 VideoOutput::Stats VideoOutput::GetStats() const {
 	return d_impl->GetStats();
+}
+
+size_t VideoOutput::InflightBufferSize() const {
+	return d_impl->d_inputBuffers;
 }
 
 namespace details {
@@ -320,7 +326,8 @@ GstElement *GstElementFactory(Str &&name, Args &&...args) {
 VideoOutputImpl::VideoOutputImpl(
     const VideoOutputOptions &options, const VideoOutput::Config &config
 )
-    : d_host{options.Host}
+    : d_inputBuffers{config.InputBuffer}
+    , d_host{options.Host}
     , d_reconnectTimeout{int64_t(config.ConnectionTimeout.Milliseconds())} {
 	char buffer[1024];
 	if (gethostname(buffer, 1024) != 0) {
@@ -443,7 +450,7 @@ VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
 	    << " is-live=true"                                            //
 	    << " leaky-type=" << (config.LeakyPush ? "upstream" : "none") //
 	    << " block=" << std::boolalpha << !config.LeakyPush           //
-	    << " max-buffers=2"                                           //
+	    << " max-buffers=" << config.InputBuffer                      //
 	    << " emit-signals=false";                                     //
 
 	oss << " ! video/x-raw"                              //
