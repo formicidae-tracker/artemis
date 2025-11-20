@@ -683,13 +683,13 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	oss << " ! videoscale name=stream-scale";
 
 	oss << " ! capsfilter name=stream-video-format" //
-	    << "caps=video/x-raw"                       //
+	    << " caps=video/x-raw"                      //
 	    << ",width=" << streamSize.width()          //
 	    << ",height=" << streamSize.height();       //
 
 	if (withQueue == true) {
 		oss << " ! queue name=stream-queue" //
-		    << " leaky=downstream"          //
+		    << " max-size-bytes=0"          //
 		    << " max-size-time=0";
 	}
 
@@ -713,7 +713,7 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	    << " max-size-time=" << (2 * Duration::Second).Nanoseconds(); //
 
 	oss << " ! vah264enc name=stream-encoder" //
-	    << " bitrate=" << 2000                // 1Mbit/s
+	    << " bitrate=" << 1000                // 1Mbit/s
 	    << " rate-control=cbr";               //
 
 	oss << " ! capsfilter name=stream-encoder-format"         //
@@ -751,7 +751,9 @@ std::string VideoOutputImpl::buildFilePipeline(
 	    << ",height=" << fileResolution.height(); //
 
 	if (withQueue == true) {
-		oss << " ! queue name=file-queue";
+		oss << " ! queue name=file-queue"                                //
+		    << " max-size-time=" << std::chrono::nanoseconds{2s}.count() //
+		    << " max-size-bytes=0";
 	}
 
 	oss << " ! videoconvert name=file-videoconvert"; //

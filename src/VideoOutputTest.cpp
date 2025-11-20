@@ -465,7 +465,7 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
-			std::this_thread::sleep_for(FRAME_DURATION / 5);
+			std::this_thread::sleep_for(FRAME_DURATION / 2);
 		}
 
 		stats = output.GetStats();
