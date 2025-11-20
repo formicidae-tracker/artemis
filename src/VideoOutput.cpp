@@ -15,6 +15,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <slog++/Logger.hpp>
@@ -680,23 +681,24 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	oss << " ! valve name=stream-valve" //
 	    << " drop=false";
 
-	oss << " ! videoscale name=stream-scale";
+	oss << " ! queue name=stream-input-queue" //
+	    << " max-size-bytes=0"                //
+	    << " max-size-time=0"                 //
+	    << " max-size-buffers=1";             //
 
-	oss << " ! capsfilter name=stream-video-format" //
-	    << " caps=video/x-raw"                      //
-	    << ",width=" << streamSize.width()          //
-	    << ",height=" << streamSize.height();       //
-
-	if (withQueue == true) {
-		oss << " ! queue name=stream-queue" //
-		    << " max-size-bytes=0"          //
-		    << " max-size-time=0";
-	}
-
-	oss << " ! videoconvert name=stream-videoconvert"; //
+	oss << " ! videoconvertscale name=stream-videoconvertscale" //
+	    << " n-threads=1"                                       //
+	    << " method=bilinear";                                  //
 
 	oss << " ! capsfilter name=stream-videoconvert-format" //
-	    << " caps=video/x-raw,format=NV12";                //
+	    << " caps=video/x-raw"                             //
+	    << ",format=NV12"                                  //
+	    << ",width=" << streamSize.width()                 //
+	    << ",height=" << streamSize.height();              //
+
+	oss << " ! queue name=stream-convert-queue" //
+	    << " max-size-time=0"                   //
+	    << " max-size-bytes=0";                 //
 
 	if (config.EnforceStreamVideoRate) {
 
@@ -710,7 +712,7 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	oss << " ! queue2 name=stream-encoder-queue"                      //
 	    << " max-size-bytes=0"                                        //
 	    << " max-size-buffers=0"                                      //
-	    << " max-size-time=" << (2 * Duration::Second).Nanoseconds(); //
+	    << " max-size-time=" << std::chrono::nanoseconds{2s}.count(); //
 
 	oss << " ! vah264enc name=stream-encoder" //
 	    << " bitrate=" << 1000                // 1Mbit/s
@@ -744,22 +746,27 @@ std::string VideoOutputImpl::buildFilePipeline(
 	}
 
 	std::ostringstream oss;
-	oss << " ! videoscale name=file-scale"        //
-	    << " ! capsfilter name=file-video-format" //
-	    << "caps=video/x-raw"                     //
-	    << ",width=" << fileResolution.width()    //
-	    << ",height=" << fileResolution.height(); //
 
-	if (withQueue == true) {
-		oss << " ! queue name=file-queue"                                //
-		    << " max-size-time=" << std::chrono::nanoseconds{2s}.count() //
-		    << " max-size-bytes=0";
-	}
+	oss << " ! queue name=file-scale-queue" //
+	    << " max-size-bytes=0"              //
+	    << " max-size-time=0"               //
+	    << " max-size-buffers=1";
 
-	oss << " ! videoconvert name=file-videoconvert"; //
+	oss << " ! videoconvertscale name=file-convert" //
+	    << " n-threads=1"                           //
+	    << " method=bilinear"                       //
+	    ;
 
-	oss << " ! capsfilter name=file-videoconvert-format" //
-	    << " caps=video/x-raw,format=NV12";              //
+	oss << " ! video/x-raw"                      //
+	    << ",format=NV12"                        //
+	    << ",width=" << fileResolution.width()   //
+	    << ",height=" << fileResolution.height() //
+	    ;
+
+	oss << " ! queue name=file-encoder-queue" //
+	    << " max-size-bytes=0"                //
+	    << " max-size-buffers=200"            //
+	    << " max-size-time=0";
 
 	oss << " ! vah265enc name=file-encoder"                             //
 	    << " bitrate=" << options.Bitrate_KB                            //
@@ -796,7 +803,7 @@ std::string VideoOutputImpl::buildBothPipeline(
 }
 
 void VideoOutputImpl::printDebug(const std::filesystem::path &filepath) {
-#ifndef NDEBUG
+#ifndef NDEBUG1
 	auto          data = std::string{gst_debug_bin_to_dot_data(
         GST_BIN(d_pipeline.get()),
         GST_DEBUG_GRAPH_SHOW_ALL
@@ -1048,7 +1055,7 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	case GST_MESSAGE_INFO:
 		logGstMessage(message);
 		return;
-#ifndef NDEBUG1
+#ifndef NDEBUG
 	case GST_MESSAGE_STATE_CHANGED:
 		GstState oldstate, newstate, pending;
 		gst_message_parse_state_changed(

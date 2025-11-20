@@ -287,7 +287,7 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 		for (size_t i = 0; i < 100; ++i) {
 			output.PushFrame(buildFrame(i, PERIOD));
 			std::this_thread::sleep_for(
-			    std::chrono::nanoseconds{PERIOD.Nanoseconds() / 15}
+			    std::chrono::nanoseconds{PERIOD.Nanoseconds() / 20}
 			);
 		}
 		stats = output.GetStats();
@@ -374,7 +374,7 @@ TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
 			output.PushFrame(
 			    buildFrame(frames.load(), 100 * Duration::Millisecond)
 			);
-			std::this_thread::sleep_for(10ms);
+			std::this_thread::sleep_for(5ms);
 		}
 		stats = output.GetStats();
 	});
@@ -417,7 +417,7 @@ TEST_F(VideoOutputTest, Connection) {
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
-			std::this_thread::sleep_for(FRAME_DURATION / 2);
+			std::this_thread::sleep_for(FRAME_DURATION / 5);
 		}
 
 		stats = output.GetStats();
@@ -465,7 +465,7 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 		for (; stop.load() == false; frames.fetch_add(1)) {
 			frames.notify_all();
 			output.PushFrame(buildFrame(frames.load(), FRAME_DURATION));
-			std::this_thread::sleep_for(FRAME_DURATION / 2);
+			std::this_thread::sleep_for(FRAME_DURATION / 5);
 		}
 
 		stats = output.GetStats();
