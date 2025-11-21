@@ -10,6 +10,10 @@
 #include <gst/gst.h>
 #include <gst/gstbin.h>
 #include <gst/gstelement.h>
+#include <gst/gstelementfactory.h>
+#include <gst/gstobject.h>
+#include <gst/gstpad.h>
+#include <gst/gstutils.h>
 #include <gst/rtsp/gstrtsptransport.h>
 
 #include <atomic>
@@ -49,6 +53,7 @@ template <typename T> struct GObjectUnrefer {
 template <typename T>
 using glib_owned_ptr = std::unique_ptr<T, GObjectUnrefer<T>>;
 using GstElementPtr  = glib_owned_ptr<GstElement>;
+using GstPadPtr      = glib_owned_ptr<GstPad>;
 using GstElementRef  = GstElement *;
 
 class MetadataFile {
@@ -413,7 +418,10 @@ private:
 	GstElementPtr   d_pipeline;
 	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
 	GstElementPtr d_appsrc;
-	GstElementPtr d_fileSplitMux, d_streamValve, d_streamSink;
+	GstElementPtr d_fileSplitMux, d_streamValve, d_streamEnc, d_streamParse,
+	    d_streamSink;
+	GstPadPtr d_streamParseSrc, d_streamSinkSink;
+	gulong    d_streamParseSrcProbe{0};
 
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0},
@@ -626,20 +634,35 @@ VideoOutputImpl::VideoOutputImpl(
 		    this
 		);
 	}
-
-	d_streamValve = GstElementPtr{
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-valve")
-	};
-	d_streamSink = GstElementPtr{
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "stream-sink")
-	};
-	if (options.Host.empty() == false &&
-	    (d_streamValve == nullptr || d_streamSink == nullptr)) {
-		throw cpptrace::logic_error{
-		    "could not found stream-sink and stream-valve element in streaming "
-		    "pipeline"
-		};
+	auto bin      = GST_BIN(d_pipeline.get());
+	d_streamValve = GstElementPtr{gst_bin_get_by_name(bin, "stream-valve")};
+	d_streamEnc   = GstElementPtr{gst_bin_get_by_name(bin, "stream-encoder")};
+	d_streamParse = GstElementPtr{gst_bin_get_by_name(bin, "stream-parse")};
+	if (d_streamParse != nullptr) {
+		d_streamParseSrc =
+		    GstPadPtr{gst_element_get_static_pad(d_streamParse.get(), "src")};
 	}
+	d_streamSink = GstElementPtr{gst_bin_get_by_name(bin, "stream-sink")};
+	if (d_streamSink != nullptr) {
+		d_streamSinkSink =
+		    GstPadPtr{gst_element_get_static_pad(d_streamSink.get(), "sink_0")};
+	}
+#define check(v, n)                                                            \
+	do {                                                                       \
+		if (v == nullptr) {                                                    \
+			throw cpptrace::logic_error{"could not found '" n "' in pipeline"  \
+			};                                                                 \
+		}                                                                      \
+	} while (0)
+	if (options.Host.empty() == false) {
+		check(d_streamValve, "stream-valve");
+		check(d_streamEnc, "stream-encoder");
+		check(d_streamParse, "stream-parse");
+		check(d_streamParseSrc, "stream-parse.src");
+		check(d_streamSink, "stream-sink");
+		check(d_streamSinkSink, "stream-sink.sink_0");
+	}
+#undef check
 
 	d_logger.Debug("Starting pipeline");
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
@@ -721,7 +744,8 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	oss << " ! capsfilter name=stream-encoder-format"         //
 	    << " caps=video/x-h264,profile=constrained-baseline"; //
 
-	oss << " ! h264parse name=stream-parse"; //
+	oss << " ! h264parse name=stream-parse" //
+	    << " config-interval=-1";
 
 	oss << " ! rtspclientsink name=stream-sink" //
 	    << " protocols=tcp"                     //
@@ -1033,6 +1057,11 @@ void VideoOutputImpl::onStreamSinkError(GstMessage *message) {
 	scheduleReconnect();
 }
 
+#ifndef NDEBUG
+#define LOG_STATE_CHANGE 1
+#endif
+#define LOG_STATE_CHANGE 1
+
 void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	auto type = GST_MESSAGE_TYPE(message);
 
@@ -1055,7 +1084,7 @@ void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	case GST_MESSAGE_INFO:
 		logGstMessage(message);
 		return;
-#ifndef NDEBUG
+#ifdef LOG_STATE_CHANGE
 	case GST_MESSAGE_STATE_CHANGED:
 		GstState oldstate, newstate, pending;
 		gst_message_parse_state_changed(
@@ -1163,23 +1192,63 @@ gchararray VideoOutputImpl::onLocationFull(
 
 void VideoOutputImpl::disconnectStream() {
 	std::lock_guard<std::mutex> lock{d_reconfiguring};
-
-	g_object_set(d_streamValve.get(), "drop", TRUE, nullptr);
-
-	auto streamSinkchange =
-	    gst_element_set_state(d_streamSink.get(), GST_STATE_NULL);
-
 	if (d_fileSplitMux != nullptr) {
 		gst_element_set_state(d_fileSplitMux.get(), GST_STATE_PLAYING);
 	}
+	auto logger =
+	    d_logger.With(slog::Int("reconnections", d_reconnections.load()));
 
-	d_logger.Info(
+	if (d_streamSink == nullptr) {
+		logger.Warn("already disconnected");
+		return;
+	}
+	printDebug(
+	    "/tmp/video-output-disconnect-" +
+	    std::to_string(d_reconnections.load()) + "-before.dot"
+	);
+
+	g_object_set(d_streamValve.get(), "drop", TRUE, nullptr);
+
+	d_streamParseSrcProbe = gst_pad_add_probe(
+	    d_streamParseSrc.get(),
+	    GstPadProbeType(GST_PAD_PROBE_TYPE_BLOCK),
+	    [](GstPad *pad, GstPadProbeInfo *info, gpointer udata) {
+		    return GST_PAD_PROBE_DROP;
+	    },
+	    nullptr,
+	    nullptr
+	);
+
+	auto streamSinkChange =
+	    gst_element_set_state(d_streamSink.get(), GST_STATE_NULL);
+
+	auto streamEncChange =
+	    gst_element_set_state(d_streamEnc.get(), GST_STATE_NULL);
+
+	auto bin = GST_BIN(d_pipeline.get());
+	gst_bin_remove(bin, d_streamSink.get());
+
+	d_streamSinkSink.reset();
+	d_streamSink.reset();
+
+	printDebug(
+	    "/tmp/video-output-disconnect-" +
+	    std::to_string(d_reconnections.load()) + "-after.dot"
+	);
+	logger.Info(
 	    "disconnected",
 	    slog::String(
-	        "streamSink_change",
+	        "stream-encoder_change",
 	        (const char *)g_enum_to_string(
 	            gst_state_change_return_get_type(),
-	            streamSinkchange
+	            streamEncChange
+	        )
+	    ),
+	    slog::String(
+	        "stream-sink_change",
+	        (const char *)g_enum_to_string(
+	            gst_state_change_return_get_type(),
+	            streamSinkChange
 	        )
 	    )
 	);
@@ -1187,17 +1256,78 @@ void VideoOutputImpl::disconnectStream() {
 
 void VideoOutputImpl::reconnectStream() {
 	std::lock_guard<std::mutex> lock{d_reconfiguring};
-	d_reconnections.fetch_add(1);
+	if (d_fileSplitMux != nullptr) {
+		gst_element_set_state(d_fileSplitMux.get(), GST_STATE_PLAYING);
+	}
 
-	auto change = gst_element_set_state(d_streamSink.get(), GST_STATE_PLAYING);
+	if (d_streamSink != nullptr) {
+		d_logger.Warn(
+		    "already connected",
+		    slog::Int("reconnections", d_reconnections.load())
+		);
+		return;
+	}
+	auto logger = d_logger.With(
+	    slog::Int("reconnections", d_reconnections.fetch_add(1) + 1)
+	);
+
+	printDebug(
+	    "/tmp/video-output-connect-" + std::to_string(d_reconnections.load()) +
+	    "-before.dot"
+	);
+
+	d_streamSink = GstElementPtr{GstElementFactory(
+	    "rtspclientsink",
+	    "name",
+	    "stream-sink",
+	    "location",
+	    targetURL().c_str(),
+	    "protocols",
+	    GST_RTSP_LOWER_TRANS_TCP
+	)};
+	gst_object_ref(d_streamSink.get());
+	gst_bin_add(GST_BIN(d_pipeline.get()), d_streamSink.get());
+
+	gst_element_link_many(d_streamParse.get(), d_streamSink.get(), NULL);
+
+	if (d_streamParseSrcProbe > 0) {
+		gst_pad_remove_probe(d_streamParseSrc.get(), d_streamParseSrcProbe);
+		d_streamParseSrcProbe = 0;
+	}
+
+	d_streamSinkSink =
+	    GstPadPtr{gst_element_get_static_pad(d_streamSink.get(), "sink_0")};
+
+	printDebug(
+	    "/tmp/video-output-connect-" + std::to_string(d_reconnections.load()) +
+	    "-relink.dot"
+	);
+
+	if (d_streamSinkSink == nullptr) {
+		throw cpptrace::runtime_error{"could not found new sink pad"};
+	}
+
+	auto encChange =
+	    gst_element_set_state(d_streamEnc.get(), GST_STATE_PLAYING);
+	auto sinkChange =
+	    gst_element_set_state(d_streamSink.get(), GST_STATE_PLAYING);
+
 	g_object_set(d_streamValve.get(), "drop", FALSE, nullptr);
-
-	d_logger.Info(
+	printDebug(
+	    "/tmp/video-output-connect-" + std::to_string(d_reconnections.load()) +
+	    "-after.dot"
+	);
+	logger.Info(
 	    "connecting",
 	    slog::String(
-	        "change_return",
+	        "stream-sink_change",
 	        (const char *)
-	            g_enum_to_string(gst_state_change_return_get_type(), change)
+	            g_enum_to_string(gst_state_change_return_get_type(), sinkChange)
+	    ),
+	    slog::String(
+	        "stream-encoder_change",
+	        (const char *)
+	            g_enum_to_string(gst_state_change_return_get_type(), encChange)
 	    )
 	);
 }
