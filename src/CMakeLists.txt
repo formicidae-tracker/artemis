@@ -53,6 +53,9 @@ set(SRC_FILES
 	ui/GLUserInterface.cpp
 	Rect.cpp
 	main.cpp
+	video/gstreamer.cpp
+	video/MetadataHandler.cpp
+	video/VideoOutputImpl.cpp
 	VideoOutput.cpp
 )
 
@@ -79,6 +82,9 @@ set(HDR_FILES
 	Application.hpp
 	Rect.hpp
 	ImageU8.hpp
+	video/gstreamer.hpp
+	video/MetadataHandler.hpp
+	video/VideoOutputImpl.hpp
 	VideoOutput.hpp
 )
 
