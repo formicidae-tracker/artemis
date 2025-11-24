@@ -223,7 +223,7 @@ Application::Application(const Options &options)
 
 void Application::workgroupAdd(int i) {
 	auto old = d_workgroup.fetch_add(i);
-	if ( (old + i) == 0 ) {
+	if ((old + i) == 0) {
 		g_main_loop_quit(d_loop);
 	}
 }

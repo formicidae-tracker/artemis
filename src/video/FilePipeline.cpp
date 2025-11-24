@@ -10,6 +10,7 @@
 #include <gst/gstenumtypes.h>
 #include <gst/gstmemory.h>
 #include <gst/gstpad.h>
+#include <memory>
 #include <sstream>
 
 namespace fort {
@@ -61,6 +62,9 @@ FilePipeline::FilePipeline(
 }
 
 FilePipeline::~FilePipeline() {
+#ifndef NDEBUG
+	PrintDebug("/tmp/video-file-pipeline.dot");
+#endif
 	d_closing.store(true);
 	gst_app_src_end_of_stream(GST_APP_SRC(d_inputSrc.get()));
 	waitOnEOS();
@@ -192,45 +196,32 @@ GstBufferPtr FilePipeline::PrepareFrame(
     uint64_t                             startingTimestamp_us
 ) {
 	struct Context {
-		std::shared_ptr<FilePipeline> self;
-		Frame::Ptr                    frame;
+		std::weak_ptr<FilePipeline> self;
+		Frame::Ptr                  frame;
 	};
 
 	constexpr auto update = [](gpointer userdata) -> void {
-		auto ctx = reinterpret_cast<Context *>(userdata);
-		ctx->self->onFrameDone(ctx->frame->ID());
-		delete ctx;
-	};
-
-	constexpr auto noUpdate = [](gpointer userdata) -> void {
-		auto ctx = reinterpret_cast<Context *>(userdata);
+		auto ctx  = reinterpret_cast<Context *>(userdata);
+		auto self = ctx->self.lock();
+		if (self) {
+			self->onFrameDone(ctx->frame->ID());
+		}
 		delete ctx;
 	};
 
 	gsize      size = frame->Width() * frame->Height();
 	auto       ctx  = new Context{.self = self, .frame = frame};
 	GstBuffer *buffer{nullptr};
-	if (self == nullptr) {
-		buffer = gst_buffer_new_wrapped_full(
-		    GST_MEMORY_FLAG_READONLY,
-		    frame->Data(),
-		    size,
-		    0,
-		    size,
-		    ctx,
-		    noUpdate
-		);
-	} else {
-		buffer = gst_buffer_new_wrapped_full(
-		    GST_MEMORY_FLAG_READONLY,
-		    frame->Data(),
-		    size,
-		    0,
-		    size,
-		    ctx,
-		    update
-		);
-	}
+
+	buffer = gst_buffer_new_wrapped_full(
+	    GST_MEMORY_FLAG_READONLY,
+	    frame->Data(),
+	    size,
+	    0,
+	    size,
+	    ctx,
+	    update
+	);
 
 	GST_BUFFER_PTS(buffer) =
 	    GstClockTime((frame->Timestamp() - startingTimestamp_us) * 1000);
