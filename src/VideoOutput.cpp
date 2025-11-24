@@ -420,8 +420,8 @@ private:
 	GstElementPtr d_appsrc;
 	GstElementPtr d_fileSplitMux, d_streamValve, d_streamEnc, d_streamParse,
 	    d_streamSink;
-	GstPadPtr d_streamParseSrc, d_streamSinkSink;
-	gulong    d_streamParseSrcProbe{0};
+	GstPadPtr d_streamParseSrc;
+	gulong d_streamParseSrcProbe{0};
 
 	std::optional<uint64_t> d_firstTimestamp;
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0},
@@ -431,7 +431,7 @@ private:
 	    d_reconnectionScheduled{false};
 	std::mutex d_reconfiguring;
 
-	guint d_reconnection{0}, d_watch{0};
+	guint d_enforceOn{0}, d_watch{0}, d_reconnection{0};
 
 	MetadataHandler d_metadata;
 
@@ -643,10 +643,6 @@ VideoOutputImpl::VideoOutputImpl(
 		    GstPadPtr{gst_element_get_static_pad(d_streamParse.get(), "src")};
 	}
 	d_streamSink = GstElementPtr{gst_bin_get_by_name(bin, "stream-sink")};
-	if (d_streamSink != nullptr) {
-		d_streamSinkSink =
-		    GstPadPtr{gst_element_get_static_pad(d_streamSink.get(), "sink_0")};
-	}
 #define check(v, n)                                                            \
 	do {                                                                       \
 		if (v == nullptr) {                                                    \
@@ -660,12 +656,25 @@ VideoOutputImpl::VideoOutputImpl(
 		check(d_streamParse, "stream-parse");
 		check(d_streamParseSrc, "stream-parse.src");
 		check(d_streamSink, "stream-sink");
-		check(d_streamSinkSink, "stream-sink.sink_0");
 	}
 #undef check
 
 	d_logger.Debug("Starting pipeline");
 	gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
+	if (d_fileSplitMux != nullptr) {
+		d_enforceOn = g_timeout_add(
+		    1000,
+		    [](gpointer userdata) -> gboolean {
+			    auto   self = reinterpret_cast<VideoOutputImpl *>(userdata);
+			    gst_element_set_state(
+			        self->d_fileSplitMux.get(),
+			        GST_STATE_PLAYING
+			    );
+			    return G_SOURCE_CONTINUE;
+		    },
+		    this
+		);
+	}
 }
 
 std::string
@@ -720,6 +729,7 @@ std::string VideoOutputImpl::buildStreamPipeline(
 	    << ",height=" << streamSize.height();              //
 
 	oss << " ! queue name=stream-convert-queue" //
+	    << " leaky=upstream"                    //
 	    << " max-size-time=0"                   //
 	    << " max-size-bytes=0";                 //
 
@@ -789,7 +799,7 @@ std::string VideoOutputImpl::buildFilePipeline(
 
 	oss << " ! queue name=file-encoder-queue" //
 	    << " max-size-bytes=0"                //
-	    << " max-size-buffers=200"            //
+	    << " max-size-buffers=20"             //
 	    << " max-size-time=0";
 
 	oss << " ! vah265enc name=file-encoder"                             //
@@ -876,6 +886,11 @@ VideoOutputImpl::~VideoOutputImpl() {
 	d_logger.DDebug("Sending EOS through appsrc");
 	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
 	d_logger.DDebug("Waiting EOS");
+
+	if (d_enforceOn != 0) {
+		g_source_remove(d_enforceOn);
+		d_enforceOn = 0;
+	}
 
 	while (d_eosReached.load() == false) {
 		GstState state, pending;
@@ -1060,7 +1075,6 @@ void VideoOutputImpl::onStreamSinkError(GstMessage *message) {
 #ifndef NDEBUG
 #define LOG_STATE_CHANGE 1
 #endif
-#define LOG_STATE_CHANGE 1
 
 void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
 	auto type = GST_MESSAGE_TYPE(message);
@@ -1202,10 +1216,6 @@ void VideoOutputImpl::disconnectStream() {
 		logger.Warn("already disconnected");
 		return;
 	}
-	printDebug(
-	    "/tmp/video-output-disconnect-" +
-	    std::to_string(d_reconnections.load()) + "-before.dot"
-	);
 
 	g_object_set(d_streamValve.get(), "drop", TRUE, nullptr);
 
@@ -1228,13 +1238,8 @@ void VideoOutputImpl::disconnectStream() {
 	auto bin = GST_BIN(d_pipeline.get());
 	gst_bin_remove(bin, d_streamSink.get());
 
-	d_streamSinkSink.reset();
 	d_streamSink.reset();
 
-	printDebug(
-	    "/tmp/video-output-disconnect-" +
-	    std::to_string(d_reconnections.load()) + "-after.dot"
-	);
 	logger.Info(
 	    "disconnected",
 	    slog::String(
@@ -1271,11 +1276,6 @@ void VideoOutputImpl::reconnectStream() {
 	    slog::Int("reconnections", d_reconnections.fetch_add(1) + 1)
 	);
 
-	printDebug(
-	    "/tmp/video-output-connect-" + std::to_string(d_reconnections.load()) +
-	    "-before.dot"
-	);
-
 	d_streamSink = GstElementPtr{GstElementFactory(
 	    "rtspclientsink",
 	    "name",
@@ -1295,28 +1295,13 @@ void VideoOutputImpl::reconnectStream() {
 		d_streamParseSrcProbe = 0;
 	}
 
-	d_streamSinkSink =
-	    GstPadPtr{gst_element_get_static_pad(d_streamSink.get(), "sink_0")};
-
-	printDebug(
-	    "/tmp/video-output-connect-" + std::to_string(d_reconnections.load()) +
-	    "-relink.dot"
-	);
-
-	if (d_streamSinkSink == nullptr) {
-		throw cpptrace::runtime_error{"could not found new sink pad"};
-	}
-
 	auto encChange =
 	    gst_element_set_state(d_streamEnc.get(), GST_STATE_PLAYING);
 	auto sinkChange =
 	    gst_element_set_state(d_streamSink.get(), GST_STATE_PLAYING);
 
 	g_object_set(d_streamValve.get(), "drop", FALSE, nullptr);
-	printDebug(
-	    "/tmp/video-output-connect-" + std::to_string(d_reconnections.load()) +
-	    "-after.dot"
-	);
+
 	logger.Info(
 	    "connecting",
 	    slog::String(
