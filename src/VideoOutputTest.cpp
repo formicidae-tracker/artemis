@@ -119,7 +119,7 @@ protected:
 
 		for (auto entry : std::filesystem::directory_iterator{s_output}) {
 			if (entry.is_regular_file() == true &&
-			    (entry.path().extension() == ".mp4" |
+			    (entry.path().extension() == ".mp4" ||
 			     entry.path().extension() == ".txt")) {
 				continue;
 			}
@@ -498,7 +498,7 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 	);
 
 	std::ostringstream expectedFileContent;
-	for (int i = 0; i < frames.load(); ++i) {
+	for (size_t i = 0; i < frames.load(); ++i) {
 		expectedFileContent << i << " " << i << std::endl;
 	}
 
@@ -568,7 +568,7 @@ TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFrames) {
 	);
 
 	std::ostringstream expectedFileContent;
-	for (int i = 0; i < frames.load(); ++i) {
+	for (size_t i = 0; i < frames.load(); ++i) {
 		expectedFileContent << i << " " << i << std::endl;
 	}
 

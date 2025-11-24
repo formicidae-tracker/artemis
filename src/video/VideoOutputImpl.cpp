@@ -1,827 +1,160 @@
 #include "VideoOutputImpl.hpp"
+#include "video/FilePipeline.hpp"
+#include "video/StreamPipeline.hpp"
 #include "video/gstreamer.hpp"
 
+#include <cpptrace/exceptions.hpp>
+#include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/rtsp/gstrtsptransport.h>
-
-#include <fstream>
 
 using namespace std::chrono_literals;
 
 namespace fort {
 namespace artemis {
 
-VideoOutputImpl::VideoOutputImpl(
-    const VideoOutputOptions &options, const VideoOutput::Config &config
-)
-    : d_inputBuffers{config.InputBuffer}
-    , d_host{options.Host}
-    , d_reconnectTimeout{int64_t(config.ConnectionTimeout.Milliseconds())} {
+std::string GetHostname() {
 	char buffer[1024];
 	if (gethostname(buffer, 1024) != 0) {
 		throw cpptrace::runtime_error("could not get hostname");
 	}
-	d_hostname = buffer;
+	return buffer;
+}
+
+VideoOutputImpl::VideoOutputImpl(
+    const VideoOutputOptions &options, const VideoOutput::Config &config
+)
+    : d_streamConfig{
+			.Host = options.Host,
+			.Hostname = GetHostname(),
+			.OnStreamError = [this]() { onStreamError();},
+			.InputResolution = config.InputResolution,
+			.Height = std::clamp(options.StreamHeight,240UL,1080UL),
+			.InputBuffer = config.InputBuffer,
+			.FPS = config.FPS,
+			.EnforceVideoRate = config.EnforceStreamVideoRate,
+		}
+	, d_logger{slog::With(slog::String("task","VideoOutput"))}
+	, d_reconnectTimeout{config.ConnectionTimeout} {
 
 	EnsureGSTInitialized();
 
-	std::string processPipelineDesc = buildInputPipeline(config);
-	if (options.Host.empty() == false && options.OutputDir.empty() == false) {
-		processPipelineDesc += buildBothPipeline(options, config);
-	} else if (options.Host.empty() == false) {
-		processPipelineDesc += buildStreamPipeline(options, config, false);
-	} else if (options.OutputDir.empty() == false) {
-		processPipelineDesc += buildFilePipeline(
-		    options,
-		    config.InputResolution,
-		    config.FilePeriod,
-		    false
-		);
-	} else {
-		throw cpptrace::runtime_error("Both Host and OutputDir cannot be empty"
-		);
-	}
-
-	d_logger.Info("pipeline", slog::String("description", processPipelineDesc));
-
-	GError *error = nullptr;
-	d_pipeline =
-	    GstElementPtr(gst_parse_launch(processPipelineDesc.c_str(), &error));
-	if (d_pipeline == nullptr || error != nullptr) {
-		Defer {
-			d_pipeline.reset();
-			if (error != nullptr) {
-				g_error_free(error);
-			}
-		};
-		throw cpptrace::runtime_error{
-		    "could not build pipeline: " +
-		    std::string{error == nullptr ? "unknow error" : error->message}
+	if (options.Host.empty() && options.OutputDir.empty()) {
+		throw cpptrace::runtime_error{"Host and OutputDir cannot both be empty"
 		};
 	}
-
-	auto bus = GstBusPtr{gst_element_get_bus(d_pipeline.get())};
-	d_watch  = gst_bus_add_watch(
-        bus.get(),
-        [](GstBus *bus, GstMessage *message, gpointer userdata) -> gboolean {
-            reinterpret_cast<VideoOutputImpl *>(userdata)->onMessage(
-                bus,
-                message
-            );
-            return G_SOURCE_CONTINUE;
-        },
-        this
-    );
-
-	d_appsrc = GstElementPtr{
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "input-src")
-	};
-	if (d_appsrc == nullptr) {
-		throw cpptrace::runtime_error{"could not find input-src"};
+	if (options.OutputDir.empty() == false) {
+		d_filePipeline = std::make_shared<FilePipeline>(options, config);
 	}
-
-	auto pad = gst_element_get_static_pad(d_appsrc.get(), "src");
-	if (pad == nullptr) {
-		throw cpptrace::runtime_error("could not get input-src.src");
-	}
-	Defer {
-		g_object_unref(pad);
-	};
-	gst_pad_add_probe(
-	    pad,
-	    GST_PAD_PROBE_TYPE_BUFFER,
-	    [](GstPad *pad, GstPadProbeInfo *info, gpointer userdata
-	    ) -> GstPadProbeReturn {
-		    auto self   = reinterpret_cast<VideoOutputImpl *>(userdata);
-		    auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
-		    if (buffer != nullptr) {
-			    uint64_t frameID = GST_BUFFER_OFFSET(buffer);
-			    uint64_t PTS     = GST_BUFFER_PTS(buffer);
-			    self->onFramePass(frameID, PTS);
-		    }
-		    return GST_PAD_PROBE_OK;
-	    },
-	    this,
-	    nullptr
-	);
-
-	d_fileSplitMux = GstElementPtr{
-	    gst_bin_get_by_name(GST_BIN(d_pipeline.get()), "file-muxsink")
-	};
-	if (options.OutputDir.empty() == false && d_fileSplitMux == nullptr) {
-		throw cpptrace::runtime_error{"missing file-muxsink element"};
-	}
-	if (d_fileSplitMux != nullptr) {
-		g_signal_connect(
-		    d_fileSplitMux.get(),
-		    "format-location-full",
-		    G_CALLBACK(&VideoOutputImpl::onLocationFull),
-		    this
-		);
-	}
-	auto bin      = GST_BIN(d_pipeline.get());
-	d_streamValve = GstElementPtr{gst_bin_get_by_name(bin, "stream-valve")};
-	d_streamEnc   = GstElementPtr{gst_bin_get_by_name(bin, "stream-encoder")};
-	d_streamParse = GstElementPtr{gst_bin_get_by_name(bin, "stream-parse")};
-	if (d_streamParse != nullptr) {
-		d_streamParseSrc =
-		    GstPadPtr{gst_element_get_static_pad(d_streamParse.get(), "src")};
-	}
-	d_streamSink = GstElementPtr{gst_bin_get_by_name(bin, "stream-sink")};
-#define check(v, n)                                                            \
-	do {                                                                       \
-		if (v == nullptr) {                                                    \
-			throw cpptrace::logic_error{"could not found '" n "' in pipeline"  \
-			};                                                                 \
-		}                                                                      \
-	} while (0)
 	if (options.Host.empty() == false) {
-		check(d_streamValve, "stream-valve");
-		check(d_streamEnc, "stream-encoder");
-		check(d_streamParse, "stream-parse");
-		check(d_streamParseSrc, "stream-parse.src");
-		check(d_streamSink, "stream-sink");
+		d_streamPipeline = std::make_unique<StreamPipeline>(d_streamConfig);
 	}
-#undef check
-
-	d_logger.Debug("Starting pipeline");
-	gst_element_set_state(d_pipeline.get(), GST_STATE_PLAYING);
-	if (d_fileSplitMux != nullptr) {
-		d_enforceOn = g_timeout_add(
-		    1000,
-		    [](gpointer userdata) -> gboolean {
-			    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
-			    gst_element_set_state(
-			        self->d_fileSplitMux.get(),
-			        GST_STATE_PLAYING
-			    );
-			    return G_SOURCE_CONTINUE;
-		    },
-		    this
-		);
-	}
-}
-
-std::string
-VideoOutputImpl::buildInputPipeline(const VideoOutput::Config &config) {
-	std::ostringstream oss;
-	oss << "appsrc name=input-src"                                    //
-	    << " format=time"                                             //
-	    << " is-live=true"                                            //
-	    << " leaky-type=" << (config.LeakyPush ? "upstream" : "none") //
-	    << " block=" << std::boolalpha << !config.LeakyPush           //
-	    << " max-buffers=" << config.InputBuffer                      //
-	    << " emit-signals=false";                                     //
-
-	oss << " ! video/x-raw"                              //
-	    << ",width=" << config.InputResolution.width()   //
-	    << ",height=" << config.InputResolution.height() //
-	    << ",format=GRAY8"                               //
-	    << ",framerate=0/1"                              // variable framerate
-	    << ",max-framerate=" << int(std::ceil(config.FPS * 10)) << "/10";
-
-	return oss.str();
-}
-
-std::string VideoOutputImpl::buildStreamPipeline(
-    const VideoOutputOptions  &options,
-    const VideoOutput::Config &config,
-    bool                       withQueue
-) {
-	auto streamSize = VideoOutputOptions::TargetResolution(
-	    options.StreamHeight,
-	    config.InputResolution
-	);
-
-	std::ostringstream oss;
-
-	oss << " ! valve name=stream-valve" //
-	    << " drop=false";
-
-	oss << " ! queue name=stream-input-queue" //
-	    << " max-size-bytes=0"                //
-	    << " max-size-time=0"                 //
-	    << " max-size-buffers=1";             //
-
-	oss << " ! videoconvertscale name=stream-videoconvertscale" //
-	    << " n-threads=1"                                       //
-	    << " method=bilinear";                                  //
-
-	oss << " ! capsfilter name=stream-videoconvert-format" //
-	    << " caps=video/x-raw"                             //
-	    << ",format=NV12"                                  //
-	    << ",width=" << streamSize.width()                 //
-	    << ",height=" << streamSize.height();              //
-
-	oss << " ! queue name=stream-convert-queue" //
-	    << " leaky=upstream"                    //
-	    << " max-size-time=0"                   //
-	    << " max-size-bytes=0";                 //
-
-	if (config.EnforceStreamVideoRate) {
-
-		oss << " ! videorate name=stream-videorate";
-
-		oss << " ! capsfilter name=stream-videorate-caps" //
-		    << " caps=video/x-raw,framerate=" << int(config.FPS * 10)
-		    << "/10"; //
-	}
-
-	oss << " ! queue2 name=stream-encoder-queue"                      //
-	    << " max-size-bytes=0"                                        //
-	    << " max-size-buffers=0"                                      //
-	    << " max-size-time=" << std::chrono::nanoseconds{2s}.count(); //
-
-	oss << " ! vah264enc name=stream-encoder" //
-	    << " bitrate=" << 1000                // 1Mbit/s
-	    << " rate-control=cbr";               //
-
-	oss << " ! capsfilter name=stream-encoder-format"         //
-	    << " caps=video/x-h264,profile=constrained-baseline"; //
-
-	oss << " ! h264parse name=stream-parse" //
-	    << " config-interval=-1";
-
-	oss << " ! rtspclientsink name=stream-sink" //
-	    << " protocols=tcp"                     //
-	    << " location=" << targetURL();         //
-	return oss.str();
-}
-
-std::string VideoOutputImpl::buildFilePipeline(
-    const VideoOutputOptions &options,
-    const Size               &inputResolution,
-    const Duration           &segmentDuration,
-    bool                      withQueue
-) {
-	d_outputFileTemplate =
-	    std::filesystem::path(options.OutputDir) / "stream.%04d.mp4";
-	auto fileResolution = inputResolution;
-	if (options.Height > 0) {
-		fileResolution = VideoOutputOptions::TargetResolution(
-		    options.Height,
-		    inputResolution
-		);
-	}
-
-	std::ostringstream oss;
-
-	oss << " ! queue name=file-scale-queue" //
-	    << " max-size-bytes=0"              //
-	    << " max-size-time=0"               //
-	    << " max-size-buffers=1";
-
-	oss << " ! videoconvertscale name=file-convert" //
-	    << " n-threads=1"                           //
-	    << " method=bilinear"                       //
-	    ;
-
-	oss << " ! video/x-raw"                      //
-	    << ",format=NV12"                        //
-	    << ",width=" << fileResolution.width()   //
-	    << ",height=" << fileResolution.height() //
-	    ;
-
-	oss << " ! queue name=file-encoder-queue" //
-	    << " max-size-bytes=0"                //
-	    << " max-size-buffers=20"             //
-	    << " max-size-time=0";
-
-	oss << " ! vah265enc name=file-encoder"                             //
-	    << " bitrate=" << options.Bitrate_KB                            //
-	    << " rate-control=vbr"                                          //
-	    << " target-percentage=" << int(100 / options.BitrateMaxRatio); //
-
-	oss << " ! h265parse name=file-h265parse"; //
-
-	oss << " ! splitmuxsink name=file-muxsink"                //
-	    << " location=" << d_outputFileTemplate.c_str()       //
-	    << " max-size-time=" << segmentDuration.Nanoseconds() //
-	    << " muxer=mp4mux";
-	return oss.str();
-}
-
-std::string VideoOutputImpl::buildBothPipeline(
-    const VideoOutputOptions &options, const VideoOutput::Config &config
-) {
-	std::ostringstream oss;
-
-	oss << " ! tee name=t";
-
-	oss << " t.src_0" //
-	    << buildFilePipeline(
-	           options,
-	           config.InputResolution,
-	           config.FilePeriod,
-	           true
-	       );
-	oss << " t.src_1" //
-	    << buildStreamPipeline(options, config, true);
-
-	return oss.str();
-}
-
-void VideoOutputImpl::printDebug(const std::filesystem::path &filepath) {
-#ifndef NDEBUG1
-	auto          data = std::string{gst_debug_bin_to_dot_data(
-        GST_BIN(d_pipeline.get()),
-        GST_DEBUG_GRAPH_SHOW_ALL
-    )};
-	std::ofstream file(filepath);
-	file << data;
-	file.close();
-	d_logger.Info(
-	    "saved pipeline debug file",
-	    slog::String("filepath", filepath)
-	);
-#else
-	(void)filepath;
-#endif
 }
 
 VideoOutputImpl::~VideoOutputImpl() {
-	printDebug("/tmp/videooutput.dot");
-	d_logger.DDebug("marking closing");
+#ifndef NDEBUG
+	if (d_filePipeline) {
+		d_filePipeline->PrintDebug("/tmp/video-file-pipeline.dot");
+	}
+#endif
 	d_closing.store(true);
-	// ensure we are not reconfiguring, closing flag will disable any future
-	// reconfiguring.
+
+	d_filePipeline.reset();
+
+	struct Context {
+		VideoOutputImpl  *self;
+		std::atomic<bool> done{false};
+		Context(VideoOutputImpl *self_)
+		    : self{self_} {};
+	};
+
+	auto ctx = std::make_unique<Context>(this);
 	g_main_context_invoke(
 	    g_main_context_default(),
 	    [](gpointer userdata) {
-		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
-		    if (self->d_reconnection == 0) {
-			    // reconnect not scheduled and not already fired, nothing to
-			    // do.
-			    return G_SOURCE_REMOVE;
+		    auto context = reinterpret_cast<Context *>(userdata);
+		    Defer {
+			    context->done.store(true);
+			    context->done.notify_all();
+		    };
+		    if (context->self->d_reconnectionSchedule != 0) {
+			    g_source_remove(context->self->d_reconnectionSchedule);
 		    }
-		    g_source_remove(self->d_reconnection);
-		    self->d_logger.DDebug("Removing scheduled reconnection timeout");
-		    self->d_reconnectionScheduled.store(false);
-		    self->d_reconnectionScheduled.notify_all();
-
 		    return G_SOURCE_REMOVE;
 	    },
-	    this
+	    ctx.get()
 	);
-	// wait for none sheduled, no reconfiguration pending
-	d_logger.DDebug("waiting scheduled false");
-	d_reconnectionScheduled.wait(true);
-
-	std::lock_guard<std::mutex> lock{d_reconfiguring};
-	d_logger.DDebug("Sending EOS through appsrc");
-	gst_app_src_end_of_stream(GST_APP_SRC(d_appsrc.get()));
-	d_logger.DDebug("Waiting EOS");
-
-	if (d_enforceOn != 0) {
-		g_source_remove(d_enforceOn);
-		d_enforceOn = 0;
-	}
-
-	while (d_eosReached.load() == false) {
-		GstState state, pending;
-		auto     ret = gst_element_get_state(
-            d_pipeline.get(),
-            &state,
-            &pending,
-            std::chrono::nanoseconds{std::chrono::milliseconds{100}}.count()
-        );
-		if (state == GST_STATE_NULL) {
-			continue;
-		}
-		if (state != GST_STATE_PLAYING || ret == GST_STATE_CHANGE_FAILURE) {
-			d_logger.Error(
-			    "Pipeline is not playing on closing, data maybe lost",
-			    slog::String(
-			        "state",
-			        (const char *)g_enum_to_string(gst_state_get_type(), state)
-			    ),
-			    slog::String(
-			        "pending",
-			        (const char *)
-			            g_enum_to_string(gst_state_get_type(), pending)
-			    ),
-			    slog::String(
-			        "state_change",
-			        (const char *)g_enum_to_string(
-			            gst_state_change_return_get_type(),
-			            ret
-			        )
-			    )
-			);
-			d_eosReached.store(true);
-			break;
-		}
-	}
-	g_source_remove(d_watch);
-	gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
+	ctx->done.wait(false);
 }
 
 bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
+	if (d_startingTimestamp_us.has_value() == false) {
+		d_startingTimestamp_us = frame->Timestamp();
+	}
+
+	auto buffer = FilePipeline::PrepareFrame(
+	    frame,
+	    d_filePipeline,
+	    d_startingTimestamp_us.value()
+	);
+
+	bool res;
+	if (d_filePipeline) {
+		res = d_filePipeline->PushBuffer(buffer.get());
+	}
+	Lock lock{d_reconfiguration};
+	if (d_streamPipeline) {
+		d_streamPipeline->PushBuffer(buffer.get());
+	}
+	return res;
+}
+
+void VideoOutputImpl::onStreamError() {
 	if (d_closing.load() == true) {
-		notifyDrop(frame->ID());
-		return false;
-	}
-
-	struct InflightFrame {
-		VideoOutputImpl *self;
-		Frame::Ptr       frame;
-	};
-
-	gsize size   = frame->Width() * frame->Height();
-	auto  buffer = gst_buffer_new_wrapped_full(
-        GstMemoryFlags(GST_MEMORY_FLAG_READONLY),
-        frame->Data(),
-        size,
-        0,
-        size,
-        new InflightFrame{.self = this, .frame = frame},
-        [](gpointer userdata) {
-            auto frame = reinterpret_cast<InflightFrame *>(userdata);
-            frame->self->onFrameDone(frame->frame->ID());
-            delete frame;
-        }
-    );
-
-	uint64_t pts{0};
-	if (d_firstTimestamp.has_value()) {
-		pts = frame->Timestamp() - d_firstTimestamp.value();
-	} else {
-		d_firstTimestamp = frame->Timestamp();
-	}
-
-	GST_BUFFER_PTS(buffer)      = GstClockTime(pts * 1000);
-	GST_BUFFER_DTS(buffer)      = GST_CLOCK_TIME_NONE;
-	GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
-
-	GST_BUFFER_OFFSET(buffer)     = frame->ID();
-	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
-
-	GstFlowReturn ret;
-	{
-		std::lock_guard<std::mutex> lock{d_reconfiguring};
-		ret = gst_app_src_push_buffer(GST_APP_SRC(d_appsrc.get()), buffer);
-	}
-
-	d_logger.DDebug(
-	    "frame pushed",
-	    slog::Int("ID", GST_BUFFER_OFFSET(buffer)),
-	    slog::Duration("PTS", std::chrono::nanoseconds{GST_BUFFER_PTS(buffer)})
-	);
-
-	if (ret != GST_FLOW_OK) {
-		auto name = g_enum_to_string(gst_flow_return_get_type(), ret);
-		d_logger.Error(
-		    "could not push buffer",
-		    slog::Int("ID", frame->ID()),
-		    slog::String("return", name != nullptr ? name : "UNKNOWN")
-		);
-		notifyDrop(frame->ID());
-		return false;
-	}
-	return true;
-}
-
-void VideoOutputImpl::onFramePass(uint64_t frameID, uint64_t PTS) {
-	d_lastFramePassed.store(frameID);
-	d_metadata.Register(frameID, PTS);
-	d_logger.DDebug("frame passed", slog::Int("ID", frameID));
-}
-
-void VideoOutputImpl::notifyDrop(uint64_t frameID) {
-	d_dropped.fetch_add(1);
-	d_logger.Warn(
-	    "frame dropped",
-	    slog::Int("ID", frameID),
-	    slog::Int("total_dropped", d_dropped.load()),
-	    slog::Float(
-	        "percent_dropped",
-	        100.0 * float(d_dropped.load()) /
-	            (d_dropped.load() + d_processed.load())
-	    )
-	);
-}
-
-void VideoOutputImpl::onFrameDone(uint64_t frameID) {
-	if (frameID <= d_lastFramePassed.load()) {
-		d_processed.fetch_add(1);
-	} else {
-		notifyDrop(frameID);
-	}
-}
-
-void VideoOutputImpl::onStreamSinkError(GstMessage *message) {
-	GError *err{nullptr};
-	gchar  *debug_info{nullptr};
-	gst_message_parse_error(message, &err, &debug_info);
-	Defer {
-		g_clear_error(&err);
-		if (debug_info != nullptr) {
-			g_free(debug_info);
-		}
-	};
-
-	d_logger.Error(
-	    "stream-sink error",
-	    slog::String("error", err->message),
-	    slog::String(
-	        "debug_info",
-	        debug_info == nullptr ? "<none>" : debug_info
-	    )
-	);
-
-	if (d_closing.load() == true) {
-		// if closing the pipeline would not be PLAYING, and prevents EOS to
-		// propagate
-		GstState state, pending;
-		auto ret = gst_element_get_state(d_pipeline.get(), &state, &pending, 0);
-
-		d_logger.Warn(
-		    "Gstreamer ERROR while closing. Data maybe lost.",
-		    slog::String(
-		        "state",
-		        (const char *)g_enum_to_string(gst_state_get_type(), state)
-		    ),
-		    slog::String(
-		        "pending",
-		        (const char *)g_enum_to_string(gst_state_get_type(), pending)
-		    ),
-		    slog::String(
-		        "state_change",
-		        (const char *)
-		            g_enum_to_string(gst_state_change_return_get_type(), ret)
-		    )
-		);
 		return;
 	}
 	disconnectStream();
 	scheduleReconnect();
 }
 
-#ifndef NDEBUG
-#define LOG_STATE_CHANGE 1
-#endif
-
-void VideoOutputImpl::onMessage(GstBus *bus, GstMessage *message) {
-	auto type = GST_MESSAGE_TYPE(message);
-
-	if (type == GST_MESSAGE_EOS) {
-		d_logger.Info("End-Of-Stream reached");
-		gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
-		d_eosReached.store(true);
-		return;
-	}
-
-	if (type == GST_MESSAGE_ERROR &&
-	    std::string{message->src->name} == "stream-sink") {
-		onStreamSinkError(message);
-		return;
-	}
-
-	switch (type) {
-	case GST_MESSAGE_ERROR:
-	case GST_MESSAGE_WARNING:
-	case GST_MESSAGE_INFO:
-		logGstMessage(message);
-		return;
-#ifdef LOG_STATE_CHANGE
-	case GST_MESSAGE_STATE_CHANGED:
-		GstState oldstate, newstate, pending;
-		gst_message_parse_state_changed(
-		    message,
-		    &oldstate,
-		    &newstate,
-		    &pending
-		);
-		d_logger.Info(
-		    "state changed",
-		    slog::String("element", (const char *)message->src->name),
-		    slog::String(
-		        "oldstate",
-		        (const char *)g_enum_to_string(gst_state_get_type(), oldstate)
-		    ),
-		    slog::String(
-		        "newstate",
-		        (const char *)g_enum_to_string(gst_state_get_type(), newstate)
-		    ),
-		    slog::String(
-		        "pending",
-		        (const char *)g_enum_to_string(gst_state_get_type(), pending)
-		    )
-
-		);
-		return;
-#endif
-	default:
-		return;
-	}
-}
-
-void VideoOutputImpl::logGstMessage(GstMessage *message) {
-	GError *err{nullptr};
-	gchar  *debug_info{nullptr};
-	auto    level = slog::Level::Info;
-	switch (GST_MESSAGE_TYPE(message)) {
-	case GST_MESSAGE_INFO:
-#ifdef NDEBUG
-		return;
-#endif
-		gst_message_parse_info(message, &err, &debug_info);
-		level = slog::Level::Info;
-		break;
-	case GST_MESSAGE_ERROR:
-		level = slog::Level::Error;
-		gst_message_parse_error(message, &err, &debug_info);
-		break;
-	case GST_MESSAGE_WARNING:
-		gst_message_parse_warning(message, &err, &debug_info);
-		level = slog::Level::Warn;
-		break;
-	default:
-		return;
-	}
-
-	d_logger.Log(
-	    level,
-	    "pipeline message",
-	    slog::String("source", (const char *)message->src->name),
-	    slog::String("error", (const char *)err->message),
-	    slog::String(
-	        "debug_info",
-	        debug_info == nullptr ? "<none>" : (const char *)debug_info
-	    )
-	);
-
-	g_clear_error(&err);
-	if (debug_info != nullptr) {
-		g_free(debug_info);
-	}
-}
-
-gchararray VideoOutputImpl::onLocationFull(
-    GstElement *filesink,
-    guint       fragment_id,
-    GstSample  *first_sample,
-    gpointer    userdata
-) {
-	auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
-	auto res = g_strdup_printf(self->d_outputFileTemplate.c_str(), fragment_id);
-	auto buffer = gst_sample_get_buffer(first_sample);
-	uint64_t PTS{0};
-	if (buffer == nullptr) {
-		self->d_logger.Warn("no buffer associated at segment beginning");
-	} else {
-		PTS = GST_BUFFER_DTS(buffer);
-	}
-
-	std::filesystem::path movieFile = std::filesystem::path{res};
-
-	auto metadataFile = movieFile.parent_path() /
-	                    (movieFile.stem().stem().string() + ".frame-matching" +
-	                     movieFile.stem().extension().string() + ".txt");
-	self->d_metadata.NewSegment(metadataFile, PTS);
-	self->d_logger.Info(
-	    "new file segment",
-	    slog::Int("fragment", fragment_id),
-	    slog::String("movie", movieFile),
-	    slog::String("metadata", metadataFile),
-	    slog::Duration("PTS", std::chrono::nanoseconds{PTS})
-	);
-	return res;
-}
-
 void VideoOutputImpl::disconnectStream() {
-	std::lock_guard<std::mutex> lock{d_reconfiguring};
-	if (d_fileSplitMux != nullptr) {
-		gst_element_set_state(d_fileSplitMux.get(), GST_STATE_PLAYING);
-	}
-	auto logger =
-	    d_logger.With(slog::Int("reconnections", d_reconnections.load()));
-
-	if (d_streamSink == nullptr) {
-		logger.Warn("already disconnected");
-		return;
-	}
-
-	g_object_set(d_streamValve.get(), "drop", TRUE, nullptr);
-
-	d_streamParseSrcProbe = gst_pad_add_probe(
-	    d_streamParseSrc.get(),
-	    GstPadProbeType(GST_PAD_PROBE_TYPE_BLOCK),
-	    [](GstPad *pad, GstPadProbeInfo *info, gpointer udata) {
-		    return GST_PAD_PROBE_DROP;
-	    },
-	    nullptr,
-	    nullptr
-	);
-
-	auto streamSinkChange =
-	    gst_element_set_state(d_streamSink.get(), GST_STATE_NULL);
-
-	auto streamEncChange =
-	    gst_element_set_state(d_streamEnc.get(), GST_STATE_NULL);
-
-	auto bin = GST_BIN(d_pipeline.get());
-	gst_bin_remove(bin, d_streamSink.get());
-
-	d_streamSink.reset();
-
-	logger.Info(
+	Lock lock{d_reconfiguration};
+	d_streamPipeline.reset();
+	d_logger.Info(
 	    "disconnected",
-	    slog::String(
-	        "stream-encoder_change",
-	        (const char *)g_enum_to_string(
-	            gst_state_change_return_get_type(),
-	            streamEncChange
-	        )
-	    ),
-	    slog::String(
-	        "stream-sink_change",
-	        (const char *)g_enum_to_string(
-	            gst_state_change_return_get_type(),
-	            streamSinkChange
-	        )
+	    slog::Duration(
+	        "reconnection_timeout",
+	        std::chrono::nanoseconds{d_reconnectTimeout.Nanoseconds()}
 	    )
 	);
 }
 
 void VideoOutputImpl::reconnectStream() {
-	std::lock_guard<std::mutex> lock{d_reconfiguring};
-	if (d_fileSplitMux != nullptr) {
-		gst_element_set_state(d_fileSplitMux.get(), GST_STATE_PLAYING);
-	}
+	std::unique_ptr<StreamPipeline> newStream;
+	d_reconnections.fetch_add(1);
 
-	if (d_streamSink != nullptr) {
-		d_logger.Warn(
-		    "already connected",
-		    slog::Int("reconnections", d_reconnections.load())
-		);
+	try {
+		newStream = std::make_unique<StreamPipeline>(d_streamConfig);
+	} catch (const std::exception &e) {
+		d_logger.Error("could not reconnect", slog::Err(e));
+		scheduleReconnect();
 		return;
 	}
-	auto logger = d_logger.With(
-	    slog::Int("reconnections", d_reconnections.fetch_add(1) + 1)
-	);
-
-	d_streamSink = GstElementPtr{GstElementFactory(
-	    "rtspclientsink",
-	    "name",
-	    "stream-sink",
-	    "location",
-	    targetURL().c_str(),
-	    "protocols",
-	    GST_RTSP_LOWER_TRANS_TCP
-	)};
-	gst_object_ref(d_streamSink.get());
-	gst_bin_add(GST_BIN(d_pipeline.get()), d_streamSink.get());
-
-	gst_element_link_many(d_streamParse.get(), d_streamSink.get(), NULL);
-
-	if (d_streamParseSrcProbe > 0) {
-		gst_pad_remove_probe(d_streamParseSrc.get(), d_streamParseSrcProbe);
-		d_streamParseSrcProbe = 0;
-	}
-
-	auto encChange =
-	    gst_element_set_state(d_streamEnc.get(), GST_STATE_PLAYING);
-	auto sinkChange =
-	    gst_element_set_state(d_streamSink.get(), GST_STATE_PLAYING);
-
-	g_object_set(d_streamValve.get(), "drop", FALSE, nullptr);
-
-	logger.Info(
-	    "connecting",
-	    slog::String(
-	        "stream-sink_change",
-	        (const char *)
-	            g_enum_to_string(gst_state_change_return_get_type(), sinkChange)
-	    ),
-	    slog::String(
-	        "stream-encoder_change",
-	        (const char *)
-	            g_enum_to_string(gst_state_change_return_get_type(), encChange)
-	    )
-	);
+	Lock lock{d_reconfiguration};
+	d_streamPipeline = std::move(newStream);
 }
 
 void VideoOutputImpl::scheduleReconnect() {
-	bool scheduled = false;
-	if (d_reconnectionScheduled.compare_exchange_strong(scheduled, true) ==
-	    false) {
+	if (d_reconnectionSchedule != 0) {
 		return;
 	}
 
-	d_reconnection = g_timeout_add(
-	    d_reconnectTimeout.count(),
+	d_reconnectionSchedule = g_timeout_add(
+	    guint(d_reconnectTimeout.Milliseconds()),
 	    [](gpointer userdata) {
 		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
-
-		    try {
-			    self->reconnectStream();
-		    } catch (const std::exception &e) {
-			    self->d_logger.Error("could not reconnect", slog::Err(e));
-		    }
-		    self->d_reconnectionScheduled.store(false);
-		    self->d_reconnectionScheduled.notify_all();
-		    self->d_reconnection = 0;
+		    std::thread([self]() { self->reconnectStream(); }).detach();
+		    self->d_reconnectionSchedule = 0;
 		    return G_SOURCE_REMOVE;
 	    },
 	    this

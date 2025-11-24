@@ -1,6 +1,7 @@
 #!/usr/bin/fish
 
 rm -Rf ./movies
+rm -Rf /tmp/video-output*.dot
 
 build/src/artemis --stub-image-paths (echo f(seq 1 10).png | tr ' ' ,)  \
 				  --log-output-dir logs \

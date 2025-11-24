@@ -2,6 +2,7 @@
 
 #include <gst/gst.h>
 
+#include <gst/gstinfo.h>
 #include <memory>
 #include <sstream>
 
@@ -20,11 +21,22 @@ template <typename T> struct GObjectUnrefer {
 	}
 };
 
+template <typename T> struct GstBufferUnrefer {
+	void operator()(T *obj) const noexcept {
+		if (obj != nullptr) {
+			gst_buffer_unref(obj);
+		}
+	}
+};
+
 template <typename T>
 using glib_owned_ptr = std::unique_ptr<T, GObjectUnrefer<T>>;
 using GstElementPtr  = glib_owned_ptr<GstElement>;
+using GstBusPtr      = glib_owned_ptr<GstBus>;
 using GstPadPtr      = glib_owned_ptr<GstPad>;
+using GstBufferPtr   = std::unique_ptr<GstBuffer, GstBufferUnrefer<GstBuffer>>;
 using GstElementRef  = GstElement *;
+using GstBusRef      = GstBus *;
 
 void EnsureGSTInitialized();
 

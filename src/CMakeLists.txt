@@ -55,7 +55,10 @@ set(SRC_FILES
 	main.cpp
 	video/gstreamer.cpp
 	video/MetadataHandler.cpp
+	video/BusManagedPipeline.cpp
 	video/VideoOutputImpl.cpp
+	video/FilePipeline.cpp
+	video/StreamPipeline.cpp
 	VideoOutput.cpp
 )
 
@@ -84,7 +87,10 @@ set(HDR_FILES
 	ImageU8.hpp
 	video/gstreamer.hpp
 	video/MetadataHandler.hpp
+	video/BusManagedPipeline.hpp
 	video/VideoOutputImpl.hpp
+	video/FilePipeline.hpp
+	video/StreamPipeline.hpp
 	VideoOutput.hpp
 )
 

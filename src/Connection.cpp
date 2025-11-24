@@ -383,6 +383,8 @@ void Connection::incrementRefcount() {
 	    slog::Int("refCount", cur),
 	    slog::String("caller", stack.frames.front().to_string())
 	);
+#else
+	(void)cur;
 #endif
 }
 
@@ -396,6 +398,8 @@ void Connection::decrementRefcount() {
 	    slog::Int("refCount", cur),
 	    slog::String("caller", stack.frames.front().to_string())
 	);
+#else
+	(void)cur;
 #endif
 }
 

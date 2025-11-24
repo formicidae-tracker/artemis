@@ -1,12 +1,16 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
+#include <mutex>
 #include <video/gstreamer.hpp>
 
 #include <VideoOutput.hpp>
 
 #include <Options.hpp>
 
-#include "MetadataHandler.hpp"
+#include "video/FilePipeline.hpp"
+#include "video/StreamPipeline.hpp"
 
 namespace fort {
 namespace artemis {
@@ -25,81 +29,50 @@ public:
 
 	bool PushFrame(const Frame::Ptr &frame);
 
-	VideoOutput::Stats GetStats() const {
+	inline VideoOutput::Stats GetStats() const {
+		if (d_filePipeline) {
+			return {
+			    .Processed     = d_filePipeline->d_processed.load(),
+			    .Dropped       = d_filePipeline->d_dropped.load(),
+			    .Reconnections = d_reconnections.load()
+			};
+		}
 		return {
-		    .Processed     = d_processed.load(),
-		    .Dropped       = d_dropped.load(),
+		    .Processed     = 0,
+		    .Dropped       = 0,
 		    .Reconnections = d_reconnections.load()
 		};
 	}
 
-private:
-	static gchararray onLocationFull(
-	    GstElement *filesink,
-	    guint       fragment_id,
-	    GstSample  *first_sample,
-	    gpointer    userdata
-	);
-
-	std::string buildInputPipeline(const VideoOutput::Config &config);
-	std::string buildStreamPipeline(
-	    const VideoOutputOptions  &options,
-	    const VideoOutput::Config &config,
-	    bool                       withQueue
-	);
-	std::string buildFilePipeline(
-	    const VideoOutputOptions &options,
-	    const Size               &inputResolution,
-	    const Duration           &segmentDuration,
-	    bool                      withQueue
-	);
-	std::string buildBothPipeline(
-	    const VideoOutputOptions &options, const VideoOutput::Config &config
-	);
-
-	void notifyDrop(uint64_t frameID);
-	void onFrameDone(uint64_t frameID);
-	void onFramePass(uint64_t frameID, uint64_t PTS);
-	void onMessage(GstBus *bus, GstMessage *message);
-	void onStreamSinkError(GstMessage *message);
-	void logGstMessage(GstMessage *message);
-
-	void scheduleReconnect();
-	void disconnectStream();
-	void reconnectStream();
-
-	void printDebug(const std::filesystem::path &path);
-
-	std::string targetURL() const {
-		return "rtsp://" + d_host + ":8554/" + d_hostname;
+	inline size_t InflightBufferSize() const {
+		return 1 + (d_filePipeline != nullptr ? 2 : 0) +
+		       (d_streamConfig.Host.empty() ? 0 : 2);
 	}
 
-	slog::Logger<1> d_logger{slog::With(slog::String("task", "VideoOutput"))};
-	const size_t    d_inputBuffers;
-	GstElementPtr   d_pipeline;
-	using GstBusPtr = std::unique_ptr<GstBus, GObjectUnrefer<GstBus>>;
-	GstElementPtr d_appsrc;
-	GstElementPtr d_fileSplitMux, d_streamValve, d_streamEnc, d_streamParse,
-	    d_streamSink;
-	GstPadPtr d_streamParseSrc;
-	gulong    d_streamParseSrcProbe{0};
+private:
+	void onStreamError();
 
-	std::optional<uint64_t> d_firstTimestamp;
-	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0},
-	    d_reconnections{0};
-	std::filesystem::path d_outputFileTemplate{};
-	std::atomic<bool>     d_eosReached{false}, d_closing{false},
-	    d_reconnectionScheduled{false};
-	std::mutex d_reconfiguring;
+	void disconnectStream();
+	void reconnectStream();
+	void scheduleReconnect();
 
-	guint d_enforceOn{0}, d_watch{0}, d_reconnection{0};
+	using Mutex = std::mutex;
+	using Lock  = std::lock_guard<std::mutex>;
 
-	MetadataHandler d_metadata;
+	StreamPipeline::Config d_streamConfig;
 
-	std::string               d_host;
-	std::string               d_hostname;
-	std::chrono::milliseconds d_reconnectTimeout;
-	friend class VideoOutput;
+	slog::Logger<1> d_logger;
+
+	Duration            d_reconnectTimeout;
+	std::atomic<size_t> d_reconnections{0};
+	gulong              d_reconnectionSchedule;
+
+	Mutex d_reconfiguration;
+
+	std::shared_ptr<FilePipeline>   d_filePipeline;
+	std::unique_ptr<StreamPipeline> d_streamPipeline;
+	std::atomic<bool>               d_closing{false};
+	std::optional<uint64_t>         d_startingTimestamp_us;
 };
 
 } // namespace artemis

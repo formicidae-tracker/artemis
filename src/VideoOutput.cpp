@@ -27,7 +27,7 @@ VideoOutput::Stats VideoOutput::GetStats() const {
 }
 
 size_t VideoOutput::InflightBufferSize() const {
-	return d_impl->d_inputBuffers;
+	return d_impl->InflightBufferSize();
 }
 
 } // namespace artemis
