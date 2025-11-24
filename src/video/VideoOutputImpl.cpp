@@ -122,6 +122,7 @@ void VideoOutputImpl::disconnectStream() {
 	d_streamPipeline.reset();
 	d_logger.Info(
 	    "disconnected",
+	    slog::Int("reconnections", d_reconnections.load()),
 	    slog::Duration(
 	        "reconnection_timeout",
 	        std::chrono::nanoseconds{d_reconnectTimeout.Nanoseconds()}
@@ -130,8 +131,18 @@ void VideoOutputImpl::disconnectStream() {
 }
 
 void VideoOutputImpl::reconnectStream() {
-	std::unique_ptr<StreamPipeline> newStream;
 	d_reconnections.fetch_add(1);
+	d_logger.DInfo(
+	    "starting connecting",
+	    slog::Int("reconnections", d_reconnections.load())
+	);
+	Defer {
+		d_logger.Info(
+		    "connecting",
+		    slog::Int("reconnections", d_reconnections.load())
+		);
+	};
+	std::unique_ptr<StreamPipeline> newStream;
 
 	try {
 		newStream = std::make_unique<StreamPipeline>(d_streamConfig);
@@ -148,7 +159,10 @@ void VideoOutputImpl::scheduleReconnect() {
 	if (d_reconnectionSchedule != 0) {
 		return;
 	}
-
+	d_logger.Info(
+	    "scheduling reconnect",
+	    slog::Int("reconnections", d_reconnections.load())
+	);
 	d_reconnectionSchedule = g_timeout_add(
 	    guint(d_reconnectTimeout.Milliseconds()),
 	    [](gpointer userdata) {

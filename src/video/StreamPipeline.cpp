@@ -36,36 +36,6 @@ StreamPipeline::StreamPipeline(const Config &config)
 }
 
 StreamPipeline::~StreamPipeline() {
-	struct Context {
-		StreamPipeline   *self;
-		std::atomic<bool> done{false};
-		Context(StreamPipeline *self_)
-		    : self{self_} {};
-	};
-
-	auto ctx = std::make_unique<Context>(this);
-	g_main_context_invoke(
-	    g_main_context_default(),
-	    [](gpointer userdata) {
-		    auto ctx = reinterpret_cast<Context *>(userdata);
-		    Defer {
-			    ctx->done.store(true);
-			    ctx->done.notify_all();
-		    };
-
-		    if (ctx->self->d_blockProbe == 0) {
-			    return G_SOURCE_REMOVE;
-		    }
-		    gst_pad_remove_probe(
-		        ctx->self->d_streamParse_src.get(),
-		        ctx->self->d_blockProbe
-		    );
-		    return G_SOURCE_REMOVE;
-	    },
-	    ctx.get()
-	);
-	ctx->done.wait(false);
-
 	d_closing.store(true);
 }
 
