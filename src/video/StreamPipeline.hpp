@@ -30,7 +30,7 @@ public:
 	StreamPipeline &operator=(const StreamPipeline &) = delete;
 	StreamPipeline &operator=(StreamPipeline &&)      = delete;
 
-	bool PushBuffer(GstBuffer *buffer);
+	bool PushFrame(const Frame::Ptr &frame);
 
 protected:
 	void OnMessage(GstBus *bus, GstMessage *message) override;
@@ -43,7 +43,8 @@ private:
 	std::function<void()> d_onStreamError;
 	std::atomic<bool>     d_closing{false};
 
-	GstElementPtr d_inputSrc;
+	GstElementPtr           d_inputSrc;
+	std::optional<uint64_t> d_firstTimestamp_us;
 };
 } // namespace artemis
 } // namespace fort

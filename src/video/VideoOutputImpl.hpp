@@ -73,7 +73,6 @@ private:
 	std::shared_ptr<FilePipeline>   d_filePipeline;
 	std::unique_ptr<StreamPipeline> d_streamPipeline;
 	std::atomic<bool>               d_closing{false};
-	std::optional<uint64_t>         d_startingTimestamp_us;
 };
 
 } // namespace artemis

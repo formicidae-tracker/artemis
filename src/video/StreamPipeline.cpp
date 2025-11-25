@@ -41,12 +41,46 @@ StreamPipeline::~StreamPipeline() {
 	} while (current != GST_STATE_NULL);
 }
 
-bool StreamPipeline::PushBuffer(GstBuffer *buffer) {
+bool StreamPipeline::PushFrame(const Frame::Ptr &frame) {
 	if (d_closing.load() == true) {
 		return false;
 	}
 
-	gst_buffer_ref(buffer); // push will steal this ref;
+	struct Context {
+		Frame::Ptr frame;
+	};
+
+	constexpr auto update = [](gpointer userdata) -> void {
+		auto ctx = reinterpret_cast<Context *>(userdata);
+		delete ctx;
+	};
+
+	gsize      size = frame->Width() * frame->Height();
+	auto       ctx  = new Context{.frame = frame};
+	GstBuffer *buffer{nullptr};
+
+	buffer = gst_buffer_new_wrapped_full(
+	    GST_MEMORY_FLAG_READONLY,
+	    frame->Data(),
+	    size,
+	    0,
+	    size,
+	    ctx,
+	    update
+	);
+
+	if (d_firstTimestamp_us.has_value() == false) {
+		d_firstTimestamp_us = frame->Timestamp();
+	}
+
+	GST_BUFFER_PTS(buffer) =
+	    GstClockTime((frame->Timestamp() - d_firstTimestamp_us.value()) * 1000);
+	GST_BUFFER_DTS(buffer)      = GST_CLOCK_TIME_NONE;
+	GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
+
+	GST_BUFFER_OFFSET(buffer)     = frame->ID();
+	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
+
 	auto ret = gst_app_src_push_buffer(GST_APP_SRC(d_inputSrc.get()), buffer);
 	if (ret != GST_FLOW_OK) {
 		uint64_t frameID = GST_BUFFER_OFFSET(buffer);

@@ -23,14 +23,9 @@ public:
 	FilePipeline &operator=(const FilePipeline &) = delete;
 	FilePipeline &operator=(FilePipeline &&)      = delete;
 
-	// Prepares a Frame to be uploaded to Gstreamer, <self> could be null
-	static GstBufferPtr PrepareFrame(
-	    const Frame::Ptr                    &frame,
-	    const std::shared_ptr<FilePipeline> &self,
-	    uint64_t                             startingTimestamp_us
+	bool PushFrame(
+	    const Frame::Ptr &frame, const std::shared_ptr<FilePipeline> &self
 	);
-
-	bool PushBuffer(GstBuffer *buffer);
 
 private:
 	friend class VideoOutputImpl;
@@ -58,7 +53,8 @@ private:
 
 	std::atomic<bool> d_closing{false};
 
-	std::atomic<uint64_t> d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
+	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
+	std::optional<uint64_t> d_firstTimestamp_us;
 };
 } // namespace artemis
 } // namespace fort

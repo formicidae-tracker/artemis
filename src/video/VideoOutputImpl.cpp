@@ -91,23 +91,16 @@ VideoOutputImpl::~VideoOutputImpl() {
 }
 
 bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {
-	if (d_startingTimestamp_us.has_value() == false) {
-		d_startingTimestamp_us = frame->Timestamp();
-	}
-
-	auto buffer = FilePipeline::PrepareFrame(
-	    frame,
-	    d_filePipeline,
-	    d_startingTimestamp_us.value()
-	);
-
-	bool res;
+	bool res{false};
 	if (d_filePipeline) {
-		res = d_filePipeline->PushBuffer(buffer.get());
+		res = d_filePipeline->PushFrame(frame, d_filePipeline);
 	}
 	Lock lock{d_reconfiguration};
 	if (d_streamPipeline) {
-		d_streamPipeline->PushBuffer(buffer.get());
+		auto resStream = d_streamPipeline->PushFrame(frame);
+		if (d_filePipeline == nullptr) {
+			res = resStream;
+		}
 	}
 	return res;
 }

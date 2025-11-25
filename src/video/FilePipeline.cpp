@@ -190,11 +190,14 @@ void FilePipeline::onFrameDone(uint64_t frameID) {
 	}
 }
 
-GstBufferPtr FilePipeline::PrepareFrame(
-    const Frame::Ptr                    &frame,
-    const std::shared_ptr<FilePipeline> &self,
-    uint64_t                             startingTimestamp_us
+bool FilePipeline::PushFrame(
+    const Frame::Ptr &frame, const std::shared_ptr<FilePipeline> &self
 ) {
+	if (d_closing.load() == true) {
+		notifyDrop(frame->ID());
+		return false;
+	}
+
 	struct Context {
 		std::weak_ptr<FilePipeline> self;
 		Frame::Ptr                  frame;
@@ -223,24 +226,18 @@ GstBufferPtr FilePipeline::PrepareFrame(
 	    update
 	);
 
+	if (d_firstTimestamp_us.has_value() == false) {
+		d_firstTimestamp_us = frame->Timestamp();
+	}
+
 	GST_BUFFER_PTS(buffer) =
-	    GstClockTime((frame->Timestamp() - startingTimestamp_us) * 1000);
+	    GstClockTime((frame->Timestamp() - d_firstTimestamp_us.value()) * 1000);
 	GST_BUFFER_DTS(buffer)      = GST_CLOCK_TIME_NONE;
 	GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
 
 	GST_BUFFER_OFFSET(buffer)     = frame->ID();
 	GST_BUFFER_OFFSET_END(buffer) = frame->ID() + 1;
 
-	return GstBufferPtr{buffer};
-}
-
-bool FilePipeline::PushBuffer(GstBuffer *buffer) {
-	if (d_closing.load() == true) {
-		notifyDrop(GST_BUFFER_OFFSET(buffer));
-		return false;
-	}
-
-	gst_buffer_ref(buffer); // push will still this ref;
 	auto ret = gst_app_src_push_buffer(GST_APP_SRC(d_inputSrc.get()), buffer);
 	if (ret != GST_FLOW_OK) {
 		uint64_t frameID = GST_BUFFER_OFFSET(buffer);
