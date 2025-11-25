@@ -53,7 +53,7 @@ bool StreamPipeline::PushBuffer(GstBuffer *buffer) {
 		    slog::Int("ID", frameID),
 		    slog::String(
 		        "flow_return",
-		        (const char *)g_enum_to_string(gst_flow_return_get_type(), ret)
+		        GEnumToString(gst_flow_return_get_type(), ret)
 		    )
 		);
 		return false;

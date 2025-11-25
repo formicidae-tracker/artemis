@@ -16,6 +16,7 @@
 #include <fort/utils/Defer.hpp>
 
 #include <slog++/slog++.hpp>
+#include <thread>
 
 #include "BusManagedPipeline.hpp"
 #include "video/gstreamer.hpp"
@@ -63,7 +64,13 @@ BusManagedPipeline::BusManagedPipeline(
 }
 
 void BusManagedPipeline::init() {
-	d_name   = gst_element_get_name(Self());
+	auto name = gst_element_get_name(Self());
+	Defer {
+		if (name != nullptr) {
+			g_free(name);
+		}
+	};
+	d_name   = name;
 	d_logger = slog::With(slog::String("video_pipeline", d_name));
 	d_bus    = GstBusPtr{gst_element_get_bus(d_pipeline.get())};
 	d_watch  = gst_bus_add_watch(
@@ -95,42 +102,34 @@ void BusManagedPipeline::waitOnEOS() {
 			d_logger.Error(
 			    "Pipeline is not playing on closing. Data maybe lost.",
 			    slog::String(
-			        "pipeline",
-			        (const char *)gst_element_get_name(Self())
-			    ),
-			    slog::String(
 			        "state",
-			        (const char *)g_enum_to_string(gst_state_get_type(), state)
+			        GEnumToString(gst_state_get_type(), state)
 			    ),
 			    slog::String(
 			        "pending",
-			        (const char *)
-			            g_enum_to_string(gst_state_get_type(), pending)
+			        GEnumToString(gst_state_get_type(), pending)
 			    ),
 			    slog::String(
 			        "state_change",
-			        (const char *)g_enum_to_string(
-			            gst_state_change_return_get_type(),
-			            change
-			        )
+			        GEnumToString(gst_state_change_return_get_type(), change)
 			    )
 			);
 			break;
 		}
+		// this is needed for not exploding on valgrind. And sleeping on cleanup
+		// is fine.
+		std::this_thread::sleep_for(10ms);
+
 		d_logger.DDebug(
 		    "waiting on EOS",
-		    slog::String(
-		        "state",
-		        (const char *)g_enum_to_string(gst_state_get_type(), state)
-		    ),
+		    slog::String("state", GEnumToString(gst_state_get_type(), state)),
 		    slog::String(
 		        "pending",
-		        (const char *)g_enum_to_string(gst_state_get_type(), pending)
+		        GEnumToString(gst_state_get_type(), pending)
 		    ),
 		    slog::String(
 		        "state_change",
-		        (const char *)
-		            g_enum_to_string(gst_state_change_return_get_type(), change)
+		        GEnumToString(gst_state_change_return_get_type(), change)
 		    )
 		);
 	}
@@ -222,7 +221,7 @@ void BusManagedPipeline::onMessage(GstBus *bus, GstMessage *message) {
 		    ),
 		    slog::String(
 		        "pending",
-		        (const char *)g_enum_to_string(gst_state_get_type(), pending)
+		        GEnumToSTring(gst_state_get_type(), pending)
 		    )
 		);
 		return;

@@ -1,6 +1,9 @@
 #include "gstreamer.hpp"
 
+#include <glib.h>
 #include <mutex>
+
+#include "fort/utils/Defer.hpp"
 
 namespace fort {
 namespace artemis {
@@ -12,6 +15,17 @@ void EnsureGSTInitialized() {
 		char **argv = {nullptr};
 		gst_init(&argc, &argv);
 	});
+}
+
+std::string GEnumToString(GType type, gint value) {
+	auto res = g_enum_to_string(type, value);
+	Defer {
+		if (res != nullptr) {
+			g_free(res);
+		}
+	};
+
+	return res == nullptr ? "<UNKNOWN>" : res;
 }
 
 } // namespace artemis

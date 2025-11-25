@@ -65,7 +65,7 @@ private:
 
 	Duration            d_reconnectTimeout;
 	std::atomic<size_t> d_reconnections{0};
-	gulong              d_reconnectionSchedule;
+	gulong              d_reconnectionSchedule{0};
 
 	Mutex d_reconfiguration;
 

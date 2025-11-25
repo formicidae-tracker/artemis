@@ -38,6 +38,8 @@ using GstBufferPtr   = std::unique_ptr<GstBuffer, GstBufferUnrefer<GstBuffer>>;
 using GstElementRef  = GstElement *;
 using GstBusRef      = GstBus *;
 
+std::string GEnumToString(GType type, gint value);
+
 void EnsureGSTInitialized();
 
 namespace details {
