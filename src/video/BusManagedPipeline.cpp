@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <gst/gstelement.h>
 #include <memory>
 
 #include <cpptrace/exceptions.hpp>
@@ -81,35 +82,20 @@ void BusManagedPipeline::init() {
 }
 
 void BusManagedPipeline::waitOnEOS() {
+	GstState             state, pending;
+	GstStateChangeReturn change;
 	while (d_eosReached.load() == false) {
-
-		GstState state, pending;
-		auto     change = gst_element_get_state(
-            Self(),
-            &state,
-            &pending,
-            std::chrono::nanoseconds{10ms}.count()
-        );
+		change = gst_element_get_state(
+		    Self(),
+		    &state,
+		    &pending,
+		    std::chrono::nanoseconds{10ms}.count()
+		);
 
 		if (state == GST_STATE_NULL) {
 			continue;
 		}
 		if (state != GST_STATE_PLAYING || change == GST_STATE_CHANGE_FAILURE) {
-			d_logger.Error(
-			    "Pipeline is not playing on closing. Data maybe lost.",
-			    slog::String(
-			        "state",
-			        GEnumToString(gst_state_get_type(), state)
-			    ),
-			    slog::String(
-			        "pending",
-			        GEnumToString(gst_state_get_type(), pending)
-			    ),
-			    slog::String(
-			        "state_change",
-			        GEnumToString(gst_state_change_return_get_type(), change)
-			    )
-			);
 			break;
 		}
 		// this is needed for not exploding on valgrind. And sleeping on cleanup
@@ -118,6 +104,20 @@ void BusManagedPipeline::waitOnEOS() {
 
 		d_logger.DDebug(
 		    "waiting on EOS",
+		    slog::String("state", GEnumToString(gst_state_get_type(), state)),
+		    slog::String(
+		        "pending",
+		        GEnumToString(gst_state_get_type(), pending)
+		    ),
+		    slog::String(
+		        "state_change",
+		        GEnumToString(gst_state_change_return_get_type(), change)
+		    )
+		);
+	}
+	if (d_eosReached.load() == false) {
+		d_logger.Error(
+		    "Pipeline is not playing on closing. Data maybe lost.",
 		    slog::String("state", GEnumToString(gst_state_get_type(), state)),
 		    slog::String(
 		        "pending",
@@ -192,9 +192,9 @@ void BusManagedPipeline::onMessage(GstBus *bus, GstMessage *message) {
 	auto type = GST_MESSAGE_TYPE(message);
 	switch (type) {
 	case GST_MESSAGE_EOS:
+		d_eosReached.store(true);
 		d_logger.Info("End-Of-Stream reached");
 		gst_element_set_state(d_pipeline.get(), GST_STATE_NULL);
-		d_eosReached.store(true);
 		return;
 #ifdef VIDEO_LOG_STATE_CHANGE
 	case GST_MESSAGE_STATE_CHANGED:
