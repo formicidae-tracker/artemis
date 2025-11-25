@@ -51,6 +51,8 @@ public:
 	    const ROIChannelPtr          &zoomChannel
 	);
 
+	virtual ~UserInterface() = default;
+
 	virtual void Task() = 0;
 
 	void PushFrame(const FrameToDisplay &frame);

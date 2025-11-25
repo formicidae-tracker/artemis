@@ -246,7 +246,7 @@ void GLUserInterface::OnScroll(double xOffset, double yOffset) {
 	}
 }
 
-GLUserInterface::~GLUserInterface() {}
+GLUserInterface::~GLUserInterface() = default;
 
 void GLUserInterface::Task() {
 	Process();
