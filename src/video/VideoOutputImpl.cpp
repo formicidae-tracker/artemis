@@ -6,6 +6,8 @@
 #include <cpptrace/exceptions.hpp>
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/gst.h>
+#include <gst/gstelement.h>
 #include <gst/rtsp/gstrtsptransport.h>
 
 using namespace std::chrono_literals;
@@ -48,6 +50,7 @@ VideoOutputImpl::VideoOutputImpl(
 	}
 	if (options.Host.empty() == false) {
 		d_streamPipeline = std::make_unique<StreamPipeline>(d_streamConfig);
+		d_streamPipeline->SetState(GST_STATE_PLAYING);
 	}
 }
 
@@ -119,6 +122,9 @@ void VideoOutputImpl::onStreamError() {
 
 void VideoOutputImpl::disconnectStream() {
 	Lock lock{d_reconfiguration};
+	if (d_streamPipeline == nullptr) {
+		return;
+	}
 	d_streamPipeline.reset();
 	d_logger.Info(
 	    "disconnected",
@@ -131,6 +137,10 @@ void VideoOutputImpl::disconnectStream() {
 }
 
 void VideoOutputImpl::reconnectStream() {
+	if (d_closing.load() == true) {
+		return;
+	}
+
 	d_reconnections.fetch_add(1);
 	d_logger.DInfo(
 	    "starting connecting",
@@ -152,7 +162,11 @@ void VideoOutputImpl::reconnectStream() {
 		return;
 	}
 	Lock lock{d_reconfiguration};
+	if (d_closing.load() == true) {
+		return;
+	}
 	d_streamPipeline = std::move(newStream);
+	d_streamPipeline->SetState(GST_STATE_PLAYING);
 }
 
 void VideoOutputImpl::scheduleReconnect() {

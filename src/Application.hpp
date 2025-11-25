@@ -1,9 +1,8 @@
 #pragma once
 
-#include "Task.hpp"
-
 #include <glib.h>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include "Options.hpp"

@@ -13,12 +13,12 @@ class VideoOutputImpl;
 class VideoOutput {
 public:
 	struct Config {
-		Duration FilePeriod = 2 * Duration::Hour;
+		Duration FilePeriod = 1 * Duration::Minute;
 		float    FPS        = 10.0;
 		Size     InputResolution;
 		bool     LeakyPush              = true;
 		Duration ConnectionTimeout      = 5 * Duration::Second;
-		bool     EnforceStreamVideoRate = true;
+		bool     EnforceStreamVideoRate = false;
 		size_t   InputBuffer            = 1;
 	};
 

@@ -43,9 +43,7 @@ private:
 	std::function<void()> d_onStreamError;
 	std::atomic<bool>     d_closing{false};
 
-	GstElementPtr d_inputSrc, d_streamValve, d_streamSink;
-	GstPadPtr     d_streamParse_src;
-	gulong        d_blockProbe{0};
+	GstElementPtr d_inputSrc;
 };
 } // namespace artemis
 } // namespace fort

@@ -30,6 +30,7 @@
 #include "UserInterfaceTask.hpp" // IWYU pragma: keep
 
 namespace fort {
+
 namespace artemis {
 
 void Application::Execute(int argc, char **argv) {

@@ -1,12 +1,17 @@
 #include "StreamPipeline.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <thread>
+
+#include <glib.h>
+
+#include <gst/app/gstappsrc.h>
+#include <gst/gst.h>
+#include <gst/gstelement.h>
+
 #include "video/BusManagedPipeline.hpp"
 #include "video/gstreamer.hpp"
-#include <atomic>
-#include <glib.h>
-#include <gst/app/gstappsrc.h>
-#include <gst/gstmessage.h>
-#include <gst/gstpad.h>
-#include <memory>
 
 using namespace std::chrono_literals;
 
@@ -17,26 +22,23 @@ StreamPipeline::StreamPipeline(const Config &config)
     , d_onStreamError{config.OnStreamError} {
 
 	d_inputSrc = GetByName("stream-input-src");
-
-	d_streamValve = GetByName("stream-valve");
-
-	d_streamSink = GetByName("stream-sink");
-
-	auto streamParse = GetByName("stream-parse");
-	d_streamParse_src =
-	    GstPadPtr{gst_element_get_static_pad(streamParse.get(), "src")};
-	if (d_streamParse_src == nullptr) {
-		throw cpptrace::runtime_error(
-		    "could not get src pad from stream-parse element in stream pipeline"
-		);
-	}
-
-	d_logger.Debug("starting");
-	SetState(GST_STATE_PLAYING);
 }
 
 StreamPipeline::~StreamPipeline() {
 	d_closing.store(true);
+	SetState(GST_STATE_NULL);
+	GstState current;
+	do {
+		gst_element_get_state(
+		    Self(),
+		    &current,
+		    nullptr,
+		    std::chrono::nanoseconds{1ms}.count()
+		);
+		if (current != GST_STATE_NULL) {
+			std::this_thread::sleep_for(1ms);
+		}
+	} while (current != GST_STATE_NULL);
 }
 
 bool StreamPipeline::PushBuffer(GstBuffer *buffer) {
@@ -69,23 +71,7 @@ void StreamPipeline::OnMessage(GstBus *bus, GstMessage *message) {
 		return;
 	}
 
-	if (d_blockProbe != 0) {
-		return;
-	}
-
-	g_object_set(d_streamValve.get(), "drop", TRUE, nullptr);
-
-	d_blockProbe = gst_pad_add_probe(
-	    d_streamParse_src.get(),
-	    GST_PAD_PROBE_TYPE_BLOCK,
-	    [](GstPad *pad, GstPadProbeInfo *info, gpointer userdata) {
-		    return GST_PAD_PROBE_DROP;
-	    },
-	    nullptr,
-	    nullptr
-	);
-
-	gst_element_set_state(d_streamSink.get(), GST_STATE_NULL);
+	SetState(GST_STATE_NULL);
 
 	d_onStreamError();
 }
@@ -112,9 +98,6 @@ std::string StreamPipeline::buildPipelineDescription(const Config &config) {
 	    << ",format=GRAY8"                                                //
 	    << ",framerate=0/1"                                               //
 	    << ",max-framerate=" << int(std::ceil(config.FPS * 10)) << "/10"; //
-
-	oss << " ! valve name=stream-valve" //
-	    << " drop=false";
 
 	oss << " ! videoconvertscale name=stream-videoconvertscale" //
 	    << " n-threads=1"                                       //

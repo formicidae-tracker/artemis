@@ -1,11 +1,7 @@
 #include <glib-object.h>
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
-#include <gst/gstbus.h>
-#include <gst/gstelement.h>
-#include <gst/gstenumtypes.h>
-#include <gst/gstmessage.h>
-#include <gst/gstpipeline.h>
+#include <gst/gst.h>
 
 #include <chrono>
 #include <fstream>
@@ -164,6 +160,7 @@ BusManagedPipeline::~BusManagedPipeline() {
 
 	ctx->done.wait(false);
 	gst_element_set_state(Self(), GST_STATE_NULL);
+	d_pipeline.reset();
 }
 
 void BusManagedPipeline::PrintDebug(const std::filesystem::path &filepath
