@@ -37,7 +37,7 @@ VideoOutputImpl::VideoOutputImpl(
 			.EnforceVideoRate = config.EnforceStreamVideoRate,
 		}
 	, d_logger{slog::With(slog::String("task","VideoOutput"))}
-	, d_reconnectTimeout{config.ConnectionTimeout} {
+	, d_timeout{config.ConnectionTimeout} {
 
 	EnsureGSTInitialized();
 
@@ -128,11 +128,7 @@ void VideoOutputImpl::disconnectStream() {
 	d_streamPipeline.reset();
 	d_logger.Info(
 	    "disconnected",
-	    slog::Int("reconnections", d_reconnections.load()),
-	    slog::Duration(
-	        "reconnection_timeout",
-	        std::chrono::nanoseconds{d_reconnectTimeout.Nanoseconds()}
-	    )
+	    slog::Int("reconnections", d_reconnections.load())
 	);
 }
 
@@ -140,14 +136,11 @@ void VideoOutputImpl::reconnectStream() {
 	if (d_closing.load() == true) {
 		return;
 	}
-
 	d_reconnections.fetch_add(1);
-	d_logger.DInfo(
-	    "starting connecting",
-	    slog::Int("reconnections", d_reconnections.load())
-	);
+	auto logger =
+	    d_logger.With(slog::Int("reconnections", d_reconnections.load()));
 	Defer {
-		d_logger.Info(
+		logger.Info(
 		    "connecting",
 		    slog::Int("reconnections", d_reconnections.load())
 		);
@@ -157,7 +150,7 @@ void VideoOutputImpl::reconnectStream() {
 	try {
 		newStream = std::make_unique<StreamPipeline>(d_streamConfig);
 	} catch (const std::exception &e) {
-		d_logger.Error("could not reconnect", slog::Err(e));
+		logger.Error("could not reconnect", slog::Err(e));
 		scheduleReconnect();
 		return;
 	}
@@ -173,12 +166,20 @@ void VideoOutputImpl::scheduleReconnect() {
 	if (d_reconnectionSchedule != 0) {
 		return;
 	}
+	if (d_reconnections.load() >= d_timeout.MaxRetries) {
+		d_logger.Warn("Not reconnecting as maximum reconnection reached");
+		return;
+	}
+
+	auto timeout = d_timeout.ForRetry(d_reconnections.load());
+
 	d_logger.Info(
 	    "scheduling reconnect",
-	    slog::Int("reconnections", d_reconnections.load())
+	    slog::Int("reconnections", d_reconnections.load()),
+	    slog::Duration("timeout", timeout.ToChrono())
 	);
 	d_reconnectionSchedule = g_timeout_add(
-	    guint(d_reconnectTimeout.Milliseconds()),
+	    guint(timeout.Milliseconds()),
 	    [](gpointer userdata) {
 		    auto self = reinterpret_cast<VideoOutputImpl *>(userdata);
 		    std::thread([self]() { self->reconnectStream(); }).detach();

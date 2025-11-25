@@ -59,11 +59,12 @@ private:
 	using Mutex = std::mutex;
 	using Lock  = std::lock_guard<std::mutex>;
 
-	StreamPipeline::Config d_streamConfig;
+	const VideoOutput::ExponentialTimeoutConfig d_timeout;
+
+	const StreamPipeline::Config d_streamConfig;
 
 	slog::Logger<1> d_logger;
 
-	Duration            d_reconnectTimeout;
 	std::atomic<size_t> d_reconnections{0};
 	gulong              d_reconnectionSchedule{0};
 

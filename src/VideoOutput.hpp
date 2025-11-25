@@ -12,14 +12,26 @@ class VideoOutputImpl;
 
 class VideoOutput {
 public:
+	struct ExponentialTimeoutConfig {
+		Duration Base       = 500 * Duration::Millisecond;
+		Duration Max        = 5 * Duration::Minute;
+		size_t   MaxRetries = 40;
+		float    Multiplier = 1.5;
+
+		Duration ForRetry(size_t retry) const;
+	};
+
 	struct Config {
+
 		Duration FilePeriod = 1 * Duration::Minute;
 		float    FPS        = 10.0;
 		Size     InputResolution;
-		bool     LeakyPush              = true;
-		Duration ConnectionTimeout      = 5 * Duration::Second;
-		bool     EnforceStreamVideoRate = false;
-		size_t   InputBuffer            = 1;
+		bool     LeakyPush = true;
+
+		ExponentialTimeoutConfig ConnectionTimeout;
+
+		bool   EnforceStreamVideoRate = false;
+		size_t InputBuffer            = 1;
 	};
 
 	VideoOutput(const VideoOutputOptions &options, const Config &config);

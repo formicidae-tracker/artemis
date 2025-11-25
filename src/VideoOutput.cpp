@@ -30,5 +30,13 @@ size_t VideoOutput::InflightBufferSize() const {
 	return d_impl->InflightBufferSize();
 }
 
+Duration VideoOutput::ExponentialTimeoutConfig::ForRetry(size_t n) const {
+	return std::min(
+	    int(Base.Milliseconds() * std::pow(Multiplier, n)) *
+	        Duration::Millisecond,
+	    Max
+	);
+}
+
 } // namespace artemis
 } // namespace fort
