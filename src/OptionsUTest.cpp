@@ -29,10 +29,9 @@ TEST_F(OptionsUTest, DefaultValues) {
 	EXPECT_EQ(options.VideoOutput.StreamHeight, 1080);
 	EXPECT_EQ(options.VideoOutput.OutputDir, "");
 	EXPECT_EQ(options.VideoOutput.Host, "");
-	EXPECT_EQ(options.VideoOutput.Quality, "fast");
-	EXPECT_EQ(options.VideoOutput.Tune, "film");
 	EXPECT_EQ(options.VideoOutput.Bitrate_KB, 2000);
 	EXPECT_FLOAT_EQ(options.VideoOutput.BitrateMaxRatio, 1.5);
+	EXPECT_EQ(options.VideoOutput.FileMaxSizeTime, 2 * Duration::Hour);
 
 	EXPECT_EQ(options.Apriltag.Family(), fort::tags::Family::Undefined);
 	EXPECT_FLOAT_EQ(options.Apriltag.QuadDecimate, 1.0);
@@ -116,13 +115,12 @@ TEST_F(OptionsUTest, TestParse) {
 	     [](const Options &options) {
 		     EXPECT_EQ(options.VideoOutput.BitrateMaxRatio, 2.0);
 	     }},
-	    {{"artemis", "--video-output.quality", "foo"},
+	    {{"artemis", "--video-output.file-max-size-time", "2s"},
 	     [](const Options &options) {
-		     EXPECT_EQ(options.VideoOutput.Quality, "foo");
-	     }},
-	    {{"artemis", "--video-output.tune", "tune"},
-	     [](const Options &options) {
-		     EXPECT_EQ(options.VideoOutput.Tune, "tune");
+		     EXPECT_EQ(
+		         options.VideoOutput.FileMaxSizeTime,
+		         2 * Duration::Second
+		     );
 	     }},
 	    {{"artemis", "--display.highlight-tags", "0x001,0x0ae"},
 	     [](const Options &options) {

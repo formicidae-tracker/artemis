@@ -272,12 +272,12 @@ TEST_F(VideoOutputTest, EncodesMultipleFilesWithMetadata) {
 	VideoOutput::Stats     stats;
 	WithTimeout(5000ms, [this, &stats]() {
 		VideoOutputOptions options;
-		options.OutputDir = s_output;
-		options.Height    = 320;
+		options.OutputDir       = s_output;
+		options.Height          = 320;
+		options.FileMaxSizeTime = 30 * PERIOD;
 		VideoOutput output(
 		    options,
 		    {
-		        .FilePeriod      = 30 * PERIOD,
 		        .FPS             = FPS,
 		        .InputResolution = {640, 480},
 		        .LeakyPush       = true,

@@ -22,11 +22,9 @@ public:
 	};
 
 	struct Config {
-
-		Duration FilePeriod = 1 * Duration::Minute;
-		float    FPS        = 10.0;
-		Size     InputResolution;
-		bool     LeakyPush = true;
+		float FPS = 10.0;
+		Size  InputResolution;
+		bool  LeakyPush = true;
 
 		ExponentialTimeoutConfig ConnectionTimeout;
 

@@ -65,12 +65,12 @@ struct VideoOutputOptions : public options::Group {
 	    AddOption<float>("bitrate-max-ratio", "maximum peek bitrate")
 	        .SetDefault(1.5);
 
-	std::string &Quality =
-	    AddOption<std::string>("quality", "libx264 quality preset")
-	        .SetDefault("fast");
-
-	std::string &Tune = AddOption<std::string>("tune", "libx264 tune preset")
-	                        .SetDefault("film");
+	Duration &FileMaxSizeTime =
+	    AddOption<Duration>(
+	        "file-max-size-time",
+	        "maximum time for a video file before splitting"
+	    )
+	        .SetDefault(2 * Duration::Hour);
 };
 
 struct ApriltagOptions : public options::Group {

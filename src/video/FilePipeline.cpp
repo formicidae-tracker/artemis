@@ -123,8 +123,8 @@ std::string FilePipeline::buildPipelineDescription(
 	oss << " ! splitmuxsink name=file-muxsink" //
 	    << " location="
 	    << (std::filesystem::path(options.OutputDir) / "stream.%04d.mp4")
-	           .c_str()                                         //
-	    << " max-size-time=" << config.FilePeriod.Nanoseconds() //
+	           .c_str()                                               //
+	    << " max-size-time=" << options.FileMaxSizeTime.Nanoseconds() //
 	    << " muxer=mp4mux";
 
 	return oss.str();
