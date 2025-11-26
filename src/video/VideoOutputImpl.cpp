@@ -26,18 +26,18 @@ std::string GetHostname() {
 VideoOutputImpl::VideoOutputImpl(
     const VideoOutputOptions &options, const VideoOutput::Config &config
 )
-    : d_streamConfig{
-			.Host = options.Host,
-			.Hostname = GetHostname(),
-			.OnStreamError = [this]() { onStreamError();},
-			.InputResolution = config.InputResolution,
-			.Height = std::clamp(options.StreamHeight,240UL,1080UL),
-			.InputBuffer = config.InputBuffer,
-			.FPS = config.FPS,
-			.EnforceVideoRate = config.EnforceStreamVideoRate,
-		}
-	, d_logger{slog::With(slog::String("task","VideoOutput"))}
-	, d_timeout{config.ConnectionTimeout} {
+    : d_timeout{config.ConnectionTimeout}
+    , d_streamConfig{StreamPipeline::Config{
+          .Host             = options.Host,
+          .Hostname         = GetHostname(),
+          .OnStreamError    = [this]() { onStreamError(); },
+          .InputResolution  = config.InputResolution,
+          .Height           = std::clamp(options.StreamHeight, 240UL, 1080UL),
+          .InputBuffer      = config.InputBuffer,
+          .FPS              = config.FPS,
+          .EnforceVideoRate = config.EnforceStreamVideoRate,
+      }}
+    , d_logger{slog::With(slog::String("task", "VideoOutput"))} {
 
 	EnsureGSTInitialized();
 

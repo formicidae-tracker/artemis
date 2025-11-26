@@ -51,7 +51,7 @@ GLUserInterface::GLUserInterface(
     , d_workingSize{workingResolution}
     , d_inputSize(fullSize)
     , d_inputToWorkingRatio{float(fullSize.width()) / float(workingResolution.width())}
-    , d_individualROISize{options.NewAntROISize}
+    , d_individualROISize{options.CloseUpROISize}
     , d_windowSize{workingResolution}
     , d_currentScaleFactor{0}
     , d_currentPOI{fullSize.width() / 2, fullSize.height() / 2}

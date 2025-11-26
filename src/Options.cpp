@@ -159,9 +159,9 @@ void Options::Validate() {
 		return oss.str();
 	};
 
-	if (ImageRenewPeriod < 15 * Duration::Minute) {
+	if (RenewPeriod < 15 * Duration::Minute) {
 		throw std::invalid_argument(
-		    "Image renew period (" + formatDuration(ImageRenewPeriod) +
+		    "Image renew period (" + formatDuration(RenewPeriod) +
 		    ") is too small for production of large dataset (minimum:15m)"
 		);
 	}

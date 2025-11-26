@@ -99,7 +99,7 @@ private:
 	    double         y
 	);
 
-	void CatalogAnt(
+	void CatalogTag(
 	    Frame::Ptr                            frame,
 	    std::shared_ptr<hermes::FrameReadout> m,
 	    tf::Runtime                          &rt
@@ -126,16 +126,16 @@ private:
 		size_t                FrameStride;
 		std::set<uint64_t>    FrameIDs;
 		Duration              ImageRenewPeriod;
-		std::filesystem::path NewAntOutputDir;
-		size_t                NewAntROISize;
+		std::filesystem::path CloseUpDir;
+		size_t                CloseUpSize;
 
 		Config(const Options &options)
 		    : UUID{options.Process.UUID}
 		    , FrameStride{options.Process.FrameStride}
 		    , FrameIDs{options.Process.FrameIDs()}
-		    , ImageRenewPeriod{options.ImageRenewPeriod}
-		    , NewAntOutputDir{options.NewAntOutputDir}
-		    , NewAntROISize{options.NewAntROISize} {}
+		    , ImageRenewPeriod{options.RenewPeriod}
+		    , CloseUpDir{options.CloseUpOutputDir}
+		    , CloseUpSize{options.CloseUpROISize} {}
 	};
 
 	using ImagePool = utils::ObjectPool<
@@ -169,8 +169,8 @@ private:
 
 		    auto buffer = static_cast<uint8_t *>(aligned_alloc(64, wanted));
 		    auto stats  = d_imagePool->GetStats();
-		    slog::Warn(
-		        "allocating ImageU8",
+		    slog::DDebug(
+		        "allocating ImageU8 for UserInterface",
 		        slog::Int("size", wanted),
 		        slog::Pointer("buffer", buffer),
 		        slog::Group(
@@ -193,7 +193,7 @@ private:
 	ApriltagDetectorPtr d_detector;
 
 	Time               d_nextFrameExport;
-	Time               d_nextAntCatalog;
+	Time               d_nextTagCatalog;
 	std::set<uint32_t> d_exportedID;
 
 	Size                d_workingResolution;

@@ -1,14 +1,11 @@
 #pragma once
-
-#include <functional>
-
-#include "../Options.hpp"
-#include "../Rect.hpp"
-
-#include "ImageU8.hpp"
 #include "readerwriterqueue.h"
 
 #include <fort/hermes/FrameReadout.pb.h>
+
+#include <ImageU8.hpp>
+#include <Options.hpp>
+#include <Rect.hpp>
 
 namespace fort {
 namespace artemis {
@@ -18,12 +15,12 @@ public:
 	struct Options {
 		std::set<uint32_t> Highlighted;
 		bool               TestMode;
-		size_t             NewAntROISize;
+		size_t             CloseUpROISize;
 
 		Options(const fort::artemis::Options &options)
 		    : Highlighted{options.Display.Highlighted()}
 		    , TestMode{options.TestMode}
-		    , NewAntROISize{options.NewAntROISize} {}
+		    , CloseUpROISize{options.CloseUpROISize} {}
 	};
 
 	struct FrameToDisplay {

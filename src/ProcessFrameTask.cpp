@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include <filesystem>
 #include <fort/hermes/FrameReadout.pb.h>
 #include <glib.h>
 #include <slog++/Attribute.hpp>
@@ -126,7 +127,9 @@ void ProcessFrameTask::SetUpTaskflow() {
 		upstream.succeed(detectionDone);
 	}
 
-	if (d_config.NewAntOutputDir.empty() == false) {
+	if (d_config.CloseUpDir.empty() == false) {
+		std::filesystem::create_directories(d_config.CloseUpDir);
+
 		auto exportFullFrame =
 		    d_taskflow
 		        .emplace([this]() {
@@ -143,7 +146,7 @@ void ProcessFrameTask::SetUpTaskflow() {
 		auto catalogAnt =
 		    d_taskflow
 		        .emplace([this](tf::Runtime &rt) {
-			        CatalogAnt(d_current.Frame, d_current.Readout, rt);
+			        CatalogTag(d_current.Frame, d_current.Readout, rt);
 		        })
 		        .name("catalogIndividuals");
 		detectionDone.precede(catalogAnt, exportFullFrame);
@@ -209,7 +212,7 @@ void ProcessFrameTask::ExportFullFrame(const Frame::Ptr &frame) {
 	d_nextFrameExport = d_nextFrameExport.Add(d_config.ImageRenewPeriod);
 	std::ostringstream oss;
 	oss << "frame_" << frame->ID() << ".png";
-	auto filepath = d_config.NewAntOutputDir / oss.str();
+	auto filepath = d_config.CloseUpDir / oss.str();
 	d_logger.Info(
 	    "full frame export",
 	    slog::String("path", filepath.string()),
@@ -252,12 +255,12 @@ void ProcessFrameTask::SetUpDetection(
 }
 
 void ProcessFrameTask::SetUpCataloguing(const Options &options) {
-	if (options.NewAntOutputDir.empty()) {
+	if (options.CloseUpOutputDir.empty()) {
 		return;
 	}
 
-	d_nextAntCatalog  = Time::Now();
-	d_nextFrameExport = d_nextAntCatalog.Add(10 * Duration::Second);
+	d_nextTagCatalog  = Time::Now();
+	d_nextFrameExport = d_nextTagCatalog.Add(10 * Duration::Second);
 }
 
 void ProcessFrameTask::SetUpConnection(
@@ -374,10 +377,10 @@ void ProcessFrameTask::CloseFrameQueue() {
 	d_frameQueue.enqueue(nullptr);
 }
 
-void ProcessFrameTask::CatalogAnt(
+void ProcessFrameTask::CatalogTag(
     Frame::Ptr frame, std::shared_ptr<hermes::FrameReadout> m, tf::Runtime &rt
 ) {
-	if (d_config.NewAntOutputDir.empty()) {
+	if (d_config.CloseUpDir.empty()) {
 		return;
 	}
 
@@ -403,8 +406,8 @@ void ProcessFrameTask::CatalogAnt(
 }
 
 void ProcessFrameTask::ResetExportedID(const Time &time) {
-	if (d_nextAntCatalog.Before(time)) {
-		d_nextAntCatalog = time.Add(d_config.ImageRenewPeriod);
+	if (time.After(d_nextTagCatalog)) {
+		d_nextTagCatalog = time.Add(d_config.ImageRenewPeriod);
 		d_exportedID.clear();
 	}
 }
@@ -428,14 +431,14 @@ void ProcessFrameTask::ExportROI(
     const ImageU8 &image, uint64_t frameID, uint32_t tagID, double x, double y
 ) {
 	std::ostringstream oss;
-	oss << "ant" << tagID << "_" << frameID << ".png";
+	oss << "tag_" << tagID << "_" << frameID << ".png";
 
 	auto roi = GetROICenteredAt(
 	    {int(x), int(y)},
-	    Size(d_config.NewAntROISize, d_config.NewAntROISize),
+	    Size(d_config.CloseUpSize, d_config.CloseUpSize),
 	    {image.width, image.height}
 	);
-	image.GetROI(roi).WritePNG(d_config.NewAntOutputDir / oss.str());
+	image.GetROI(roi).WritePNG(d_config.CloseUpDir / oss.str());
 }
 
 void ProcessFrameTask::DisplayFrame(

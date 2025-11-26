@@ -218,7 +218,7 @@ void BusManagedPipeline::onMessage(GstBus *bus, GstMessage *message) {
 		    ),
 		    slog::String(
 		        "pending",
-		        GEnumToSTring(gst_state_get_type(), pending)
+		        GEnumToString(gst_state_get_type(), pending)
 		    )
 		);
 		return;

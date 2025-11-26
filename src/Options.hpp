@@ -199,20 +199,18 @@ public:
 	    "former Keller's group tracking system"
 	);
 
-	std::string &NewAntOutputDir =
+	std::string &CloseUpOutputDir =
 	    AddOption<std::string>(
-	        "new-ant-output-dir", "Path to save new detected individuals"
+	        "close-up-dir", "Path to save new detected individuals close-ups"
 	    )
 	        .SetDefault("");
-	size_t &NewAntROISize =
+	size_t &CloseUpROISize =
 	    AddOption<size_t>(
-	        "new-ant-roi-size", "Size of the close-up on new individuals"
+	        "close-up-size", "Size of the close-up for new individuals"
 	    )
 	        .SetDefault(600);
-	Duration &ImageRenewPeriod =
-	    AddOption<Duration>(
-	        "renew-period", "Individual cataloguing and stream renew period"
-	    )
+	Duration &RenewPeriod =
+	    AddOption<Duration>("renew-period", "Close-Up cataloguing renew period")
 	        .SetDefault(2 * Duration::Hour);
 
 	std::vector<std::string> StubImagePaths() const;

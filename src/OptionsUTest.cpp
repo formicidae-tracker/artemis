@@ -50,9 +50,9 @@ TEST_F(OptionsUTest, DefaultValues) {
 
 	EXPECT_EQ(options.Process.FrameStride, 1);
 	EXPECT_TRUE(options.Process.FrameIDs().empty());
-	EXPECT_EQ(options.NewAntOutputDir, "");
-	EXPECT_EQ(options.NewAntROISize, 600);
-	EXPECT_EQ(options.ImageRenewPeriod, 2 * Duration::Hour);
+	EXPECT_EQ(options.CloseUpOutputDir, "");
+	EXPECT_EQ(options.CloseUpROISize, 600);
+	EXPECT_EQ(options.RenewPeriod, 2 * Duration::Hour);
 	EXPECT_EQ(options.Process.UUID, "");
 }
 
@@ -147,18 +147,19 @@ TEST_F(OptionsUTest, TestParse) {
 		     }
 	     }},
 
-	    {{"artemis", "--new-ant-output-dir", "foo"},
+	    {{"artemis", "--close-up-dir", "foo"},
 	     [](const Options &options) {
-		     EXPECT_EQ(options.NewAntOutputDir, "foo");
+		     EXPECT_EQ(options.CloseUpOutputDir, "foo");
 	     }},
 
-	    {{"artemis", "--new-ant-roi-size", "600"},
-	     [](const Options &options) { EXPECT_EQ(options.NewAntROISize, 600); }},
+	    {{"artemis", "--close-up-size", "600"},
+	     [](const Options &options) { EXPECT_EQ(options.CloseUpROISize, 600); }
+	    },
 
 	    {{"artemis", "--renew-period", "3h42m12s"},
 	     [](const Options &options) {
 		     EXPECT_EQ(
-		         options.ImageRenewPeriod,
+		         options.RenewPeriod,
 		         3 * Duration::Hour + 42 * Duration::Minute +
 		             12 * Duration::Second
 		     );
@@ -296,7 +297,7 @@ TEST_F(OptionsUTest, TestValidation) {
 	}
 #ifdef NDEBUG
 	options.Process.frameIDs.clear();
-	options.ImageRenewPeriod = 1 * Duration::Second;
+	options.RenewPeriod = 1 * Duration::Second;
 	try {
 		options.Validate();
 		ADD_FAILURE() << "Validation should have thrown";
