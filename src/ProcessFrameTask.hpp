@@ -105,7 +105,8 @@ private:
 	    tf::Runtime                          &rt
 	);
 
-	void ExportFullFrame(const Frame::Ptr &frame);
+	// this method copies its pointer to avoid an early invalidation of frame
+	void ExportFullFrame(Frame::Ptr frame);
 
 	void DisplayFrame(
 	    const Frame::Ptr &frame, const std::shared_ptr<hermes::FrameReadout> &m

@@ -137,8 +137,13 @@ void ProcessFrameTask::SetUpTaskflow() {
 				        return;
 			        }
 			        d_detector->SetMaxConcurrency(d_maximumThreads - 1);
+			        // forces to hold a reference to frame to avoid the race
+			        // condition where possibly the async is not scheduled
+			        // before returning from this task which would potentially
+			        // invalidate d_current.Frame.
 			        d_executor.silent_async([this, frame = d_current.Frame]() {
-				        ExportFullFrame(d_current.Frame);
+				        ExportFullFrame(frame);
+				        // done, we can give more room to other tasks.
 				        d_detector->SetMaxConcurrency(d_maximumThreads);
 			        });
 		        })
@@ -208,7 +213,7 @@ void ProcessFrameTask::SetUpTaskflow() {
 #endif
 }
 
-void ProcessFrameTask::ExportFullFrame(const Frame::Ptr &frame) {
+void ProcessFrameTask::ExportFullFrame(Frame::Ptr frame) {
 	d_nextFrameExport = d_nextFrameExport.Add(d_config.ImageRenewPeriod);
 	std::ostringstream oss;
 	oss << "frame_" << frame->ID() << ".png";
