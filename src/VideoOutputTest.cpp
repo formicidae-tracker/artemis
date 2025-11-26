@@ -33,8 +33,9 @@ class MockFrame : public Frame {
 public:
 	MockFrame(const ImageU8 &img, uint64_t ID, const fort::Time &time)
 	    : d_image{img}
-	    , d_ID{ID}
-	    , d_time{time} {}
+	    , d_ID{ID} {
+		d_time = time;
+	}
 
 	void *Data() override {
 		return d_image.buffer;
@@ -63,7 +64,6 @@ public:
 private:
 	ImageU8    d_image;
 	uint64_t   d_ID;
-	fort::Time d_time;
 };
 
 class VideoOutputTest : public ::testing::Test {

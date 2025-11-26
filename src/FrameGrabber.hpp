@@ -28,7 +28,7 @@ public:
 		return {int(Width()), int(Height())};
 	}
 
-private:
+protected:
 	fort::Time d_time;
 };
 

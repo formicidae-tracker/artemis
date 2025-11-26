@@ -1,8 +1,11 @@
-#include "FilePipeline.hpp"
-#include "VideoOutput.hpp"
-#include "video/gstreamer.hpp"
+
+#include <chrono>
 #include <cstdint>
+#include <memory>
+#include <sstream>
+
 #include <glib-object.h>
+
 #include <gst/app/gstappsrc.h>
 #include <gst/gstbin.h>
 #include <gst/gstbuffer.h>
@@ -10,8 +13,12 @@
 #include <gst/gstenumtypes.h>
 #include <gst/gstmemory.h>
 #include <gst/gstpad.h>
-#include <memory>
-#include <sstream>
+
+#include "FilePipeline.hpp"
+#include "VideoOutput.hpp"
+#include "video/gstreamer.hpp"
+
+using namespace std::chrono_literals;
 
 namespace fort {
 namespace artemis {
@@ -56,6 +63,10 @@ FilePipeline::FilePipeline(
 	    G_CALLBACK(&FilePipeline::onLocationFull),
 	    this
 	);
+
+	if (options.NoTimestampOverlay == false) {
+		configureTimestampOverlay();
+	}
 
 	d_logger.Debug("starting");
 	SetState(GST_STATE_PLAYING);
@@ -103,15 +114,38 @@ std::string FilePipeline::buildPipelineDescription(
 	    << " n-threads=1"                           //
 	    << " method=bilinear";                      //
 
+	if (options.NoTimestampOverlay == false) {
+
+		oss << " ! video/x-raw"                       //
+		    << ",format=GRAY8"                        //
+		    << ",width=" << fileResolution.width()    //
+		    << ",height=" << fileResolution.height(); //
+
+		oss << " ! textoverlay name=file-timestamp-overlay" //
+		    << " text=1970-01-01T00:00:00.000Z"             //
+		    << " font-desc=\"FreeMono Bold 12px\""          //
+		    << " auto-resize=false"                         //
+		    << " shaded-background=true"                    //
+		    << " shading-value=255"                         //
+		    << " valignment=top"                            //
+		    << " halignment=right"                          //
+		    << " xpad=0"                                    //
+		    << " ypad=0";                                   //
+
+		oss << " ! videoconvertscale name=file-timestamp-convert" //
+		    << " n-threads=1"                                     //
+		    << " method=bilinear";                                //
+	}
+
 	oss << " ! video/x-raw"                       //
 	    << ",format=NV12"                         //
 	    << ",width=" << fileResolution.width()    //
 	    << ",height=" << fileResolution.height(); //
 
-	oss << " ! queue name=file-encoder-queue" //
-	    << " max-size-bytes=0"                //
-	    << " max-size-buffers=20"             //
-	    << " max-size-time=0";                //
+	oss << " ! queue name=file-encoder-queue"                         //
+	    << " max-size-bytes=0"                                        //
+	    << " max-size-buffers=0"                                      //
+	    << " max-size-time=" << std::chrono::nanoseconds{4s}.count(); //
 
 	oss << " ! vah265enc name=file-encoder"                             //
 	    << " bitrate=" << options.Bitrate_KB                            //
@@ -226,12 +260,12 @@ bool FilePipeline::PushFrame(
 	    update
 	);
 
-	if (d_firstTimestamp_us.has_value() == false) {
-		d_firstTimestamp_us = frame->Timestamp();
+	if (d_streamStart.has_value() == false) {
+		d_streamStart = frame->Time();
 	}
 
 	GST_BUFFER_PTS(buffer) =
-	    GstClockTime((frame->Timestamp() - d_firstTimestamp_us.value()) * 1000);
+	    GstClockTime((frame->Time().Sub(d_streamStart.value())).Nanoseconds());
 	GST_BUFFER_DTS(buffer)      = GST_CLOCK_TIME_NONE;
 	GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
 
@@ -253,6 +287,49 @@ bool FilePipeline::PushFrame(
 		return false;
 	}
 	return true;
+}
+
+void FilePipeline::configureTimestampOverlay() {
+	d_fileConvert     = GetByName("file-convert");
+	d_fileTextoverlay = GetByName("file-timestamp-overlay");
+	d_fileConvert_src =
+	    GstPadPtr{gst_element_get_static_pad(d_fileConvert.get(), "src")};
+	if (d_fileConvert_src == nullptr) {
+		throw cpptrace::runtime_error(
+		    "could not get src pad from file-convert element in file pipeline"
+		);
+	}
+
+	gst_pad_add_probe(
+	    d_fileConvert_src.get(),
+	    GST_PAD_PROBE_TYPE_BUFFER,
+	    [](GstPad *pad, GstPadProbeInfo *info, gpointer userdata) {
+		    auto self   = reinterpret_cast<FilePipeline *>(userdata);
+		    auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+		    if (buffer != nullptr) {
+			    uint64_t PTS = GST_BUFFER_PTS(buffer);
+			    self->beforeFrameTimestamp(PTS);
+		    }
+		    return GST_PAD_PROBE_OK;
+	    },
+	    this,
+	    nullptr
+	);
+}
+
+void FilePipeline::beforeFrameTimestamp(uint64_t PTS) {
+	if (d_fileTextoverlay == nullptr) {
+		return;
+	}
+	auto time =
+	    d_streamStart.value().Add(Duration(PTS)).Round(Duration::Millisecond);
+
+	g_object_set(
+	    G_OBJECT(d_fileTextoverlay.get()),
+	    "text",
+	    time.Format().c_str(),
+	    nullptr
+	);
 }
 
 } // namespace artemis

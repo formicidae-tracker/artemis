@@ -45,16 +45,19 @@ private:
 	void onFrameDone(uint64_t frameID);
 	void notifyDrop(uint64_t frameID);
 
+	void configureTimestampOverlay();
+	void beforeFrameTimestamp(uint64_t PTS);
+
 	std::filesystem::path d_outputFileTemplate{};
 	MetadataHandler       d_metadata;
 
-	GstElementPtr d_inputSrc, d_splitMuxSink;
-	GstPadPtr     d_inputSrc_src;
+	GstElementPtr d_inputSrc, d_splitMuxSink, d_fileConvert, d_fileTextoverlay;
+	GstPadPtr     d_inputSrc_src, d_fileConvert_src;
 
 	std::atomic<bool> d_closing{false};
 
 	std::atomic<uint64_t>   d_lastFramePassed{0}, d_processed{0}, d_dropped{0};
-	std::optional<uint64_t> d_firstTimestamp_us;
+	std::optional<Time>     d_streamStart;
 };
 } // namespace artemis
 } // namespace fort

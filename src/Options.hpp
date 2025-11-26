@@ -65,6 +65,9 @@ struct VideoOutputOptions : public options::Group {
 	    AddOption<float>("bitrate-max-ratio", "maximum peek bitrate")
 	        .SetDefault(1.5);
 
+	bool &NoTimestampOverlay =
+	    AddOption<bool>("no-timestamp-overlay", "disable timestamp overlay");
+
 	Duration &FileMaxSizeTime =
 	    AddOption<Duration>(
 	        "file-max-size-time",
