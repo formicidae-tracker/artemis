@@ -52,8 +52,8 @@ COPY --from=build /usr/local/bin/artemis /usr/local/bin/artemis
 
 COPY --from=build /app/artemis/build/src/artemis-tests /usr/local/bin
 
-
-
 RUN ldconfig
+
+WORKDIR /app
 
 CMD [ "/usr/local/bin/artemis" ]
