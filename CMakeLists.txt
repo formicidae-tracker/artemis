@@ -79,7 +79,7 @@ else()
 	FetchContent_Declare(
 		fort-charis
 		GIT_REPOSITORY https://github.com/formicidae-tracker/charis.git
-		GIT_TAG 3df2c8929118298e8776e0ef3ca0c05b700dc43a
+		GIT_TAG df3c324f0be603beab98411a9c8b4a180b105274
 	)
 endif()
 
@@ -185,7 +185,7 @@ set(gtest_force_shared_crt
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-add_custom_target(check ALL ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
+add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
 
 include(GoogleTest)
 

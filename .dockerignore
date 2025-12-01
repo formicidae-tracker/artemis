@@ -1,6 +1,11 @@
-build
+build/
 .git
-scripts/resourcify/resourcify
 Dockerfile
 .dockerignore
 .github
+*.png
+deps/
+movies*/
+cu/
+logs/
+test.fish

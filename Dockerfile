@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 as build
+FROM ubuntu:24.04 AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -9,21 +9,14 @@ RUN apt update && apt install -y \
 	git-lfs \
 	protobuf-compiler \
 	libprotobuf-dev \
-	libboost-system-dev \
-	libopencv-dev \
-	libopencv-imgproc-dev \
 	libasio-dev \
 	libglew-dev \
 	libglfw3-dev \
 	libeigen3-dev \
 	libfontconfig1-dev \
 	libfreetype6-dev \
-	libgoogle-glog-dev \
-	google-mock
+	libgstreamer-plugins-base1.0-dev
 
-COPY --from=golang:1.20-bullseye /usr/local/go /usr/local/go
-
-ENV PATH="/usr/local/go/bin:${PATH}"
 
 WORKDIR /app/artemis
 
@@ -35,24 +28,31 @@ WORKDIR /app/artemis/build
 
 RUN cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFORCE_STUB_FRAMEGRABBER_ONLY=On ..
 
-RUN make all check install && ldconfig
+RUN make -j 16 all install && ldconfig
 
 RUN ldd /usr/local/bin/artemis | cut -d " " -f 3 > artemis_libs.txt
 
-FROM ubuntu:22.04
+
+FROM ubuntu:24.04
 
 RUN apt update && apt install -y \
-	libgoogle-glog0v5 \
-	libprotobuf23 \
-	libopencv-imgcodecs4.5d \
-	libtbb12 \
+	libprotobuf32 \
 	libglfw3 \
 	libglew2.2 \
-	libopengl0
+	libopengl0 \
+	libunwind8 \
+	gstreamer1.0-plugins-base \
+	gstreamer1.0-plugins-bad \
+	intel-media-va-driver-non-free
 
-COPY --from=build /usr/local/lib/libfort* /usr/local/lib/
+
+COPY --from=build /usr/local/lib/libfort* /usr/local/lib/libspng* /usr/local/lib/
 
 COPY --from=build /usr/local/bin/artemis /usr/local/bin/artemis
+
+COPY --from=build /app/artemis/build/src/artemis-tests /usr/local/bin
+
+
 
 RUN ldconfig
 
