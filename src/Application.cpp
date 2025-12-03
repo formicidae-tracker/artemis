@@ -46,7 +46,14 @@ void Application::Execute(int argc, char **argv) {
 	}
 
 	initLogging(argv[0], options);
+
 	initGlobalDependencies();
+
+	slog::Info(
+	    "artemis",
+	    slog::String("version", git_Describe()),
+	    slog::String("SHA1", git_CommitSHA1())
+	);
 
 	Application application(options);
 	application.run();
@@ -265,6 +272,7 @@ int Application::onSigint(void *self_) {
 }
 
 void Application::run() {
+
 	spawnTasks();
 
 	auto logger = slog::With(slog::String("task", "GLibMainLoop"));
