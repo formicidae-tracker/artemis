@@ -103,6 +103,7 @@ set(UTEST_SRC_FILES
 	TaskUTest.cpp
 	TaskflowTest.cpp
 	VideoOutputTest.cpp
+	ApplicationTest.cpp
 )
 
 set(UTEST_HDR_FILES

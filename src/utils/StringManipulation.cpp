@@ -67,6 +67,18 @@ std::string & s::TrimSuffix(std::string & s, const std::string & suffix) {
 	return s;
 }
 
-std::string & s::TrimSpaces(std::string & s) {
-	return TrimFunc(s,[](char c) { return std::isspace(c);});
+std::string &s::TrimSpaces(std::string &s) {
+	return TrimFunc(s, [](char c) { return std::isspace(c); });
+}
+
+std::string
+s::Replace(const std::string &s, const std::string &o, const std::string &n) {
+	std::string res = s;
+
+	for (size_t i = res.find(o, 0); i < std::string::npos;
+	     i        = res.find(o, i + n.size())) {
+		res = res.substr(0, i) + n + res.substr(i + o.size());
+	}
+
+	return res;
 }

@@ -17,6 +17,7 @@
 
 #include <Eigen/Core>
 
+#include <regex>
 #include <slog++/Config.hpp>
 #include <slog++/Level.hpp>
 #include <slog++/TeeSink.hpp>
@@ -30,6 +31,7 @@
 #include "UserInterfaceTask.hpp" // IWYU pragma: keep
 
 #include "git.h"
+#include "utils/StringManipulation.hpp"
 
 namespace fort {
 
@@ -59,11 +61,27 @@ void Application::Execute(int argc, char **argv) {
 	application.run();
 };
 
+void Application::formatVersion(
+    std::ostream &out, const char *gitDescribe, const char *gitSHA1
+) {
+	static auto ahead =
+	    std::regex(R"(v[0-9]+\.[0-9]+\.[0-9]+(-\w+)?(-\d+-g[0-9a-f]+))");
+	std::cmatch match;
+
+	std::string describe{gitDescribe};
+
+	if (std::regex_match(gitDescribe, match, ahead)) {
+		base::TrimSuffix(describe, match[2]);
+		describe += "+" + match[2].str().substr(1);
+	}
+
+	out << "artemis " << describe << std::endl
+	    << "SHA1: " << gitSHA1 << std::endl;
+}
+
 bool Application::interceptCommand(const Options &options) {
 	if (options.PrintVersion == true) {
-
-		std::cout << "artemis " << git_Describe() << std::endl
-		          << "SHA1: " << git_CommitSHA1() << std::endl;
+		formatVersion(std::cout, git_Describe(), git_CommitSHA1());
 
 		return true;
 	}

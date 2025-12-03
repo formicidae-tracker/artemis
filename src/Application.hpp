@@ -19,6 +19,10 @@ class Application {
 public:
 	static void Execute(int argc, char **argv);
 
+	static void formatVersion(
+	    std::ostream &out, const char *gitDescribe, const char *gitSHA1
+	);
+
 private:
 	static bool interceptCommand(const Options &options);
 

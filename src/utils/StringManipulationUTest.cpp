@@ -241,3 +241,24 @@ TEST_F(StringUTest, SplitString) {
 		}
 	}
 }
+
+TEST_F(StringUTest, Replace) {
+	struct TestData {
+		std::string Base;
+		std::string Old;
+		std::string New;
+		std::string Result;
+	};
+
+	std::vector<TestData> data = {
+	    {"foofoo", "oo", "aa", "faafaa"},
+	    {"foobarfoo", "bar", "baz", "foobazfoo"},
+	    {"aaaaaaa", "aa", "b", "bbba"},
+	    {"hello world", "world", "there", "hello there"},
+	    {"hello world", "o", "O", "hellO wOrld"},
+	};
+
+	for (auto d : data) {
+		EXPECT_EQ(d.Result, Replace(d.Base, d.Old, d.New));
+	}
+}

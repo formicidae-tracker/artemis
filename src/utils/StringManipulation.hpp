@@ -155,4 +155,7 @@ OutputIt SplitString(const InputIt & start, const InputIt & end,
 	return iter;
 }
 
+std::string
+Replace(const std::string &s, const std::string &o, const std::string &n);
+
 } //namespace base
