@@ -99,7 +99,7 @@ struct LogfileName {
 		name = std::filesystem::path(argv0).filename();
 
 		char hostname[HOST_NAME_MAX];
-		if (gethostname(hostname, sizeof(hostname)) != 0) {
+		if (gethostname(hostname, sizeof(hostname)) == 0) {
 			this->hostname = hostname;
 		} else {
 			this->hostname = "unknown";
