@@ -29,6 +29,8 @@
 #include "ProcessFrameTask.hpp"
 #include "UserInterfaceTask.hpp" // IWYU pragma: keep
 
+#include "git.h"
+
 namespace fort {
 
 namespace artemis {
@@ -52,7 +54,10 @@ void Application::Execute(int argc, char **argv) {
 
 bool Application::interceptCommand(const Options &options) {
 	if (options.PrintVersion == true) {
-		std::cout << "artemis v" << ARTEMIS_VERSION << std::endl;
+
+		std::cout << "artemis " << git_Describe() << std::endl
+		          << "SHA1: " << git_CommitSHA1() << std::endl;
+
 		return true;
 	}
 

@@ -151,6 +151,7 @@ target_link_libraries(
 		   libyuv::libyuv
 		   spng
 		   PkgConfig::gstreamer
+		   cmake_git_version_tracking
 )
 add_executable(artemis main.cpp)
 

@@ -66,6 +66,13 @@ set(FORT_CHARIS_CAPITALIZE_DEFER On)
 set(CPPTRACE_UNWIND_WITH_LIBUNWIND On)
 
 FetchContent_Declare(
+	cmake_git_version_tracking
+	GIT_REPOSITORY
+		https://github.com/andrew-hardin/cmake-git-version-tracking.git
+	GIT_TAG 904dbda1336ba4b9a1415a68d5f203f576b696bb
+)
+
+FetchContent_Declare(
 	slogpp
 	GIT_REPOSITORY https://github.com/atuleu/slogpp.git
 	GIT_TAG 26ca0aa97b726fcaa4a4e4b0bfa312a0267a387b
@@ -148,6 +155,7 @@ FetchContent_MakeAvailable(
 	libyuv
 	spng
 	slogpp
+	cmake_git_version_tracking
 )
 FetchContent_GetProperties(fort-charis)
 FetchContent_GetProperties(libyuv)
