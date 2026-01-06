@@ -20,6 +20,7 @@ public:
 		size_t                InputBuffer;
 		double                FPS;
 		bool                  EnforceVideoRate;
+		int                   Bitrate_Kb = 1000;
 	};
 
 	StreamPipeline(const Config &config);

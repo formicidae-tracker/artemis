@@ -61,6 +61,12 @@ struct VideoOutputOptions : public options::Group {
 	    AddOption<int>("bitrate", "Mean bitrate in kbps for disk encoding")
 	        .SetDefault(2000);
 
+	int &StreamBitrate_KB =
+	    AddOption<int>(
+	        "stream-bitrate", "Mean bitrate in kbps for monitoring streaming"
+	    )
+	        .SetDefault(1000);
+
 	float &BitrateMaxRatio =
 	    AddOption<float>("bitrate-max-ratio", "maximum peek bitrate")
 	        .SetDefault(1.5);

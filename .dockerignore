@@ -1,5 +1,4 @@
 build/
-.git
 Dockerfile
 .dockerignore
 .github

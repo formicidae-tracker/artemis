@@ -36,6 +36,7 @@ VideoOutputImpl::VideoOutputImpl(
           .InputBuffer      = config.InputBuffer,
           .FPS              = config.FPS,
           .EnforceVideoRate = config.EnforceStreamVideoRate,
+          .Bitrate_Kb       = options.StreamBitrate_KB,
       }}
     , d_logger{slog::With(slog::String("task", "VideoOutput"))} {
 

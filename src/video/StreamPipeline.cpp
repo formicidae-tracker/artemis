@@ -10,6 +10,7 @@
 #include <gst/gst.h>
 #include <gst/gstelement.h>
 
+#include "Options.hpp"
 #include "video/BusManagedPipeline.hpp"
 #include "video/gstreamer.hpp"
 
@@ -163,7 +164,7 @@ std::string StreamPipeline::buildPipelineDescription(const Config &config) {
 	    << " max-size-time=" << std::chrono::nanoseconds{2s}.count(); //
 
 	oss << " ! vah264enc name=stream-encoder" //
-	    << " bitrate=" << 1000                // 1Mbit/s
+	    << " bitrate=" << config.Bitrate_Kb   //
 	    << " rate-control=cbr";               //
 
 	oss << " ! capsfilter name=stream-encoder-format"         //
