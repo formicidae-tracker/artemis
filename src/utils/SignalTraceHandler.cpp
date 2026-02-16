@@ -47,16 +47,25 @@ void do_signal_safe_trace(cpptrace::frame_ptr *buffer, std::size_t count) {
 		close(input_pipe.tuple.write_end);
 		const char *env[] = {"ARTEMIS_SIGNAL_TRACE=1", nullptr};
 		execle(argv0, argv0, nullptr, env);
-		const char *exec_failure_message =
-		    "exec(artemis) failed: Make sure the signal_tracer "
+		const char *exec_failure_message[2] = {
+		    "exec(",
+		    ") failed: Make sure the signal_tracer "
 		    "executable is in "
 		    "the current working directory and the binary's permissions are "
-		    "correct.\n";
+		    "correct.\n"
+		};
 		write(
 		    STDERR_FILENO,
-		    exec_failure_message,
-		    strlen(exec_failure_message)
+		    exec_failure_message[0],
+		    strlen(exec_failure_message[0])
 		);
+		write(STDERR_FILENO, argv0, strlen(argv0));
+		write(
+		    STDERR_FILENO,
+		    exec_failure_message[1],
+		    strlen(exec_failure_message[1])
+		);
+
 		_exit(1);
 	}
 	// Resolve to safe_object_frames and write those to the pipe

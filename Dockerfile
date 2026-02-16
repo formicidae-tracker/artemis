@@ -43,7 +43,12 @@ RUN apt update && apt install -y \
 	libunwind8 \
 	gstreamer1.0-plugins-base \
 	gstreamer1.0-plugins-bad \
+	libgstreamer-plugins-bad1.0-0 \
 	intel-media-va-driver-non-free
+
+RUN apt update && apt install -y \
+	gstreamer1.0-tools \
+	vainfo
 
 
 COPY --from=build /usr/local/lib/libfort* /usr/local/lib/libspng* /usr/local/lib/
