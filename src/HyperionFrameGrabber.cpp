@@ -1,6 +1,8 @@
+#include <cstdint>
 #include <endian.h>
 #include <linux/can.h>
 #include <linux/if.h>
+#include <slog++/Attribute.hpp>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
@@ -8,11 +10,10 @@
 #include <stdexcept>
 
 #include "HyperionFrameGrabber.hpp"
-#include "utils/Defer.hpp"
+#include "ImageU8.hpp"
 #include "utils/PosixCall.hpp"
+#include <fort/utils/Defer.hpp>
 #include <mvIMPACT_CPP/mvIMPACT_acquire.h>
-
-#include <glog/logging.h>
 
 namespace fort {
 
@@ -28,7 +29,11 @@ static acq::DeviceManager deviceManager;
 HyperionFrameGrabber::HyperionFrameGrabber(
     int index, const CameraOptions &options
 )
-    : d_device{deviceManager.getDevice(index)}
+    : d_logger{slog::With(
+          slog::String("task", "hyperion_framegrabber"),
+          slog::Int("index", index)
+      )}
+    , d_device{deviceManager.getDevice(index)}
     , d_acquisitionTimeout(1500 / options.FPS) {
 
 	if (options.FPS > 5.0) {
@@ -75,7 +80,10 @@ HyperionFrameGrabber::~HyperionFrameGrabber() {
 	try {
 		sendHeliosTriggerMode(0, 0, d_socket, 1);
 	} catch (const std::exception &e) {
-		LOG(ERROR) << "Could not reset helios trigger mode: " << e.what();
+		d_logger.Error(
+		    "could not reset helios trigger mode",
+		    slog::String("error", e.what())
+		);
 	}
 }
 
@@ -105,8 +113,10 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 				    1
 				);
 			} catch (const std::exception &e) {
-				LOG(ERROR) << "could not resend helios pulse mode: "
-				           << e.what();
+				d_logger.Error(
+				    "could not send helios pulse mode",
+				    slog::String("error", e.what())
+				);
 			}
 		}
 
@@ -117,22 +127,29 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 		}
 
 		if (d_intf->isRequestNrValid(idx) == false) {
-			LOG(ERROR) << "invalid request :"
-			           << acq::ImpactAcquireException::getErrorCodeAsString(idx
-			              );
+			d_logger.Error(
+			    "invalid request received",
+			    slog::String(
+			        "error",
+			        acq::ImpactAcquireException::getErrorCodeAsString(idx)
+			    )
+			);
 			continue;
 		}
 		try {
 			auto res = std::make_shared<HyperionFrame>(idx, *d_intf, d_fixer);
 			return res;
 		} catch (const std::runtime_error &e) {
-			LOG(ERROR) << "Could not create frame: " << e.what();
+			d_logger.Error(
+			    "could not create frame",
+			    slog::String("error", e.what())
+			);
 			continue;
 		}
 	}
 }
 
-cv::Size HyperionFrameGrabber::Resolution() const {
+Size HyperionFrameGrabber::Resolution() const {
 	return {WIDTH, HEIGHT};
 }
 
@@ -166,8 +183,6 @@ HyperionFrame::HyperionFrame(
 	d_data   = buf->vpData;
 	d_width  = buf->iWidth;
 	d_height = buf->iHeight;
-
-	d_mat = cv::Mat(d_height, d_width, CV_8U, d_data);
 }
 
 HyperionFrame::~HyperionFrame() {
@@ -196,8 +211,8 @@ uint64_t HyperionFrame::ID() const {
 	return d_ID;
 };
 
-const cv::Mat &HyperionFrame::ToCV() {
-	return d_mat;
+ImageU8 HyperionFrame::ToImageU8() {
+	return ImageU8{WIDTH, HEIGHT, (uint8_t *)d_data, WIDTH};
 };
 
 void bindSocketToIfName(int s, const std::string &ifname) {

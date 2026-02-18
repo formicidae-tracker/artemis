@@ -29,34 +29,6 @@ option(MULTICAM_FRAMEGRABBER_SUPPORT
 	   "Add support for Multicam Camera Link Framegrabber" Off
 )
 
-set(ARTEMIS_FRAMEGRABBER)
-
-if(EURESYS_FRAMEGRABBER_SUPPORT)
-	find_package(EGrabber REQUIRED)
-	list(APPEND ARTEMIS_FRAMEGRABBER "egrabber")
-endif(EURESYS_FRAMEGRABBER_SUPPORT)
-
-if(HYPERION_FRAMEGRABBER_SUPPORT)
-	find_package(Hyperion REQUIRED)
-	list(APPEND ARTEMIS_FRAMEGRABBER "hyperion")
-endif(HYPERION_FRAMEGRABBER_SUPPORT)
-
-if(MULTICAM_FRAMEGRABBER_SUPPORT)
-	find_package(Multicam REQUIRED)
-	list(APPEND ARTEMIS_FRAMEGRABBER "multicam")
-endif(MULTICAM_FRAMEGRABBER_SUPPORT)
-
-set(ARTEMIS_STUB_FRAMEGRABBER_ONLY Off)
-list(LENGTH ARTEMIS_FRAMEGRABBER ARTEMIS_NUM_FG)
-if(ARTEMIS_NUM_FG EQUAL 0)
-	set(ARTEMIS_STUB_FRAMEGRABBER_ONLY On)
-elseif(ARTEMIS_NUM_FG GREATER 1)
-	message(
-		FATAL_ERROR
-			"Artemis only support one framegrabber at a time, currently selected: ${ARTEMIS_FRAMEGRABBER}"
-	)
-endif(ARTEMIS_NUM_FG EQUAL 0)
-
 include(FetchContent)
 
 set(FORT_CHARIS_BUILD_GL On)
@@ -196,6 +168,34 @@ enable_testing()
 add_custom_target(check ${CMAKE_CTEST_COMMAND} ARGS --output-on-failure)
 
 include(GoogleTest)
+
+set(ARTEMIS_FRAMEGRABBER)
+
+if(EURESYS_FRAMEGRABBER_SUPPORT)
+	find_package(EGrabber REQUIRED)
+	list(APPEND ARTEMIS_FRAMEGRABBER "egrabber")
+endif(EURESYS_FRAMEGRABBER_SUPPORT)
+
+if(HYPERION_FRAMEGRABBER_SUPPORT)
+	find_package(Hyperion REQUIRED)
+	list(APPEND ARTEMIS_FRAMEGRABBER "hyperion")
+endif(HYPERION_FRAMEGRABBER_SUPPORT)
+
+if(MULTICAM_FRAMEGRABBER_SUPPORT)
+	find_package(Multicam REQUIRED)
+	list(APPEND ARTEMIS_FRAMEGRABBER "multicam")
+endif(MULTICAM_FRAMEGRABBER_SUPPORT)
+
+set(ARTEMIS_STUB_FRAMEGRABBER_ONLY Off)
+list(LENGTH ARTEMIS_FRAMEGRABBER ARTEMIS_NUM_FG)
+if(ARTEMIS_NUM_FG EQUAL 0)
+	set(ARTEMIS_STUB_FRAMEGRABBER_ONLY On)
+elseif(ARTEMIS_NUM_FG GREATER 1)
+	message(
+		FATAL_ERROR
+			"Artemis only support one framegrabber at a time, currently selected: ${ARTEMIS_FRAMEGRABBER}"
+	)
+endif(ARTEMIS_NUM_FG EQUAL 0)
 
 # add_subdirectory(scripts)
 

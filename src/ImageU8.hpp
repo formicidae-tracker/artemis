@@ -18,8 +18,8 @@ namespace artemis {
 
 struct ImageU8 {
 
-	struct  OwnedMemoryDeleter {
-		void operator()(ImageU8 *self) {
+	struct OwnedMemoryDeleter {
+		constexpr void operator()(ImageU8 *self) const {
 			if (self->buffer != nullptr) {
 				free(self->buffer);
 			}

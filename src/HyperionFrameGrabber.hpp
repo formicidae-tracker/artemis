@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <mvIMPACT_CPP/mvIMPACT_acquire.h>
+#include <slog++/Logger.hpp>
 
 #include "FrameGrabber.hpp"
 
@@ -40,7 +41,7 @@ public:
 	virtual size_t   Height() const override;
 	virtual uint64_t Timestamp() const override;
 	virtual uint64_t ID() const override;
-	const cv::Mat   &ToCV() override;
+	ImageU8          ToImageU8() override;
 
 private:
 	mvIMPACT::acquire::FunctionInterface &d_interface;
@@ -49,7 +50,6 @@ private:
 
 	void    *d_data;
 	uint64_t d_timestamp, d_ID;
-	cv::Mat  d_mat;
 	int      d_width, d_height;
 };
 
@@ -69,7 +69,7 @@ public:
 	void       AbordPending() override;
 	Frame::Ptr NextFrame() override;
 
-	cv::Size Resolution() const override;
+	Size Resolution() const override;
 
 private:
 	struct CanConfig {
@@ -84,6 +84,8 @@ private:
 	static int openCANSocket(
 	    const CanConfig & = CanConfig{.NodeID = 0, .IfName = "slcan0"}
 	);
+
+	slog::Logger<2> d_logger;
 
 	mvIMPACT::acquire::Device                      *d_device;
 	mvIMPACT::acquire::CameraDescriptionCameraLink *d_description;
