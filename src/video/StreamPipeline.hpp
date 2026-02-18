@@ -5,6 +5,7 @@
 #include "video/BusManagedPipeline.hpp"
 #include "video/gstreamer.hpp"
 #include <glib.h>
+#include <slog++/Logger.hpp>
 
 namespace fort {
 namespace artemis {
@@ -21,6 +22,7 @@ public:
 		double                FPS;
 		bool                  EnforceVideoRate;
 		int                   Bitrate_Kb = 1000;
+		std::string           Address() const;
 	};
 
 	StreamPipeline(const Config &config);
@@ -39,8 +41,8 @@ protected:
 private:
 	friend class VideoOutputImpl;
 
-	static std::string buildPipelineDescription(const Config &config);
-
+	static std::string    buildPipelineDescription(const Config &config);
+	slog::Logger<1>       d_logger;
 	std::function<void()> d_onStreamError;
 	std::atomic<bool>     d_closing{false};
 

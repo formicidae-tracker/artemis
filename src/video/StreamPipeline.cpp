@@ -20,8 +20,9 @@ namespace fort {
 namespace artemis {
 StreamPipeline::StreamPipeline(const Config &config)
     : BusManagedPipeline{"stream-pipeline", buildPipelineDescription(config)}
+    , d_logger{slog::With(slog::String("address", config.Address()))}
     , d_onStreamError{config.OnStreamError} {
-
+	d_logger.Info("stream pipeline configured");
 	d_inputSrc = GetByName("stream-input-src");
 }
 
@@ -173,10 +174,14 @@ std::string StreamPipeline::buildPipelineDescription(const Config &config) {
 	oss << " ! h264parse name=stream-parse" //
 	    << " config-interval=-1";
 
-	oss << " ! rtspclientsink name=stream-sink"                               //
-	    << " protocols=tcp"                                                   //
-	    << " location=rtsp://" << config.Host << ":8554/" << config.Hostname; //
+	oss << " ! rtspclientsink name=stream-sink" //
+	    << " protocols=tcp"                     //
+	    << " location=" << config.Address();    //
 	return oss.str();
+}
+
+std::string StreamPipeline::Config::Address() const {
+	return "rtsp://" + Host + ":8554/" + Hostname;
 }
 
 } // namespace artemis
