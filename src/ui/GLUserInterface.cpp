@@ -58,6 +58,7 @@ GLUserInterface::GLUserInterface(
     , d_logger{slog::With(slog::String("group", "GLUserInterface"))}
     , d_labelFont{"Nimbus Mono,Bold", LABEL_FONT_SIZE}
     , d_overlayFont{"Ubuntu Mono", OVERLAY_FONT_SIZE}
+    , d_watermarkFont{"Ubuntu Mono", WATERMARK_FONT_SIZE}
     , d_labelCache{[this](uint32_t tagID) {
 	    return std::make_shared<gl::CompiledText>(
 	        std::move(d_labelFont.Compile(FormatTagID(tagID), 2))
@@ -459,6 +460,10 @@ void GLUserInterface::InitGLData() {
 
 	UploadHelpText();
 
+	if (Watermark().empty() == false) {
+		d_watermarkText = d_watermarkFont.Compile("TEST MODE");
+	}
+
 	d_promptBackground = std::make_unique<gl::VertexArrayObject>();
 
 	// clang-format off
@@ -790,7 +795,32 @@ void GLUserInterface::Draw(const DrawBuffer &buffer) {
 	DrawPrompt();
 }
 
-void GLUserInterface::DrawWatermark() {}
+void GLUserInterface::DrawWatermark() {
+	if (d_watermarkText.has_value() == false) {
+		return;
+	}
+	const auto &watermarkText = d_watermarkText.value();
+
+	auto bbox = watermarkText.BoundingBox(
+	    {.ViewportSize = d_viewSize,
+	     .Position     = {0, 0},
+	     .Size         = WATERMARK_FONT_SIZE}
+	);
+	float w{bbox.z() - bbox.x()}, h{bbox.w() - bbox.y()};
+
+	watermarkText.SetColor(WATERMARK_FOREGROUND);
+
+	watermarkText.Render(
+	    {
+	        .ViewportSize = d_viewSize,
+	        .Position =
+	            {(d_viewSize.width() - w) / 2,
+	             (d_viewSize.height() - h) / 2 - bbox.y()},
+	        .Size = WATERMARK_FONT_SIZE,
+	    },
+	    false
+	);
+}
 
 template <typename T> std::string Centered(const T &t, size_t nChars) {
 	std::ostringstream oss;
@@ -884,6 +914,10 @@ const Eigen::Vector4f GLUserInterface::LABEL_FOREGROUND = {
 };
 const Eigen::Vector4f GLUserInterface::LABEL_BACKGROUND = {
     0.0f, 0.0f, 0.0f, 1.0f
+};
+
+const Eigen::Vector4f GLUserInterface::WATERMARK_FOREGROUND = {
+    1.0f, 1.0f, 0.0f, 1.0f
 };
 
 } // namespace artemis

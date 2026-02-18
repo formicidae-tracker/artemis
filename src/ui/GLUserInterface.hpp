@@ -110,11 +110,12 @@ private:
 
 	slog::Logger<1> d_logger;
 
-	gl::TextRenderer d_labelFont, d_overlayFont;
+	gl::TextRenderer d_labelFont, d_overlayFont, d_watermarkFont;
 	utils::LRUCache<256, std::function<CompiledTextPtr(uint32_t)>> d_labelCache;
 
 	gl::CompiledText                       d_helpText;
 	gl::CompiledText                       d_promptText;
+	std::optional<gl::CompiledText>        d_watermarkText;
 	std::unique_ptr<gl::VertexArrayObject> d_promptBackground;
 
 	struct MouseDragStart {
@@ -126,17 +127,20 @@ private:
 	std::optional<MouseDragStart> d_mouseDrag;
 
 	static const Eigen::Vector4f OVERLAY_FOREGROUND;
-
 	static const Eigen::Vector4f OVERLAY_BACKGROUND;
+	static const Eigen::Vector4f WATERMARK_FOREGROUND;
 	static const Eigen::Vector4f LABEL_FOREGROUND;
 	static const Eigen::Vector4f LABEL_BACKGROUND;
+	//	static const Eigen::Vector3f POINT_NORMAL_COLOR;
+	// static const Eigen::Vector3f POINT_HIGHLIGHTED_COLOR;
 
 	constexpr static size_t OVERLAY_COLS           = 30;
 	constexpr static size_t OVERLAY_ROWS           = 8;
 	constexpr static size_t NORMAL_POINT_SIZE      = 70;
 	constexpr static size_t HIGHLIGHTED_POINT_SIZE = 100;
-	constexpr static size_t LABEL_FONT_SIZE        = 16;
-	constexpr static size_t OVERLAY_FONT_SIZE      = 14;
+	constexpr static size_t LABEL_FONT_SIZE          = 16;
+	constexpr static size_t OVERLAY_FONT_SIZE        = 14;
+	constexpr static size_t WATERMARK_FONT_SIZE      = 96;
 };
 
 } // namespace artemis
