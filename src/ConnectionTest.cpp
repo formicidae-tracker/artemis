@@ -291,9 +291,9 @@ TEST_F(ConnectionTest, Reconnect) {
 			    d_service->ConnectionClosed().wait(i);
 			    fort::hermes::FrameReadout ro;
 			    ro.set_frameid(2 * i);
-			    connection.PostMessage(ro);
+			    connection.PostMessage(ro, 2 * i);
 			    ro.set_frameid(2 * i + 1);
-			    connection.PostMessage(ro);
+			    connection.PostMessage(ro, 2 * i + 1);
 		    };
 
 		    ASSERT_EQ(connections.load(), 5);
@@ -344,7 +344,7 @@ TEST_F(ConnectionTest, DoesNotMangle) {
 	fort::hermes::FrameReadout ro;
 	for (size_t i = 0; i < SEQUENCE_SIZE; ++i) {
 		ro.set_frameid(i + 1);
-		ASSERT_TRUE(connection.PostMessage(ro));
+		ASSERT_TRUE(connection.PostMessage(ro, i + 1));
 		std::this_thread::sleep_for(std::chrono::milliseconds{1});
 	}
 	// needed as our implementation of LetoService reads the full stream of

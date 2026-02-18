@@ -90,6 +90,7 @@ void print_backtrace_handler(int signo, siginfo_t *info, void *context) {
 		message = "SIGTRAP occured:\n";
 	}
 	write(STDERR_FILENO, message, strlen(message));
+
 	// Generate trace
 	constexpr static std::size_t N = 100;
 	cpptrace::frame_ptr          buffer[N];

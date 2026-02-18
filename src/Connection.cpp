@@ -56,7 +56,7 @@ Connection::Connection(
     , d_client{nullptr}
     , d_connection{nullptr}
     , d_stream{nullptr}
-    , d_queue{64} {
+    , d_queue{} {
 	scheduleDispatch();
 }
 
@@ -338,22 +338,43 @@ inline std::string serialize(const google::protobuf::MessageLite &m) {
 	return oss.str();
 }
 
-bool Connection::PostMessage(const google::protobuf::MessageLite &m) {
+bool Connection::PostMessage(
+    const google::protobuf::MessageLite &m, uint64_t frameID
+) {
+	auto logger = slog::With(slog::Int("frameID", frameID));
+
 	const auto state = d_state.load();
 	if (d_closing.load() == true || state == State::CLOSED) {
-		slog::Warn(
+		logger.Warn(
 		    "discarding as connection is closed",
 		    slog::String("message", m.Utf8DebugString())
 		);
 		return false;
 	}
-	if (d_queue.try_enqueue(serialize(m)) == false) {
-		slog::Error(
+
+	// This will limit the number of queued message to 64+ N -1 where N is the
+	// number of concurrent producers. It is fine enough and does not lock for
+	// weird reasons.
+	auto sizeNow = d_queue.size_approx();
+	if (sizeNow >= 64) {
+		logger.Error(
 		    "discarding as input queue is full",
-		    slog::String("message", m.Utf8DebugString())
+		    slog::String("message", m.Utf8DebugString()),
+		    slog::Int("size", sizeNow)
 		);
 		return false;
 	}
+
+	auto serialized = serialize(m);
+	if (d_queue.enqueue(serialized) == false) {
+		logger.Error(
+		    "queue could not serialize",
+		    slog::String("message", m.ShortDebugString()),
+		    slog::Int("size", sizeNow)
+		);
+		return false;
+	}
+
 	scheduleDispatch();
 	return true;
 }

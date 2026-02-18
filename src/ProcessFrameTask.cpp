@@ -122,7 +122,10 @@ void ProcessFrameTask::SetUpTaskflow() {
 
 	if (d_connection) {
 		auto upstream = d_taskflow.emplace([this]() {
-			d_connection->PostMessage(*d_current.Readout);
+			d_connection->PostMessage(
+			    *d_current.Readout,
+			    d_current.Readout->frameid()
+			);
 		});
 		upstream.succeed(detectionDone);
 	}
@@ -350,7 +353,7 @@ void ProcessFrameTask::DropFrame(const Frame::Ptr &frame) {
 
 	d_current.Readout->set_error(hermes::FrameReadout::PROCESS_OVERFLOW);
 
-	d_connection->PostMessage(*d_current.Readout);
+	d_connection->PostMessage(*d_current.Readout, frame->ID());
 }
 
 void ProcessFrameTask::ProcessFrame(const Frame::Ptr &frame) {}
