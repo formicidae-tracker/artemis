@@ -5,6 +5,7 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <memory>
 #include <sstream>
 
 #include <google/protobuf/message_lite.h>
@@ -61,6 +62,10 @@ Connection::Connection(
 }
 
 void Connection::Close() {
+	if (d_state.load() == State::CLOSED) {
+		// avoid hang-up when already closed and the loop is not running.
+		return;
+	}
 	incrementRefcount();
 	g_main_context_invoke(
 	    d_context,
@@ -246,27 +251,35 @@ void Connection::scheduleReconnect() {
 }
 
 void Connection::sendNextBuffer() {
-
 	if (d_state.load() != State::CONNECTED) {
-
 		return;
 	}
 
-	std::string next;
-	if (d_queue.try_dequeue(next) == false) {
+	struct WriteData {
+		Connection *self;
+		std::string buffer;
+	};
+
+	auto write = std::make_unique<WriteData>(WriteData{.self = this});
+	if (d_queue.try_dequeue(write->buffer) == false) {
 		return;
 	}
 
 	d_state.store(State::WRITING);
+
 	d_logger.DDebug(
 	    "writing",
-	    slog::Int("total", next.size()),
+	    slog::Int("total", write->buffer.size()),
 	    slog::Int("txID", d_txID.fetch_add(1) + 1)
 	);
+
+	// this cancellation will ever fire. But we are not building a production
+	// mail server serving billions of request. With a top 60 - 100 request per
+	// second, holding 100 objects is totally fine.
 	auto cancel = g_cancellable_new();
 	g_timeout_add(
 	    2000,
-	    [](gpointer userdata) {
+	    [](gpointer userdata) -> int {
 		    auto cancel = reinterpret_cast<GCancellable *>(userdata);
 		    g_cancellable_cancel(cancel);
 		    g_object_unref(cancel);
@@ -275,20 +288,28 @@ void Connection::sendNextBuffer() {
 	    },
 	    cancel
 	);
+
 	incrementRefcount();
+
+	// we will release in the call, so we need to copy buffer data now.
+	auto data = write->buffer.data();
+	auto size = write->buffer.size();
+
 	g_output_stream_write_all_async(
 	    d_stream,
-	    next.data(),
-	    next.size(),
+	    data,
+	    size,
 	    G_PRIORITY_DEFAULT,
 	    cancel,
-	    [](GObject *source, GAsyncResult *result, gpointer userData) -> void {
-		    auto self = reinterpret_cast<Connection *>(userData);
+	    [](GObject *source, GAsyncResult *result, gpointer userdata) -> void {
+		    auto w = reinterpret_cast<WriteData *>(userdata);
 		    Defer {
-			    self->decrementRefcount();
+			    w->self->decrementRefcount();
+			    delete w;
 		    };
 		    auto logger =
-		        self->d_logger.With(slog::Int("txID", self->d_txID.load()));
+		        w->self->d_logger.With(slog::Int("txID", w->self->d_txID.load())
+		        );
 
 #ifndef NDEBUG
 		    logger.DDebug("writeCallback");
@@ -317,18 +338,18 @@ void Connection::sendNextBuffer() {
 			    if (error != nullptr) {
 				    g_error_free(error);
 			    }
-			    self->closeConnection();
-			    self->scheduleReconnect();
-			    self->scheduleDispatch();
+			    w->self->closeConnection();
+			    w->self->scheduleReconnect();
+			    w->self->scheduleDispatch();
 			    return;
 		    }
 		    logger.DDebug("written", slog::Int("bytes", written));
-		    self->d_state.store(State::CONNECTED);
+		    w->self->d_state.store(State::CONNECTED);
 		    // we reschedule a dispatch to either push next write or
 		    // continue the closing.
-		    self->scheduleDispatch();
+		    w->self->scheduleDispatch();
 	    },
-	    this
+	    write.release()
 	);
 }
 

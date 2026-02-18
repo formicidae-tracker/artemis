@@ -313,6 +313,8 @@ void ProcessFrameTask::TearDown() {
 	}
 	if (d_connection) {
 		d_connection->Close();
+		// will block until connection is closed to avoid complete lock.
+		d_connection.reset();
 	}
 
 	if (d_video) {
