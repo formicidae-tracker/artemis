@@ -46,14 +46,11 @@ RUN apt update && apt install -y \
 	libgstreamer-plugins-bad1.0-0 \
 	intel-media-va-driver-non-free
 
-RUN apt update && apt install -y \
-	gstreamer1.0-tools \
-	vainfo
-
-
 COPY --from=build /usr/local/lib/libfort* /usr/local/lib/libspng* /usr/local/lib/
 
 COPY --from=build /usr/local/bin/artemis /usr/local/bin/artemis
+
+COPY --from=build /usr/local/bin/artemis-tracer /usr/local/bin/artemis-tracer
 
 COPY --from=build /app/artemis/build/src/artemis-tests /usr/local/bin
 

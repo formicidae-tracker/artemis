@@ -1,12 +1,16 @@
 #include "SignalTraceHandler.hpp"
 
-#include <cpptrace/cpptrace.hpp>
+#include <fcntl.h>
+#include <sys/wait.h>
+
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <mutex>
-#include <sys/wait.h>
+
+#include <cpptrace/cpptrace.hpp>
+#include <unistd.h>
 
 namespace fort {
 namespace artemis {
@@ -30,7 +34,15 @@ struct pipe_t {
 void do_signal_safe_trace(cpptrace::frame_ptr *buffer, std::size_t count) {
 	// Setup pipe and spawn child
 	pipe_t input_pipe;
-	pipe(input_pipe.data);
+	if (pipe(input_pipe.data) != 0) {
+		const char *pipe_failure_message = "pipe() failed\n";
+		write(
+		    STDERR_FILENO,
+		    pipe_failure_message,
+		    strlen(pipe_failure_message)
+		);
+		_exit(1);
+	}
 	const pid_t pid = fork();
 	if (pid == -1) {
 		const char *fork_failure_message = "fork() failed\n";
@@ -39,7 +51,7 @@ void do_signal_safe_trace(cpptrace::frame_ptr *buffer, std::size_t count) {
 		    fork_failure_message,
 		    strlen(fork_failure_message)
 		);
-		return;
+		_exit(1);
 	}
 	if (pid == 0) { // child
 		dup2(input_pipe.tuple.read_end, STDIN_FILENO);
@@ -68,11 +80,24 @@ void do_signal_safe_trace(cpptrace::frame_ptr *buffer, std::size_t count) {
 
 		_exit(1);
 	}
+
+	int fd = open("artemistrace", 0755, O_WRONLY | O_CREAT);
+	if (fd != -1) {
+		const char *dump_message =
+		    "raw stack trace written to 'artemistrace'\n";
+		write(STDERR_FILENO, dump_message, strlen(dump_message));
+	}
 	// Resolve to safe_object_frames and write those to the pipe
 	for (std::size_t i = 0; i < count; i++) {
 		cpptrace::safe_object_frame frame;
 		cpptrace::get_safe_object_frame(buffer[i], &frame);
 		write(input_pipe.tuple.write_end, &frame, sizeof(frame));
+		if (fd != -1) {
+			write(fd, &frame, sizeof(frame));
+		}
+	}
+	if (fd != -1) {
+		close(fd);
 	}
 	close(input_pipe.tuple.read_end);
 	close(input_pipe.tuple.write_end);
@@ -128,7 +153,10 @@ void handle_signal_trace() {
 			trace.frames.push_back(frame.resolve());
 		}
 	}
+	std::cerr << "--- resolved trace [" << trace.frames.size() << "] ---"
+	          << std::endl;
 	trace.resolve().print();
+	std::cerr << "--- resolved trace ---" << std::endl;
 }
 
 void InstallSignalSafeHandlers(int argc, char **argv, bool sigtrap) {

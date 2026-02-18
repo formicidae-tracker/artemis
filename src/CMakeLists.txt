@@ -155,8 +155,10 @@ target_link_libraries(
 		   cmake_git_version_tracking
 )
 add_executable(artemis main.cpp)
-
 target_link_libraries(artemis artemis-common)
+
+add_executable(artemis-tracer utils/main-tracer.cpp)
+target_link_libraries(artemis-tracer artemis-common)
 
 add_executable(artemis-tests ${UTEST_SRC_FILES} ${UTEST_HDR_FILES})
 target_link_libraries(
@@ -168,4 +170,4 @@ add_dependencies(check artemis-tests)
 # add_check_test( NAME artemis FILES ${UTEST_SRC_FILES} ${UTEST_HDR_FILES}
 # INCLUDE_DIRS ${GMOCK_INCLUDE_DIRS} LIBRARIES gmock artemis-common )
 
-install(TARGETS artemis DESTINATION bin)
+install(TARGETS artemis artemis-tracer DESTINATION bin)
