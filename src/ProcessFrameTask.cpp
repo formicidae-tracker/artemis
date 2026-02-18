@@ -139,7 +139,11 @@ void ProcessFrameTask::SetUpTaskflow() {
 			        if (d_current.Frame->Time().Before(d_nextFrameExport)) {
 				        return;
 			        }
-			        d_detector->SetMaxConcurrency(d_maximumThreads - 1);
+
+			        // reduce concurrency if needed
+			        if (d_detector) {
+				        d_detector->SetMaxConcurrency(d_maximumThreads - 1);
+			        }
 			        // forces to hold a reference to frame to avoid the race
 			        // condition where possibly the async is not scheduled
 			        // before returning from this task which would potentially
@@ -147,7 +151,9 @@ void ProcessFrameTask::SetUpTaskflow() {
 			        d_executor.silent_async([this, frame = d_current.Frame]() {
 				        ExportFullFrame(frame);
 				        // done, we can give more room to other tasks.
-				        d_detector->SetMaxConcurrency(d_maximumThreads);
+				        if (d_detector) {
+					        d_detector->SetMaxConcurrency(d_maximumThreads);
+				        }
 			        });
 		        })
 		        .name("exportFull");
