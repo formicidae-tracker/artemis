@@ -606,31 +606,23 @@ void GLUserInterface::DrawIndividualsROI(const DrawBuffer &buffer) {
 
 	fort::gl::Upload(d_roiProgram, "scaleMat", d_roiProjection);
 
-	fort::gl::Upload(
-	    d_roiProgram,
-	    "boxColor",
-	    Eigen::Vector3f{0.0f, 1.0f, 1.0f}
-	);
-	glPointSize(floatPointSize);
-	fort::gl::Upload(d_roiProgram, "lineWidth", 6.0f / floatPointSize);
-
 	glBindVertexArray(buffer.Points->VAO);
 	Defer {
 		glBindVertexArray(buffer.Points->VAO);
 	};
 
-	glDrawArrays(GL_POINTS, 0, buffer.Data.HighlightedIndexes.size());
+	glPointSize(floatPointSize);
+	fort::gl::Upload(d_roiProgram, "lineWidth", 6.0f / floatPointSize);
 
-	fort::gl::Upload(
-	    d_roiProgram,
-	    "boxColor",
-	    Eigen::Vector3f{1.0f, 0.0f, 0.0f}
-	);
+	fort::gl::Upload(d_roiProgram, "boxColor", POINT_NORMAL_COLOR);
 	glDrawArrays(
 	    GL_POINTS,
 	    buffer.Data.HighlightedIndexes.size(),
 	    buffer.Data.NormalIndexes.size()
 	);
+
+	fort::gl::Upload(d_roiProgram, "boxColor", POINT_HIGHLIGHTED_COLOR);
+	glDrawArrays(GL_POINTS, 0, buffer.Data.HighlightedIndexes.size());
 }
 
 void GLUserInterface::DrawPoints(const DrawBuffer &buffer) {
@@ -644,31 +636,22 @@ void GLUserInterface::DrawPoints(const DrawBuffer &buffer) {
 	}
 	fort::gl::Upload(d_pointProgram, "scaleMat", d_roiProjection);
 
-	fort::gl::Upload(
-	    d_pointProgram,
-	    "circleColor",
-	    Eigen::Vector3f{0.0f, 1.0f, 1.0f}
-	);
-	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor);
-
 	glBindVertexArray(buffer.Points->VAO);
 	Defer {
 		glBindVertexArray(buffer.Points->VAO);
 	};
-	glDrawArrays(GL_POINTS, 0, buffer.Data.HighlightedIndexes.size());
 
 	glPointSize(float(NORMAL_POINT_SIZE) * factor);
-	fort::gl::Upload(
-	    d_pointProgram,
-	    "circleColor",
-	    Eigen::Vector3f{1.0f, 0.0f, 0.0f}
-	);
-
+	fort::gl::Upload(d_pointProgram, "circleColor", POINT_NORMAL_COLOR);
 	glDrawArrays(
 	    GL_POINTS,
 	    buffer.Data.HighlightedIndexes.size(),
 	    buffer.Data.NormalIndexes.size()
 	);
+
+	fort::gl::Upload(d_pointProgram, "circleColor", POINT_HIGHLIGHTED_COLOR);
+	glPointSize(float(HIGHLIGHTED_POINT_SIZE) * factor);
+	glDrawArrays(GL_POINTS, 0, buffer.Data.HighlightedIndexes.size());
 }
 
 void GLUserInterface::DrawLabels(const DrawBuffer &buffer) {
@@ -896,12 +879,24 @@ void GLUserInterface::DrawPrompt() {
 		glBindVertexArray(0);
 	};
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+	d_promptText.SetColor(OVERLAY_FOREGROUND);
 	d_promptText.Render({
 	    .ViewportSize = d_viewSize,
 	    .Position     = {10, OVERLAY_FONT_SIZE},
 	    .Size         = OVERLAY_FONT_SIZE,
 	});
 }
+
+const Eigen::Vector3f GLUserInterface::POINT_NORMAL_COLOR = {
+    100.0f / 255.0f,
+    143.0f / 255.0f,
+    255.0f / 255.0f,
+};
+const Eigen::Vector3f GLUserInterface::POINT_HIGHLIGHTED_COLOR = {
+    254.0f / 255.0f,
+    097.0f / 255.0f,
+    000.0f / 255.0f,
+};
 
 const Eigen::Vector4f GLUserInterface::OVERLAY_FOREGROUND = {
     1.0f, 1.0f, 1.0f, 1.0f
@@ -917,7 +912,10 @@ const Eigen::Vector4f GLUserInterface::LABEL_BACKGROUND = {
 };
 
 const Eigen::Vector4f GLUserInterface::WATERMARK_FOREGROUND = {
-    1.0f, 1.0f, 0.0f, 1.0f
+    255.0f / 255.0f,
+    176.0f / 255.0f,
+    000.0f / 255.0f,
+    1.0f,
 };
 
 } // namespace artemis

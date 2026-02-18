@@ -131,8 +131,8 @@ private:
 	static const Eigen::Vector4f WATERMARK_FOREGROUND;
 	static const Eigen::Vector4f LABEL_FOREGROUND;
 	static const Eigen::Vector4f LABEL_BACKGROUND;
-	//	static const Eigen::Vector3f POINT_NORMAL_COLOR;
-	// static const Eigen::Vector3f POINT_HIGHLIGHTED_COLOR;
+	static const Eigen::Vector3f POINT_NORMAL_COLOR;
+	static const Eigen::Vector3f POINT_HIGHLIGHTED_COLOR;
 
 	constexpr static size_t OVERLAY_COLS           = 30;
 	constexpr static size_t OVERLAY_ROWS           = 8;
