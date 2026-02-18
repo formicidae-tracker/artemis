@@ -181,7 +181,7 @@ std::string StreamPipeline::buildPipelineDescription(const Config &config) {
 }
 
 std::string StreamPipeline::Config::Address() const {
-	return "rtsp://" + Host + ":8554/" + Hostname;
+	return "rtsp://" + Host + ":8554/olympus/" + Hostname;
 }
 
 } // namespace artemis
