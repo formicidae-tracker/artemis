@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 
 #include <glib.h>
@@ -181,7 +182,45 @@ std::string StreamPipeline::buildPipelineDescription(const Config &config) {
 }
 
 std::string StreamPipeline::Config::Address() const {
-	return "rtsp://" + Host + ":8554/olympus/" + Hostname;
+	if (AddressTemplate.starts_with("rtsp://") == false) {
+		throw cpptrace::invalid_argument{
+		    "Incorrect address '" + AddressTemplate +
+		    "': it must start with 'rtsp://' protocol prefix"
+		};
+	}
+
+	std::string            res;
+	std::string::size_type pos = 0;
+	do {
+		auto start = pos;
+		pos        = AddressTemplate.find('%', pos);
+		if (pos == std::string::npos) {
+			res += AddressTemplate.substr(start);
+			break;
+		}
+
+		if (pos == AddressTemplate.size() - 1) {
+			throw cpptrace::invalid_argument{
+			    "Incorrect address '" + AddressTemplate +
+			    "': straight '%' in address"
+			};
+		}
+
+		switch (AddressTemplate[pos + 1]) {
+		case 'H':
+			res += AddressTemplate.substr(start, pos - start);
+			res += Hostname;
+			pos += 2;
+			break;
+		default:
+			throw cpptrace::invalid_argument{
+			    "Incorrect address '" + AddressTemplate + "': unrecognized '" +
+			    AddressTemplate.substr(pos, 2) + "' parameter"
+			};
+		}
+	} while (pos != std::string::npos);
+
+	return res;
 }
 
 } // namespace artemis

@@ -28,28 +28,29 @@ VideoOutputImpl::VideoOutputImpl(
 )
     : d_timeout{config.ConnectionTimeout}
     , d_streamConfig{StreamPipeline::Config{
-          .Host             = options.Host,
+          .AddressTemplate  = options.Stream.RTSPAddress,
           .Hostname         = GetHostname(),
           .OnStreamError    = [this]() { onStreamError(); },
           .InputResolution  = config.InputResolution,
-          .Height           = std::clamp(options.StreamHeight, 240UL, 1080UL),
+          .Height           = std::clamp(options.Stream.Height, 240UL, 1080UL),
           .InputBuffer      = config.InputBuffer,
           .FPS              = config.FPS,
           .EnforceVideoRate = config.EnforceStreamVideoRate,
-          .Bitrate_Kb       = options.StreamBitrate_KB,
+          .Bitrate_Kb       = options.Stream.Bitrate_KB,
       }}
     , d_logger{slog::With(slog::String("task", "VideoOutput"))} {
 
 	EnsureGSTInitialized();
 
-	if (options.Host.empty() && options.OutputDir.empty()) {
-		throw cpptrace::runtime_error{"Host and OutputDir cannot both be empty"
+	if (options.Stream.RTSPAddress.empty() && options.OutputDir.empty()) {
+		throw cpptrace::runtime_error{
+		    "Stream.RTSPAddress and OutputDir cannot both be empty"
 		};
 	}
 	if (options.OutputDir.empty() == false) {
 		d_filePipeline = std::make_shared<FilePipeline>(options, config);
 	}
-	if (options.Host.empty() == false) {
+	if (options.Stream.RTSPAddress.empty() == false) {
 		d_streamPipeline = std::make_unique<StreamPipeline>(d_streamConfig);
 		d_streamPipeline->SetState(GST_STATE_PLAYING);
 	}

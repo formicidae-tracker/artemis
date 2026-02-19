@@ -26,12 +26,14 @@ TEST_F(OptionsUTest, DefaultValues) {
 
 	EXPECT_EQ(options.VideoOutput.Height, 1080);
 	EXPECT_EQ(options.VideoOutput.Height, 1080);
-	EXPECT_EQ(options.VideoOutput.StreamHeight, 1080);
+
 	EXPECT_EQ(options.VideoOutput.OutputDir, "");
-	EXPECT_EQ(options.VideoOutput.Host, "");
 	EXPECT_EQ(options.VideoOutput.Bitrate_KB, 2000);
 	EXPECT_FLOAT_EQ(options.VideoOutput.BitrateMaxRatio, 1.5);
 	EXPECT_EQ(options.VideoOutput.FileMaxSizeTime, 2 * Duration::Hour);
+	EXPECT_EQ(options.VideoOutput.Stream.RTSPAddress, "");
+	EXPECT_EQ(options.VideoOutput.Stream.Bitrate_KB, 1000);
+	EXPECT_EQ(options.VideoOutput.Stream.Height, 1080);
 
 	EXPECT_EQ(options.Apriltag.Family(), fort::tags::Family::Undefined);
 	EXPECT_FLOAT_EQ(options.Apriltag.QuadDecimate, 1.0);
@@ -95,17 +97,17 @@ TEST_F(OptionsUTest, TestParse) {
 	     [](const Options &options) {
 		     EXPECT_EQ(options.VideoOutput.OutputDir, "foo");
 	     }},
-	    {{"artemis", "--video-output.host", "bar"},
+	    {{"artemis", "--video-output.stream.address", "rtsp://bar"},
 	     [](const Options &options) {
-		     EXPECT_EQ(options.VideoOutput.Host, "bar");
+		     EXPECT_EQ(options.VideoOutput.Stream.RTSPAddress, "rtsp://bar");
 	     }},
 	    {{"artemis", "--video-output.height", "2160"},
 	     [](const Options &options) {
 		     EXPECT_EQ(options.VideoOutput.Height, 2160);
 	     }},
-	    {{"artemis", "--video-output.stream-height", "2160"},
+	    {{"artemis", "--video-output.stream.height", "2160"},
 	     [](const Options &options) {
-		     EXPECT_EQ(options.VideoOutput.StreamHeight, 2160);
+		     EXPECT_EQ(options.VideoOutput.Stream.Height, 2160);
 	     }},
 	    {{"artemis", "--video-output.bitrate", "1200"},
 	     [](const Options &options) {

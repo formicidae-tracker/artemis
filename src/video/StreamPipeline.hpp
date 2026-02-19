@@ -13,7 +13,7 @@ namespace artemis {
 class StreamPipeline : public BusManagedPipeline {
 public:
 	struct Config {
-		std::string           Host;
+		std::string           AddressTemplate;
 		std::string           Hostname;
 		std::function<void()> OnStreamError;
 		Size                  InputResolution;

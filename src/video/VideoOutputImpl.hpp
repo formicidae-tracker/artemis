@@ -45,7 +45,7 @@ public:
 
 	inline size_t InflightBufferSize() const {
 		return 1 + (d_filePipeline != nullptr ? 2 : 0) +
-		       (d_streamConfig.Host.empty() ? 0 : 2);
+		       (d_streamConfig.AddressTemplate.empty() ? 0 : 2);
 	}
 
 private:

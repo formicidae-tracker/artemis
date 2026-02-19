@@ -5,7 +5,10 @@
 #include "utils/StringManipulation.hpp"
 #include "utils/exec.hpp"
 
+#include "gtest/gtest.h"
 #include <atomic>
+#include <concepts>
+#include <exception>
 #include <glib.h>
 
 #include "gmock/gmock.h"
@@ -24,6 +27,9 @@
 #include <gtest/gtest.h>
 
 #include <cpptrace/exceptions.hpp>
+
+#include <type_traits>
+#include <video/StreamPipeline.hpp>
 using namespace std::chrono_literals;
 
 namespace fort {
@@ -62,8 +68,8 @@ public:
 	}
 
 private:
-	ImageU8    d_image;
-	uint64_t   d_ID;
+	ImageU8  d_image;
+	uint64_t d_ID;
 };
 
 class VideoOutputTest : public ::testing::Test {
@@ -354,8 +360,8 @@ TEST_F(VideoOutputTest, ConnectionWithoutServerDoesNotStallPipeline) {
 	VideoOutput::Stats  stats;
 	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
 		VideoOutputOptions options;
-		options.Host         = "localhost";
-		options.StreamHeight = 240;
+		options.Stream.RTSPAddress = "rtsp://localhost:8554/%H";
+		options.Stream.Height      = 240;
 
 		VideoOutput output(
 		    options,
@@ -402,8 +408,8 @@ TEST_F(VideoOutputTest, Connection) {
 
 	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
 		VideoOutputOptions options;
-		options.Host         = "localhost";
-		options.StreamHeight = 240;
+		options.Stream.RTSPAddress = "rtsp://localhost:8554/%H";
+		options.Stream.Height      = 240;
 
 		VideoOutput output(
 		    options,
@@ -446,10 +452,10 @@ TEST_F(VideoOutputTest, ConnectionAndFile) {
 
 	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
 		VideoOutputOptions options;
-		options.Host         = "localhost";
-		options.StreamHeight = 240;
-		options.Height       = 320;
-		options.OutputDir    = s_output;
+		options.Stream.RTSPAddress = "rtsp://localhost:8554/%H";
+		options.Stream.Height      = 240;
+		options.Height             = 320;
+		options.OutputDir          = s_output;
 
 		VideoOutput output(
 		    options,
@@ -516,10 +522,10 @@ TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFrames) {
 
 	auto videoThread = std::thread([this, &stop, &frames, &stats]() {
 		VideoOutputOptions options;
-		options.Host         = "localhost";
-		options.StreamHeight = 240;
-		options.Height       = 320;
-		options.OutputDir    = s_output;
+		options.Stream.RTSPAddress = "rtsp://localhost:8554/%H";
+		options.Stream.Height      = 240;
+		options.Height             = 320;
+		options.OutputDir          = s_output;
 
 		VideoOutput output(
 		    options,
@@ -573,6 +579,64 @@ TEST_F(VideoOutputTest, ConnectionErrorDoesNotDropFrames) {
 	EXPECT_EQ(
 	    readFileContent(s_output / "stream.frame-matching.0000.txt"),
 	    expectedFileContent.str()
+	);
+}
+
+TEST_F(VideoOutputTest, CanUseTemplatedAddress) {
+	using ::testing::StartsWith;
+	using ::testing::ThrowsMessage;
+
+	StreamPipeline::Config conf{.Hostname = "kind_korat"};
+
+	EXPECT_NO_THROW({
+		conf.AddressTemplate = "rtsp://in.the.jungle";
+		EXPECT_EQ(conf.Address(), "rtsp://in.the.jungle");
+	});
+
+	EXPECT_NO_THROW({
+		conf.AddressTemplate = "rtsp://in.the.jungle/on_a_tree/%H";
+		EXPECT_EQ(conf.Address(), "rtsp://in.the.jungle/on_a_tree/kind_korat");
+	});
+
+	EXPECT_NO_THROW({
+		conf.AddressTemplate = "rtsp://in.the.jungle/on_a_tree/%H/is_sleeping";
+		EXPECT_EQ(
+		    conf.Address(),
+		    "rtsp://in.the.jungle/on_a_tree/kind_korat/is_sleeping"
+		);
+	});
+
+	EXPECT_THAT(
+	    [&]() {
+		    conf.AddressTemplate = "rtmp://in.the.mountain";
+		    conf.Address();
+	    },
+	    ThrowsMessage<cpptrace::invalid_argument>(
+	        StartsWith("Incorrect address 'rtmp://in.the.mountain': it must "
+	                   "start with 'rtsp://' protocol prefix:")
+	    )
+	);
+
+	EXPECT_THAT(
+	    [&]() {
+		    conf.AddressTemplate = "rtsp://in.the.jungle/%";
+		    conf.Address();
+	    },
+	    ThrowsMessage<cpptrace::invalid_argument>(
+	        StartsWith("Incorrect address 'rtsp://in.the.jungle/%': straight "
+	                   "'%' in address")
+	    )
+	);
+
+	EXPECT_THAT(
+	    [&]() {
+		    conf.AddressTemplate = "rtsp://in.the.jungle/%h";
+		    conf.Address();
+	    },
+	    ThrowsMessage<cpptrace::invalid_argument>(
+	        StartsWith("Incorrect address 'rtsp://in.the.jungle/%h': "
+	                   "unrecognized '%h' parameter")
+	    )
 	);
 }
 

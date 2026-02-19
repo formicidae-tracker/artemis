@@ -242,7 +242,7 @@ UserInterfaceTaskPtr ProcessFrameTask::UserInterfaceTask() const {
 void ProcessFrameTask::SetUpVideoOutputTask(
     const VideoOutputOptions &options, const Size &inputResolution, float FPS
 ) {
-	if (options.Host.empty() && options.OutputDir.empty()) {
+	if (options.Stream.RTSPAddress.empty() && options.OutputDir.empty()) {
 		return;
 	}
 

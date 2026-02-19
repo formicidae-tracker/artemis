@@ -37,7 +37,25 @@ struct LetoOptions : public options::Group {
 	        .SetDefault(3002);
 };
 
+struct StreamOptions : public options::Group {
+	size_t &Height =
+	    AddOption<size_t>("height", "Video stream height").SetDefault(1080);
+
+	std::string &RTSPAddress =
+	    AddOption<std::string>(
+	        "address",
+	        "RTSP address to stream to. Must start with 'rstp://' '%H' will be "
+	        "replaced by current hostname."
+	    )
+	        .SetDefault("");
+
+	int &Bitrate_KB =
+	    AddOption<int>("bitrate", "Mean bitrate in kbps for RTSP stream")
+	        .SetDefault(1000);
+};
+
 struct VideoOutputOptions : public options::Group {
+
 	static Size
 	TargetResolution(size_t targetHeight, const Size &inputResolution);
 
@@ -45,27 +63,13 @@ struct VideoOutputOptions : public options::Group {
 	    AddOption<size_t>("height", "Video output height. 0 for original size")
 	        .SetDefault(1080);
 
-	size_t &StreamHeight =
-	    AddOption<size_t>("stream-height", "Video output height")
-	        .SetDefault(1080);
-
 	std::string &OutputDir =
 	    AddOption<std::string>("dir", "Video output dir, disable if empty")
-	        .SetDefault("");
-
-	std::string &Host =
-	    AddOption<std::string>("host", "Host to stream to, disabled if empty")
 	        .SetDefault("");
 
 	int &Bitrate_KB =
 	    AddOption<int>("bitrate", "Mean bitrate in kbps for disk encoding")
 	        .SetDefault(2000);
-
-	int &StreamBitrate_KB =
-	    AddOption<int>(
-	        "stream-bitrate", "Mean bitrate in kbps for monitoring streaming"
-	    )
-	        .SetDefault(1000);
 
 	float &BitrateMaxRatio =
 	    AddOption<float>("bitrate-max-ratio", "maximum peek bitrate")
@@ -80,6 +84,10 @@ struct VideoOutputOptions : public options::Group {
 	        "maximum time for a video file before splitting"
 	    )
 	        .SetDefault(2 * Duration::Hour);
+
+	StreamOptions &Stream = AddSubgroup<StreamOptions>(
+	    "stream", "Options regarding monitoring RTSP stream"
+	);
 };
 
 struct ApriltagOptions : public options::Group {
