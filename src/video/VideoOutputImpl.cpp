@@ -90,6 +90,7 @@ VideoOutputImpl::~VideoOutputImpl() {
 	    ctx.get()
 	);
 	ctx->done.wait(false);
+	d_streamPipeline.reset();
 }
 
 bool VideoOutputImpl::PushFrame(const Frame::Ptr &frame) {

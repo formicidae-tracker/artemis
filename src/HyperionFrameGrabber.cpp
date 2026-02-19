@@ -1,3 +1,4 @@
+#include <cpptrace/exceptions.hpp>
 #include <cstdint>
 #include <endian.h>
 #include <linux/can.h>
@@ -11,6 +12,7 @@
 
 #include "HyperionFrameGrabber.hpp"
 #include "ImageU8.hpp"
+#include "Options.hpp"
 #include "utils/PosixCall.hpp"
 #include <fort/utils/Defer.hpp>
 #include <mvIMPACT_CPP/mvIMPACT_acquire.h>
@@ -25,6 +27,13 @@ constexpr static size_t HEIGHT = 4384;
 namespace acq = mvIMPACT::acquire;
 
 static acq::DeviceManager deviceManager;
+
+std::shared_ptr<HyperionFrameGrabber>
+HyperionFrameGrabber::Create(int index, const CameraOptions &options) {
+	return std::shared_ptr<HyperionFrameGrabber>(
+	    new HyperionFrameGrabber{index, options}
+	);
+}
 
 HyperionFrameGrabber::HyperionFrameGrabber(
     int index, const CameraOptions &options
@@ -49,11 +58,6 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	sendHeliosTriggerMode(d_pulsePeriod, d_pulseLength, d_socket, 1);
 	d_lastSend = Time::Now();
 
-	// if (d_device->acquisitionStartStopBehaviour.read() != acq::assbUser) {
-	// 	LOG(INFO) << "[mvHYPERION] user acquisition start/stop";
-	// 	d_device->acquisitionStartStopBehaviour.write(acq::assbUser);
-	// }
-
 	d_device->open();
 
 	acq::CameraDescriptionManager cdm(d_device);
@@ -69,11 +73,22 @@ HyperionFrameGrabber::HyperionFrameGrabber(
 	d_stats = std::make_unique<acq::Statistics>(d_device);
 	d_intf  = std::make_unique<acq::FunctionInterface>(d_device);
 
-	;
 	for (auto err = acq::DMR_NO_ERROR; err == acq::DMR_NO_ERROR;
 	     err = static_cast<acq::TDMR_ERROR>(d_intf->imageRequestSingle())) {
 		++d_requestCount;
 	}
+	auto level = slog::Level::Info;
+	if (d_requestCount == 0) {
+		level = slog::Level::Error;
+	} else if (d_requestCount < 6) {
+		level = slog::Level::Warn;
+	}
+
+	d_logger.Log(
+	    level,
+	    "device request queue filled",
+	    slog::Int("count", d_requestCount)
+	);
 }
 
 HyperionFrameGrabber::~HyperionFrameGrabber() {
@@ -85,6 +100,17 @@ HyperionFrameGrabber::~HyperionFrameGrabber() {
 		    slog::String("error", e.what())
 		);
 	}
+
+	// wait all frames to be consumed.
+	while (true) {
+		auto current = d_inprocessFrame.load();
+		if (current == 0) {
+			break;
+		}
+		d_inprocessFrame.wait(current);
+	}
+	// clear all pending on exit.
+	d_intf->imageRequestReset(0, 0);
 }
 
 void HyperionFrameGrabber::Start() {
@@ -137,7 +163,11 @@ Frame::Ptr HyperionFrameGrabber::NextFrame() {
 			continue;
 		}
 		try {
-			auto res = std::make_shared<HyperionFrame>(idx, *d_intf, d_fixer);
+			auto res = std::make_shared<HyperionFrame>(
+			    idx,
+			    this->shared_from_this(),
+			    d_fixer
+			);
 			return res;
 		} catch (const std::runtime_error &e) {
 			d_logger.Error(
@@ -154,20 +184,28 @@ Size HyperionFrameGrabber::Resolution() const {
 }
 
 HyperionFrame::HyperionFrame(
-    int                                   idx,
-    mvIMPACT::acquire::FunctionInterface &interface,
-    details::Uint32TimestampFixer        &fixer
+    int                                          idx,
+    const std::shared_ptr<HyperionFrameGrabber> &framegrabber,
+    details::Uint32TimestampFixer               &fixer
 )
-    : d_interface{interface}
-    , d_index{idx}
-    , d_request{d_interface.getRequest(d_index)} {
+    : d_framegraber{framegrabber}
+    , d_index{idx} {
 
-	if (d_request->isOK() == false) {
-		d_interface.imageRequestUnlock(d_index);
+	if (framegrabber == nullptr) {
+		throw cpptrace::logic_error{"should not be nullptr"};
+	}
+
+	auto interface = framegrabber->d_intf.get();
+
+	auto request = interface->getRequest(d_index);
+
+	if (request->isOK() == false) {
+		interface->imageRequestUnlock(d_index);
+		interface->imageRequestSingle();
 		throw std::runtime_error{"invalid request"};
 	}
 
-	for (auto it = d_request->getInfoIterator(); it.isValid(); ++it) {
+	for (auto it = request->getInfoIterator(); it.isValid(); ++it) {
 		if (it.isProp() == false) {
 			continue;
 		}
@@ -179,16 +217,26 @@ HyperionFrame::HyperionFrame(
 		}
 	}
 
-	auto buf = d_request->getImageBufferDesc().getBuffer();
+	auto buf = request->getImageBufferDesc().getBuffer();
 	d_data   = buf->vpData;
 	d_width  = buf->iWidth;
 	d_height = buf->iHeight;
+	framegrabber->d_inprocessFrame.fetch_add(1);
 }
 
 HyperionFrame::~HyperionFrame() {
-	d_request->unlock();
-	d_interface.imageRequestSingle();
-	// d_interface.imageRequestUnlock(d_index);
+	auto framegrabber = d_framegraber.lock();
+	if (framegrabber == nullptr) {
+		slog::Error("could not access framegrabber when frame is destroyed");
+		return;
+	}
+	auto interface = framegrabber->d_intf.get();
+
+	interface->imageRequestUnlock(d_index);
+	interface->imageRequestSingle();
+
+	framegrabber->d_inprocessFrame.fetch_add(-1);
+	framegrabber->d_inprocessFrame.notify_all();
 }
 
 void *HyperionFrame::Data() {

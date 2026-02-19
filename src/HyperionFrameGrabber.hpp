@@ -22,12 +22,14 @@ struct Uint32TimestampFixer {
 
 } // namespace details
 
+class HyperionFrameGrabber;
+
 class HyperionFrame : public Frame {
 public:
 	HyperionFrame(
-	    int                                   index,
-	    mvIMPACT::acquire::FunctionInterface &interface,
-	    details::Uint32TimestampFixer        &timestamp
+	    int                                          index,
+	    const std::shared_ptr<HyperionFrameGrabber> &framegrabber,
+	    details::Uint32TimestampFixer               &fixer
 	);
 	virtual ~HyperionFrame();
 
@@ -44,19 +46,24 @@ public:
 	ImageU8          ToImageU8() override;
 
 private:
-	mvIMPACT::acquire::FunctionInterface &d_interface;
-	int                                   d_index;
-	mvIMPACT::acquire::Request           *d_request;
+	std::weak_ptr<HyperionFrameGrabber> d_framegraber;
+	int                                 d_index;
 
 	void    *d_data;
 	uint64_t d_timestamp, d_ID;
 	int      d_width, d_height;
 };
 
-class HyperionFrameGrabber : public FrameGrabber {
+class HyperionFrameGrabber
+    : public FrameGrabber,
+      public std::enable_shared_from_this<HyperionFrameGrabber> {
+
+private:
+	HyperionFrameGrabber(int deviceIndex, const CameraOptions &options);
 
 public:
-	HyperionFrameGrabber(int deviceIndex, const CameraOptions &options);
+	static std::shared_ptr<HyperionFrameGrabber>
+	Create(int deviceIndex, const CameraOptions &options);
 	virtual ~HyperionFrameGrabber();
 
 	HyperionFrameGrabber(const HyperionFrameGrabber &)            = delete;
@@ -72,6 +79,8 @@ public:
 	Size Resolution() const override;
 
 private:
+	friend class HyperionFrame;
+
 	struct CanConfig {
 		uint8_t     NodeID = 0;
 		std::string IfName = "slcan0";
@@ -105,6 +114,7 @@ private:
 	fort::Time     d_lastSend;
 
 	details::Uint32TimestampFixer d_fixer;
+	std::atomic<size_t>           d_inprocessFrame{0};
 };
 } // namespace artemis
 } // namespace fort

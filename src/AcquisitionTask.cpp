@@ -37,7 +37,7 @@ FrameGrabber::Ptr AcquisitionTask::LoadFrameGrabber(
 #endif // EURESYS_FRAMEGRABBER_SUPPORT
 
 #ifdef HYPERION_FRAMEGRABBER_SUPPORT
-	return std::make_shared<HyperionFrameGrabber>(0, options);
+	return HyperionFrameGrabber::Create(0, options);
 #endif
 
 #ifdef MULTICAM_FRAMEGRABBER_SUPPORT
